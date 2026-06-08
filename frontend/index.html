@@ -101,11 +101,21 @@ import { Terminal } from './vendor/xterm.mjs';
 import { FitAddon } from './vendor/addon-fit.mjs';
 import { WebLinksAddon } from './vendor/addon-web-links.mjs';
 import { AttachAddon } from './vendor/addon-attach.mjs';
+import { ClipboardAddon } from './vendor/addon-clipboard.mjs';
+import { SearchAddon } from './vendor/addon-search.mjs';
+import { Unicode11Addon } from './vendor/addon-unicode11.mjs';
+import { UnicodeGraphemesAddon } from './vendor/addon-unicode-graphemes.mjs';
+import { WebglAddon } from './vendor/addon-webgl.mjs';
 
 window.Terminal = Terminal;
 window.FitAddon = FitAddon;
 window.WebLinksAddon = WebLinksAddon;
 window.AttachAddon = AttachAddon;
+window.ClipboardAddon = ClipboardAddon;
+window.SearchAddon = SearchAddon;
+window.Unicode11Addon = Unicode11Addon;
+window.UnicodeGraphemesAddon = UnicodeGraphemesAddon;
+window.WebglAddon = WebglAddon;
 
 const state = { tabs: [], activeTab: null };
 
@@ -182,6 +192,12 @@ window.openTerminal = async function(host, name) {
     const fit = new FitAddon();
     term.loadAddon(fit);
     term.loadAddon(new WebLinksAddon());
+    term.loadAddon(new ClipboardAddon());
+    term.loadAddon(new SearchAddon());
+    term.loadAddon(new Unicode11Addon());
+    term.loadAddon(new UnicodeGraphemesAddon());
+    try { term.loadAddon(new WebglAddon()); } catch(e) { /* fallback to canvas */ }
+    term.unicode.activeVersion = '11';
     term.open(panel.querySelector('.term-container'));
     fit.fit();
     window.addEventListener('resize', () => fit.fit());
