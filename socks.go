@@ -10,6 +10,7 @@ import (
 )
 
 var socksAddr = "127.0.0.1:1080"
+var useExitNode = false  // when true, proxy ALL traffic (internet via exit node)
 
 func startSOCKS5(ts *tsnet.Server) error {
 	ln, err := net.Listen("tcp", socksAddr)
@@ -73,6 +74,13 @@ func handleSOCKS5(conn net.Conn, ts *tsnet.Server) {
 	}
 
 	addr := fmt.Sprintf("%s:%d", host, port)
+
+	// If no exit node, only allow tailnet destinations
+	if !useExitNode && !isTailnetDest(host) {
+		conn.Write([]byte{0x05, 0x02, 0x00, 0x01, 0, 0, 0, 0, 0, 0}) // not allowed
+		return
+	}
+
 	remote, err := ts.Dial(context.Background(), "tcp", addr)
 	if err != nil {
 		conn.Write([]byte{0x05, 0x05, 0x00, 0x01, 0, 0, 0, 0, 0, 0})
@@ -95,4 +103,16 @@ func relay(dst, src net.Conn) {
 		if n > 0 { dst.Write(buf[:n]) }
 		if err != nil { return }
 	}
+}
+
+func isTailnetDest(host string) bool {
+	ip := net.ParseIP(host)
+	if ip != nil {
+		ip4 := ip.To4()
+		if ip4 != nil {
+			return ip4[0] == 100 && (ip4[1]&0xC0) == 64 // 100.64.0.0/10
+		}
+		return len(ip) == 16 && ip[0] == 0xfd && ip[1] == 0x7a // fd7a::/16
+	}
+	return true // DNS names go through MagicDNS
 }

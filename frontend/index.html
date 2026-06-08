@@ -50,7 +50,7 @@ body{height:100%;background:var(--bg);color:var(--text);font-family:system-ui,sa
 .browser-bar input{flex:1;background:var(--bg);border:1px solid var(--border);border-radius:6px;
   padding:.35rem .6rem;color:var(--text);font-size:.82rem;outline:none}
 .browser-bar input:focus{border-color:var(--accent)}
-.browser-bar button{background:var(--accent);color:#fff;border:none;border-radius:6px;
+.browser-bar button{background:var(--surface);color:var(--dim);border:1px solid var(--border);border-radius:6px;
   padding:.35rem .7rem;font-size:.78rem;font-weight:600;cursor:pointer}
 .browser-frame{flex:1;border:none}
 
@@ -263,7 +263,10 @@ function activateTab(id) {
       panel.className = 'panel browser-panel';
       panel.innerHTML = `
         <div class="browser-bar">
-          <input value="${tab.url}" onkeydown="if(event.key==='Enter')this.nextElementSibling.click()"
+          <button onclick="historyBack('${id}')" title="Back">◀</button>
+          <button onclick="historyForward('${id}')" title="Forward">▶</button>
+          <button onclick="historyReload('${id}')" title="Reload">↻</button>
+          <input value="${tab.url}" onkeydown="if(event.key==='Enter')navigateTab('${id}')"
                  id="url-${id}">
           <button onclick="navigateTab('${id}')">Go</button>
         </div>
@@ -276,6 +279,19 @@ function activateTab(id) {
   document.getElementById(`panel-${id}`).classList.add('active');
   renderTabs();
 }
+
+window.historyBack = function(id) {
+  const iframe = document.querySelector(`#panel-${id} iframe`);
+  if (iframe?.contentWindow) try { iframe.contentWindow.history.back(); } catch {}
+};
+window.historyForward = function(id) {
+  const iframe = document.querySelector(`#panel-${id} iframe`);
+  if (iframe?.contentWindow) try { iframe.contentWindow.history.forward(); } catch {}
+};
+window.historyReload = function(id) {
+  const iframe = document.querySelector(`#panel-${id} iframe`);
+  if (iframe?.contentWindow) try { iframe.contentWindow.location.reload(); } catch {}
+};
 
 window.navigateTab = function(id) {
   const url = document.getElementById(`url-${id}`).value.trim();

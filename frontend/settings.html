@@ -133,6 +133,15 @@ tr:hover td{background:rgba(255,255,255,.02)}
     </div>
   </div>
   <div class="section">
+    <h3>Exit Node</h3>
+    <p style="color:var(--dim);font-size:.82rem;margin-bottom:.6rem">Route internet traffic through a tailnet peer. Leave empty for tailnet-only access.</p>
+    <div class="row">
+      <select id="exit-node" style="flex:1" onchange="setExitNode(this.value)">
+        <option value="">None (tailnet only)</option>
+      </select>
+    </div>
+    <div id="exit-status" style="margin-top:.4rem"></div>
+
     <h3>Network Info</h3>
     <table>
       <tr><td style="color:var(--dim)">Hostname</td><td id="ts-hostname" class="mono">—</td></tr>
@@ -266,12 +275,64 @@ async function saveTailscale() {
   });
   const data = await res.json();
   document.getElementById('ts-key').value = '';
-  checkTailscale();
+  async function loadExitNodes() {
+  const peers = await fetch('/api/tailscale/peers').then(r=>r.json()).catch(()=>[]);
+  const sel = document.getElementById('exit-node');
+  const conf = await fetch('/api/settings/exit-node').then(r=>r.json()).catch(()=>({}));
+  peers.filter(p=>p.online).forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p.name;
+    opt.textContent = p.name + ' (' + (p.ips[0]||'') + ')';
+    if (conf.exitNode === p.name) opt.selected = true;
+    sel.appendChild(opt);
+  });
+}
+async function setExitNode(node) {
+  const res = await fetch('/api/settings/exit-node', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({exitNode: node})
+  });
+  const el = document.getElementById('exit-status');
+  if (node) {
+    el.innerHTML = '<span class="status ok">Internet via ' + node + '</span>';
+  } else {
+    el.innerHTML = '<span class="status warn">Tailnet only</span>';
+  }
+}
+
+checkTailscale();
+loadExitNodes();
 }
 
 async function disconnectTailscale() {
   await fetch('/api/settings/tailscale-disconnect', {method:'POST'});
-  checkTailscale();
+  async function loadExitNodes() {
+  const peers = await fetch('/api/tailscale/peers').then(r=>r.json()).catch(()=>[]);
+  const sel = document.getElementById('exit-node');
+  const conf = await fetch('/api/settings/exit-node').then(r=>r.json()).catch(()=>({}));
+  peers.filter(p=>p.online).forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p.name;
+    opt.textContent = p.name + ' (' + (p.ips[0]||'') + ')';
+    if (conf.exitNode === p.name) opt.selected = true;
+    sel.appendChild(opt);
+  });
+}
+async function setExitNode(node) {
+  const res = await fetch('/api/settings/exit-node', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({exitNode: node})
+  });
+  const el = document.getElementById('exit-status');
+  if (node) {
+    el.innerHTML = '<span class="status ok">Internet via ' + node + '</span>';
+  } else {
+    el.innerHTML = '<span class="status warn">Tailnet only</span>';
+  }
+}
+
+checkTailscale();
+loadExitNodes();
 }
 
 async function checkTailscale() {
@@ -380,7 +441,33 @@ async function saveAppearance() {
 }
 
 // Init
+async function loadExitNodes() {
+  const peers = await fetch('/api/tailscale/peers').then(r=>r.json()).catch(()=>[]);
+  const sel = document.getElementById('exit-node');
+  const conf = await fetch('/api/settings/exit-node').then(r=>r.json()).catch(()=>({}));
+  peers.filter(p=>p.online).forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p.name;
+    opt.textContent = p.name + ' (' + (p.ips[0]||'') + ')';
+    if (conf.exitNode === p.name) opt.selected = true;
+    sel.appendChild(opt);
+  });
+}
+async function setExitNode(node) {
+  const res = await fetch('/api/settings/exit-node', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({exitNode: node})
+  });
+  const el = document.getElementById('exit-status');
+  if (node) {
+    el.innerHTML = '<span class="status ok">Internet via ' + node + '</span>';
+  } else {
+    el.innerHTML = '<span class="status warn">Tailnet only</span>';
+  }
+}
+
 checkTailscale();
+loadExitNodes();
 loadKeys();
 </script>
 </body>

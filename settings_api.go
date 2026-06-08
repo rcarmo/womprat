@@ -29,6 +29,7 @@ func (a *App) registerSettingsRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/settings/ssh-keys/generate", a.handleGenerateSSHKey)
 	mux.HandleFunc("/api/settings/hosts", a.handleHosts)
 	mux.HandleFunc("/api/settings/appearance", a.handleAppearance)
+	mux.HandleFunc("/api/settings/exit-node", a.handleExitNode)
 	mux.HandleFunc("/api/settings/config", a.handleGetConfig)
 }
 
@@ -227,4 +228,23 @@ func fingerprintFromPEM(pemData string) string {
 func edKeyMarshal(key ed25519.PrivateKey) []byte {
 	// TODO: proper openssh private key format marshaling
 	return key
+}
+
+func (a *App) handleExitNode(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case "GET":
+		json.NewEncoder(w).Encode(map[string]string{"exitNode": a.config.ExitNode})
+	case "POST":
+		var body struct{ ExitNode string `json:"exitNode"` }
+		json.NewDecoder(r.Body).Decode(&body)
+		a.config.ExitNode = body.ExitNode
+		SaveConfig(a.config)
+		// Toggle proxy mode
+		if body.ExitNode != "" {
+			useExitNode = true
+		} else {
+			useExitNode = false
+		}
+		json.NewEncoder(w).Encode(map[string]string{"status": "ok", "exitNode": body.ExitNode})
+	}
 }
