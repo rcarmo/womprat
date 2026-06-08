@@ -12,6 +12,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/jchv/go-webview2"
 		"golang.org/x/crypto/ssh"
@@ -236,8 +237,9 @@ func (a *App) handleSSHConnect(w http.ResponseWriter, r *http.Request) {
 	// SSH connection (agent auth or key-based)
 	config := &ssh.ClientConfig{
 		User:            body.User,
-		Auth:            []ssh.AuthMethod{ssh.PublicKeysCallback(sshAgentAuth)},
+		Auth:            a.getSSHAuthMethods(body.Host),
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		Timeout:         10 * time.Second,
 	}
 
 	sshConn, chans, reqs, err := ssh.NewClientConn(conn, addr, config)
