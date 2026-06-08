@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>womprat</title>
+<link rel="stylesheet" href="vendor/xterm.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#0d1117;--surface:#161b22;--border:#30363d;--text:#e6edf3;--dim:#8b949e;
+  --accent:#58a6ff;--tab-h:36px}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:system-ui,sans-serif;font-size:13px;overflow:hidden}
+
+/* Tab bar */
+#tab-bar{display:flex;height:var(--tab-h);background:var(--surface);border-bottom:1px solid var(--border);
+  -webkit-app-region:drag;user-select:none;align-items:center;padding:0 .5rem;gap:2px}
+.tab{display:flex;align-items:center;gap:.4rem;padding:0 .8rem;height:28px;border-radius:6px;
+  cursor:pointer;color:var(--dim);font-size:.8rem;font-weight:500;-webkit-app-region:no-drag;transition:.1s}
+.tab:hover{background:rgba(255,255,255,.06);color:var(--text)}
+.tab.active{background:rgba(88,166,255,.12);color:var(--accent)}
+.tab-close{opacity:.4;font-size:.9rem;margin-left:.3rem;cursor:pointer}
+.tab-close:hover{opacity:1;color:#f85149}
+#new-tab{width:28px;height:28px;display:flex;align-items:center;justify-content:center;
+  border-radius:6px;cursor:pointer;color:var(--dim);font-size:1.1rem;-webkit-app-region:no-drag}
+#new-tab:hover{background:rgba(255,255,255,.06);color:var(--text)}
+
+/* Panels */
+#panels{position:absolute;inset:var(--tab-h) 0 0 0}
+.panel{position:absolute;inset:0;display:none}
+.panel.active{display:flex;flex-direction:column}
+
+/* Terminal panel */
+.term-panel .xterm{flex:1}
+
+/* Browser panel */
+.browser-panel{flex-direction:column}
+.browser-bar{display:flex;gap:.4rem;padding:.4rem .6rem;background:var(--surface);border-bottom:1px solid var(--border)}
+.browser-bar input{flex:1;background:var(--bg);border:1px solid var(--border);border-radius:6px;
+  padding:.35rem .6rem;color:var(--text);font-size:.82rem;outline:none}
+.browser-bar input:focus{border-color:var(--accent)}
+.browser-bar button{background:var(--accent);color:#fff;border:none;border-radius:6px;
+  padding:.35rem .7rem;font-size:.78rem;font-weight:600;cursor:pointer}
+.browser-frame{flex:1;border:none}
+
+/* Setup screen */
+#setup{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  background:var(--bg);z-index:100}
+#setup.hidden{display:none}
+.setup-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;
+  padding:2rem;width:min(400px,90vw);text-align:center}
+.setup-card h2{font-size:1.2rem;margin-bottom:.5rem}
+.setup-card p{color:var(--dim);font-size:.85rem;margin-bottom:1.2rem;line-height:1.5}
+.setup-card input{width:100%;padding:.6rem .8rem;background:var(--bg);border:1px solid var(--border);
+  border-radius:8px;color:var(--text);font-family:monospace;font-size:.85rem;margin-bottom:.8rem}
+.setup-card button{background:var(--accent);color:#fff;border:none;border-radius:8px;
+  padding:.55rem 1.2rem;font-weight:600;cursor:pointer;font-size:.85rem}
+.setup-card .status{margin-top:.8rem;font-size:.82rem;color:var(--dim)}
+
+/* Peer list (new tab menu) */
+#peer-menu{position:absolute;top:var(--tab-h);right:.5rem;background:var(--surface);
+  border:1px solid var(--border);border-radius:8px;padding:.5rem;z-index:50;
+  min-width:220px;display:none;max-height:60vh;overflow-y:auto}
+#peer-menu.show{display:block}
+.peer-item{display:flex;align-items:center;gap:.5rem;padding:.4rem .6rem;border-radius:6px;cursor:pointer;font-size:.82rem}
+.peer-item:hover{background:rgba(255,255,255,.06)}
+.peer-dot{width:8px;height:8px;border-radius:50%}
+.peer-dot.online{background:#3fb950}
+.peer-dot.offline{background:var(--dim)}
+.peer-actions{margin-left:auto;display:flex;gap:.3rem}
+.peer-actions button{background:none;border:1px solid var(--border);border-radius:4px;
+  padding:.15rem .4rem;font-size:.72rem;color:var(--dim);cursor:pointer}
+.peer-actions button:hover{color:var(--accent);border-color:var(--accent)}
+</style>
+</head>
+<body>
+
+<div id="setup">
+  <div class="setup-card">
+    <h2>🐀 womprat</h2>
+    <p>Enter your Tailscale auth key to connect.<br>It will be saved in your system keychain.</p>
+    <input id="auth-key" type="password" placeholder="tskey-auth-...">
+    <button onclick="saveKey()">Connect</button>
+    <div class="status" id="setup-status"></div>
+  </div>
+</div>
+
+<div id="tab-bar">
+  <div id="new-tab" onclick="togglePeerMenu()">+</div>
+</div>
+
+<div id="peer-menu"></div>
+<div id="panels"></div>
+
+<script type="module">
+import { Terminal } from './vendor/xterm.mjs';
+import { FitAddon } from './vendor/addon-fit.mjs';
+import { WebLinksAddon } from './vendor/addon-web-links.mjs';
+import { AttachAddon } from './vendor/addon-attach.mjs';
+
+window.Terminal = Terminal;
+window.FitAddon = FitAddon;
+window.WebLinksAddon = WebLinksAddon;
+window.AttachAddon = AttachAddon;
+
+const state = { tabs: [], activeTab: null };
+
+// Check auth status
+async function checkAuth() {
+  const res = await fetch('/api/auth/status');
+  const data = await res.json();
+  if (data.hasKey && data.connected) {
+    document.getElementById('setup').classList.add('hidden');
+    loadPeers();
+  }
+}
+
+window.saveKey = async function() {
+  const key = document.getElementById('auth-key').value.trim();
+  const status = document.getElementById('setup-status');
+  if (!key) { status.textContent = 'Please enter a key'; return; }
+  status.textContent = 'Connecting...';
+  const res = await fetch('/api/auth/save-key', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({key})
+  });
+  const data = await res.json();
+  if (data.status === 'connected') {
+    document.getElementById('setup').classList.add('hidden');
+    loadPeers();
+  } else {
+    status.textContent = data.error || 'Failed to connect';
+  }
+};
+
+async function loadPeers() {
+  const res = await fetch('/api/tailscale/peers');
+  const peers = await res.json();
+  const menu = document.getElementById('peer-menu');
+  menu.innerHTML = peers.map(p => `
+    <div class="peer-item" data-host="${p.name}" data-ip="${p.ips[0] || ''}">
+      <span class="peer-dot ${p.online?'online':'offline'}"></span>
+      <span>${p.name}</span>
+      <span style="color:var(--dim);font-size:.72rem">${p.os}</span>
+      <div class="peer-actions">
+        <button onclick="openTerminal('${p.ips[0] || p.name}','${p.name}')">SSH</button>
+        <button onclick="openBrowser('http://${p.ips[0] || p.name}:8080','${p.name}')">Web</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+window.togglePeerMenu = function() {
+  document.getElementById('peer-menu').classList.toggle('show');
+};
+
+window.openTerminal = async function(host, name) {
+  document.getElementById('peer-menu').classList.remove('show');
+  const tabId = `term-${Date.now()}`;
+  const tab = { id: tabId, type: 'terminal', title: name, host };
+  state.tabs.push(tab);
+  renderTabs();
+  activateTab(tabId);
+
+  // Connect SSH
+  const res = await fetch('/api/ssh/connect', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ host, user: 'root', port: 22 })
+  });
+  const data = await res.json();
+  if (data.tabId) {
+    // Open WebSocket for terminal I/O
+    const ws = new WebSocket(`ws://${location.host}/api/ssh/ws?tab=${data.tabId}`);
+    const panel = document.getElementById(`panel-${tabId}`);
+    const term = new Terminal({ cursorBlink: true, fontSize: 14, theme: {
+      background: '#0d1117', foreground: '#e6edf3', cursor: '#58a6ff'
+    }});
+    const fit = new FitAddon();
+    term.loadAddon(fit);
+    term.loadAddon(new WebLinksAddon());
+    term.open(panel.querySelector('.term-container'));
+    fit.fit();
+    window.addEventListener('resize', () => fit.fit());
+
+    ws.onopen = () => { term.loadAddon(new AttachAddon(ws)); };
+    ws.onclose = () => { term.write('\r\n[Connection closed]'); };
+  }
+};
+
+window.openBrowser = function(url, name) {
+  document.getElementById('peer-menu').classList.remove('show');
+  const tabId = `browser-${Date.now()}`;
+  const tab = { id: tabId, type: 'browser', title: name, url };
+  state.tabs.push(tab);
+  renderTabs();
+  activateTab(tabId);
+};
+
+window.closeTab = function(id, e) {
+  e.stopPropagation();
+  state.tabs = state.tabs.filter(t => t.id !== id);
+  document.getElementById(`panel-${id}`)?.remove();
+  renderTabs();
+  if (state.activeTab === id && state.tabs.length) activateTab(state.tabs[0].id);
+};
+
+function renderTabs() {
+  const bar = document.getElementById('tab-bar');
+  const existing = bar.querySelectorAll('.tab');
+  existing.forEach(el => el.remove());
+  const plus = document.getElementById('new-tab');
+  state.tabs.forEach(tab => {
+    const el = document.createElement('div');
+    el.className = `tab${tab.id === state.activeTab ? ' active' : ''}`;
+    el.onclick = () => activateTab(tab.id);
+    el.innerHTML = `${tab.type === 'terminal' ? '⬛' : '🌐'} ${tab.title} <span class="tab-close" onclick="closeTab('${tab.id}',event)">×</span>`;
+    bar.insertBefore(el, plus);
+  });
+}
+
+function activateTab(id) {
+  state.activeTab = id;
+  const panels = document.getElementById('panels');
+  // Create panel if it doesn't exist
+  if (!document.getElementById(`panel-${id}`)) {
+    const tab = state.tabs.find(t => t.id === id);
+    const panel = document.createElement('div');
+    panel.id = `panel-${id}`;
+    if (tab.type === 'terminal') {
+      panel.className = 'panel term-panel';
+      panel.innerHTML = '<div class="term-container" style="flex:1"></div>';
+    } else {
+      panel.className = 'panel browser-panel';
+      panel.innerHTML = `
+        <div class="browser-bar">
+          <input value="${tab.url}" onkeydown="if(event.key==='Enter')this.nextElementSibling.click()"
+                 id="url-${id}">
+          <button onclick="navigateTab('${id}')">Go</button>
+        </div>
+        <iframe class="browser-frame" src="${tab.url}" sandbox="allow-same-origin allow-scripts allow-forms"></iframe>`;
+    }
+    panels.appendChild(panel);
+  }
+  // Show active panel, hide others
+  panels.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById(`panel-${id}`).classList.add('active');
+  renderTabs();
+}
+
+window.navigateTab = function(id) {
+  const url = document.getElementById(`url-${id}`).value;
+  const iframe = document.querySelector(`#panel-${id} iframe`);
+  if (iframe) iframe.src = url;
+};
+
+checkAuth();
+</script>
+</body>
+</html>
