@@ -16,10 +16,10 @@ type AppConfig struct {
 	UnlockMethod string `json:"unlockMethod"`
 
 	// Window state
-	WindowWidth  int `json:"windowWidth"`
-	WindowHeight int `json:"windowHeight"`
-	WindowX      int `json:"windowX"`
-	WindowY      int `json:"windowY"`
+	WindowWidth  int  `json:"windowWidth"`
+	WindowHeight int  `json:"windowHeight"`
+	WindowX      int  `json:"windowX"`
+	WindowY      int  `json:"windowY"`
 	Maximized    bool `json:"maximized"`
 
 	// Session restore
@@ -27,6 +27,12 @@ type AppConfig struct {
 
 	// Per-host SSH settings
 	Hosts map[string]HostConfig `json:"hosts"`
+
+	// Appearance
+	FontSize    int    `json:"fontSize"`
+	Theme       string `json:"theme"`
+	RestoreTabs bool   `json:"restoreTabs"`
+	AutoConnect bool   `json:"autoConnect"`
 }
 
 type SavedTab struct {

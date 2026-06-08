@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Settings — womprat</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#0d1117;--surface:#161b22;--border:#30363d;--text:#e6edf3;--dim:#8b949e;
+  --accent:#58a6ff;--danger:#f85149;--success:#3fb950;--radius:8px}
+body{background:var(--bg);color:var(--text);font-family:system-ui,sans-serif;font-size:13px;padding:1.5rem;max-width:640px;margin:0 auto}
+h2{font-size:1rem;margin-bottom:1rem;display:flex;align-items:center;gap:.5rem}
+h3{font-size:.85rem;color:var(--dim);margin:1.2rem 0 .5rem;text-transform:uppercase;letter-spacing:.05em}
+
+/* Tabs */
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--border);margin-bottom:1.5rem}
+.tab-btn{padding:.5rem 1rem;background:none;border:none;color:var(--dim);font-size:.82rem;
+  font-weight:600;cursor:pointer;border-bottom:2px solid transparent;transition:.1s}
+.tab-btn:hover{color:var(--text)}
+.tab-btn.active{color:var(--accent);border-bottom-color:var(--accent)}
+.tab-panel{display:none}
+.tab-panel.active{display:block}
+
+/* Form elements */
+label{display:block;font-size:.78rem;font-weight:600;color:var(--dim);margin-bottom:.3rem;
+  text-transform:uppercase;letter-spacing:.04em}
+input[type="text"],input[type="password"],input[type="number"],select{
+  width:100%;padding:.5rem .7rem;background:var(--bg);border:1px solid var(--border);
+  border-radius:var(--radius);color:var(--text);font-size:.85rem;margin-bottom:.8rem}
+input:focus,select:focus{outline:none;border-color:var(--accent)}
+.row{display:flex;gap:.5rem;align-items:flex-end}
+.row input,.row select{flex:1}
+
+button{padding:.45rem .9rem;border:none;border-radius:var(--radius);font-size:.8rem;
+  font-weight:600;cursor:pointer;transition:.1s}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{filter:brightness(1.15)}
+.btn-secondary{background:var(--surface);color:var(--dim);border:1px solid var(--border)}
+.btn-secondary:hover{color:var(--text);border-color:var(--text)}
+.btn-danger{background:rgba(248,81,73,.12);color:var(--danger);border:1px solid rgba(248,81,73,.3)}
+.btn-danger:hover{background:rgba(248,81,73,.2)}
+.btn-row{display:flex;gap:.5rem;margin-top:.5rem}
+
+/* Status */
+.status{display:inline-flex;align-items:center;gap:.4rem;font-size:.8rem;padding:.3rem .6rem;
+  border-radius:var(--radius);margin:.5rem 0}
+.status.ok{background:rgba(63,185,80,.1);color:var(--success)}
+.status.err{background:rgba(248,81,73,.1);color:var(--danger)}
+.status.warn{background:rgba(210,153,34,.1);color:#d2992a}
+
+/* Table */
+table{width:100%;border-collapse:collapse;font-size:.82rem;margin:.5rem 0}
+th{text-align:left;padding:.4rem .5rem;color:var(--dim);font-size:.72rem;text-transform:uppercase;
+  letter-spacing:.05em;border-bottom:1px solid var(--border)}
+td{padding:.5rem;border-bottom:1px solid var(--border)}
+tr:hover td{background:rgba(255,255,255,.02)}
+
+/* Radio/check */
+.option{display:flex;align-items:center;gap:.6rem;padding:.6rem .8rem;margin:.3rem 0;
+  border:1px solid var(--border);border-radius:var(--radius);cursor:pointer}
+.option:hover{border-color:var(--accent);background:rgba(88,166,255,.04)}
+.option.selected{border-color:var(--accent);background:rgba(88,166,255,.08)}
+.option input{accent-color:var(--accent)}
+.option-label{font-weight:600;font-size:.85rem}
+.option-desc{font-size:.78rem;color:var(--dim)}
+
+/* Misc */
+.section{margin-bottom:1.5rem;padding-bottom:1.5rem;border-bottom:1px solid var(--border)}
+.section:last-child{border-bottom:none}
+.mono{font-family:'JetBrains Mono',monospace;font-size:.8rem}
+.badge{display:inline-block;padding:.15rem .4rem;border-radius:4px;font-size:.7rem;font-weight:700}
+.badge-green{background:rgba(63,185,80,.15);color:var(--success)}
+.badge-dim{background:rgba(139,148,158,.12);color:var(--dim)}
+</style>
+</head>
+<body>
+
+<h2>⚙️ Settings</h2>
+
+<div class="tabs">
+  <button class="tab-btn active" onclick="showTab('security')">Security</button>
+  <button class="tab-btn" onclick="showTab('tailscale')">Tailscale</button>
+  <button class="tab-btn" onclick="showTab('keys')">SSH Keys</button>
+  <button class="tab-btn" onclick="showTab('hosts')">Hosts</button>
+  <button class="tab-btn" onclick="showTab('appearance')">Appearance</button>
+  <button class="tab-btn" onclick="showTab('about')">About</button>
+</div>
+
+<!-- ═══ Security ═══ -->
+<div class="tab-panel active" id="panel-security">
+  <div class="section">
+    <h3>Unlock Method</h3>
+    <p style="color:var(--dim);font-size:.82rem;margin-bottom:.8rem">How should womprat protect your stored secrets?</p>
+    <div class="option selected" onclick="selectUnlock('hello')">
+      <input type="radio" name="unlock" value="hello" checked>
+      <div><div class="option-label">Windows Hello</div><div class="option-desc">Face, fingerprint, or PIN — recommended</div></div>
+    </div>
+    <div class="option" onclick="selectUnlock('master')">
+      <input type="radio" name="unlock" value="master">
+      <div><div class="option-label">Master Password</div><div class="option-desc">Enter a password each time the app launches</div></div>
+    </div>
+    <div class="option" onclick="selectUnlock('dpapi')">
+      <input type="radio" name="unlock" value="dpapi">
+      <div><div class="option-label">Transparent (DPAPI)</div><div class="option-desc">No prompt — secrets protected by your Windows login only</div></div>
+    </div>
+  </div>
+  <div class="section" id="master-pw-section" style="display:none">
+    <h3>Set Master Password</h3>
+    <label for="pw1">Password</label>
+    <input type="password" id="pw1" placeholder="Enter master password">
+    <label for="pw2">Confirm</label>
+    <input type="password" id="pw2" placeholder="Confirm password">
+    <div class="btn-row">
+      <button class="btn-primary" onclick="setMasterPassword()">Save Password</button>
+    </div>
+    <div id="pw-status"></div>
+  </div>
+</div>
+
+<!-- ═══ Tailscale ═══ -->
+<div class="tab-panel" id="panel-tailscale">
+  <div class="section">
+    <h3>Connection</h3>
+    <div id="ts-status" class="status warn">Checking…</div>
+    <label for="ts-key" style="margin-top:.8rem">Auth Key</label>
+    <div class="row">
+      <input type="password" id="ts-key" placeholder="tskey-auth-...">
+      <button class="btn-secondary" onclick="toggleVis('ts-key')">Show</button>
+    </div>
+    <div class="btn-row">
+      <button class="btn-primary" onclick="saveTailscale()">Save & Connect</button>
+      <button class="btn-secondary" onclick="disconnectTailscale()">Disconnect</button>
+    </div>
+  </div>
+  <div class="section">
+    <h3>Network Info</h3>
+    <table>
+      <tr><td style="color:var(--dim)">Hostname</td><td id="ts-hostname" class="mono">—</td></tr>
+      <tr><td style="color:var(--dim)">Tailscale IP</td><td id="ts-ip" class="mono">—</td></tr>
+      <tr><td style="color:var(--dim)">Peers online</td><td id="ts-peers">—</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- ═══ SSH Keys ═══ -->
+<div class="tab-panel" id="panel-keys">
+  <div class="section">
+    <h3>Imported Keys</h3>
+    <table>
+      <thead><tr><th>Name</th><th>Fingerprint</th><th>Hosts</th><th></th></tr></thead>
+      <tbody id="keys-table"><tr><td colspan="4" style="color:var(--dim)">No keys imported</td></tr></tbody>
+    </table>
+    <div class="btn-row" style="margin-top:.8rem">
+      <button class="btn-primary" onclick="importKey()">Import Key…</button>
+      <button class="btn-secondary" onclick="generateKey()">Generate New Pair</button>
+    </div>
+    <input type="file" id="key-file-input" accept=".pem,.key,.pub,id_*" style="display:none" onchange="handleKeyFile(this)">
+  </div>
+</div>
+
+<!-- ═══ Hosts ═══ -->
+<div class="tab-panel" id="panel-hosts">
+  <div class="section">
+    <h3>Known Hosts</h3>
+    <p style="color:var(--dim);font-size:.82rem;margin-bottom:.6rem">Auto-discovered from your tailnet. Edit per-host defaults below.</p>
+    <table>
+      <thead><tr><th>Host</th><th>User</th><th>Port</th><th>Key</th><th>Status</th></tr></thead>
+      <tbody id="hosts-table"><tr><td colspan="5" style="color:var(--dim)">Connect to Tailscale to discover peers</td></tr></tbody>
+    </table>
+    <div class="btn-row" style="margin-top:.8rem">
+      <button class="btn-secondary" onclick="refreshHosts()">Refresh from Tailnet</button>
+      <button class="btn-secondary" onclick="addHost()">Add Manual Host</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Appearance ═══ -->
+<div class="tab-panel" id="panel-appearance">
+  <div class="section">
+    <h3>Terminal</h3>
+    <label for="font-size">Font Size</label>
+    <input type="number" id="font-size" value="14" min="10" max="24" style="width:80px">
+    <label for="theme">Color Scheme</label>
+    <select id="theme">
+      <option value="dark" selected>Dark (default)</option>
+      <option value="light">Light</option>
+      <option value="solarized-dark">Solarized Dark</option>
+      <option value="monokai">Monokai</option>
+    </select>
+  </div>
+  <div class="section">
+    <h3>Behavior</h3>
+    <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer;text-transform:none;font-size:.85rem">
+      <input type="checkbox" id="restore-tabs" checked style="accent-color:var(--accent)">
+      Restore open tabs on launch
+    </label>
+    <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer;text-transform:none;font-size:.85rem;margin-top:.4rem">
+      <input type="checkbox" id="auto-connect" checked style="accent-color:var(--accent)">
+      Connect to Tailscale automatically on launch
+    </label>
+  </div>
+  <div class="btn-row">
+    <button class="btn-primary" onclick="saveAppearance()">Save</button>
+  </div>
+</div>
+
+<!-- ═══ About ═══ -->
+<div class="tab-panel" id="panel-about">
+  <div class="section">
+    <h3>womprat</h3>
+    <table>
+      <tr><td style="color:var(--dim)">Version</td><td class="mono">0.1.0</td></tr>
+      <tr><td style="color:var(--dim)">Go</td><td class="mono" id="about-go">—</td></tr>
+      <tr><td style="color:var(--dim)">Tailscale</td><td class="mono" id="about-ts">—</td></tr>
+      <tr><td style="color:var(--dim)">WebView2</td><td class="mono">System-provided</td></tr>
+      <tr><td style="color:var(--dim)">Platform</td><td class="mono" id="about-platform">—</td></tr>
+    </table>
+  </div>
+  <div class="section">
+    <h3>Links</h3>
+    <p><a href="http://gitea.local:3000/rcarmo/womprat" style="color:var(--accent)">Source (Gitea)</a></p>
+  </div>
+</div>
+
+<script>
+function showTab(id) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('panel-'+id).classList.add('active');
+  event.target.classList.add('active');
+}
+
+function selectUnlock(method) {
+  document.querySelectorAll('.option').forEach(o => o.classList.remove('selected'));
+  event.currentTarget.classList.add('selected');
+  document.querySelector(`input[value="${method}"]`).checked = true;
+  document.getElementById('master-pw-section').style.display = method==='master' ? 'block' : 'none';
+  fetch('/api/settings/unlock-method', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({method})
+  });
+}
+
+function toggleVis(id) {
+  const el = document.getElementById(id);
+  el.type = el.type==='password' ? 'text' : 'password';
+}
+
+async function setMasterPassword() {
+  const pw1 = document.getElementById('pw1').value;
+  const pw2 = document.getElementById('pw2').value;
+  const status = document.getElementById('pw-status');
+  if (!pw1 || pw1 !== pw2) { status.innerHTML = '<span class="status err">Passwords don\'t match</span>'; return; }
+  const res = await fetch('/api/settings/master-password', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({password: pw1})
+  });
+  status.innerHTML = res.ok ? '<span class="status ok">Password set ✓</span>' : '<span class="status err">Failed</span>';
+}
+
+async function saveTailscale() {
+  const key = document.getElementById('ts-key').value.trim();
+  if (!key) return;
+  const res = await fetch('/api/settings/tailscale-key', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({key})
+  });
+  const data = await res.json();
+  document.getElementById('ts-key').value = '';
+  checkTailscale();
+}
+
+async function disconnectTailscale() {
+  await fetch('/api/settings/tailscale-disconnect', {method:'POST'});
+  checkTailscale();
+}
+
+async function checkTailscale() {
+  try {
+    const res = await fetch('/api/tailscale/status');
+    const data = await res.json();
+    const el = document.getElementById('ts-status');
+    if (data.status === 'connected') {
+      el.className = 'status ok'; el.textContent = '● Connected';
+      document.getElementById('ts-hostname').textContent = data.hostname || '—';
+      document.getElementById('ts-ip').textContent = (data.ip||[]).join(', ') || '—';
+      const peers = await fetch('/api/tailscale/peers').then(r=>r.json());
+      document.getElementById('ts-peers').textContent = peers.filter(p=>p.online).length + ' / ' + peers.length;
+    } else {
+      el.className = 'status err'; el.textContent = '○ Disconnected';
+    }
+  } catch { document.getElementById('ts-status').className='status err'; }
+}
+
+function importKey() { document.getElementById('key-file-input').click(); }
+
+async function handleKeyFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const content = await file.text();
+  const name = file.name.replace(/\.(pem|key|pub)$/,'');
+  const res = await fetch('/api/settings/ssh-keys', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({name, content})
+  });
+  if (res.ok) loadKeys();
+  input.value = '';
+}
+
+async function generateKey() {
+  const name = prompt('Key name:');
+  if (!name) return;
+  await fetch('/api/settings/ssh-keys/generate', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({name})
+  });
+  loadKeys();
+}
+
+async function loadKeys() {
+  const res = await fetch('/api/settings/ssh-keys');
+  const keys = await res.json();
+  const tbody = document.getElementById('keys-table');
+  if (!keys.length) { tbody.innerHTML = '<tr><td colspan="4" style="color:var(--dim)">No keys imported</td></tr>'; return; }
+  tbody.innerHTML = keys.map(k => `<tr>
+    <td class="mono">${k.name}</td>
+    <td class="mono" style="font-size:.72rem">${k.fingerprint||'—'}</td>
+    <td>${(k.hosts||[]).join(', ')||'—'}</td>
+    <td><button class="btn-danger" onclick="deleteKey('${k.name}')" style="padding:.2rem .5rem;font-size:.7rem">✕</button></td>
+  </tr>`).join('');
+}
+
+async function deleteKey(name) {
+  if (!confirm(`Delete key "${name}"?`)) return;
+  await fetch('/api/settings/ssh-keys/'+encodeURIComponent(name), {method:'DELETE'});
+  loadKeys();
+}
+
+async function refreshHosts() {
+  const res = await fetch('/api/tailscale/peers');
+  const peers = await res.json();
+  const confRes = await fetch('/api/settings/hosts');
+  const hostConf = await confRes.json();
+  const tbody = document.getElementById('hosts-table');
+  tbody.innerHTML = peers.map(p => {
+    const conf = hostConf[p.name] || {};
+    return `<tr>
+      <td class="mono">${p.name}</td>
+      <td><input value="${conf.user||'root'}" style="width:60px;padding:.2rem .4rem;font-size:.78rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text)" onchange="updateHost('${p.name}','user',this.value)"></td>
+      <td><input type="number" value="${conf.port||22}" style="width:45px;padding:.2rem .3rem;font-size:.78rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text)" onchange="updateHost('${p.name}','port',+this.value)"></td>
+      <td><select style="padding:.2rem;font-size:.75rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text)" onchange="updateHost('${p.name}','keyName',this.value)"><option value="">default</option></select></td>
+      <td>${p.online ? '<span class="badge badge-green">●</span>' : '<span class="badge badge-dim">○</span>'}</td>
+    </tr>`;
+  }).join('');
+}
+
+async function updateHost(host, field, value) {
+  await fetch('/api/settings/hosts/'+encodeURIComponent(host), {
+    method:'PATCH', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({[field]: value})
+  });
+}
+
+function addHost() {
+  const host = prompt('Hostname or IP:');
+  if (!host) return;
+  updateHost(host, 'user', 'root');
+  refreshHosts();
+}
+
+async function saveAppearance() {
+  await fetch('/api/settings/appearance', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      fontSize: +document.getElementById('font-size').value,
+      theme: document.getElementById('theme').value,
+      restoreTabs: document.getElementById('restore-tabs').checked,
+      autoConnect: document.getElementById('auto-connect').checked,
+    })
+  });
+}
+
+// Init
+checkTailscale();
+loadKeys();
+</script>
+</body>
+</html>

@@ -86,6 +86,9 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:system-
 
 <div id="tab-bar">
   <div id="new-tab" onclick="togglePeerMenu()">+</div>
+  <div style="margin-left:auto;display:flex;gap:4px">
+    <div id="settings-btn" onclick="openSettings()" style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:6px;cursor:pointer;color:var(--dim);font-size:.9rem;-webkit-app-region:no-drag" title="Settings">⚙</div>
+  </div>
 </div>
 
 <div id="peer-menu"></div>
@@ -250,6 +253,15 @@ window.navigateTab = function(id) {
   const url = document.getElementById(`url-${id}`).value;
   const iframe = document.querySelector(`#panel-${id} iframe`);
   if (iframe) iframe.src = url;
+};
+
+window.openSettings = function() {
+  const tabId = 'settings';
+  if (!state.tabs.find(t => t.id === tabId)) {
+    state.tabs.push({ id: tabId, type: 'browser', title: 'Settings', url: '/frontend/settings.html' });
+    renderTabs();
+  }
+  activateTab(tabId);
 };
 
 checkAuth();

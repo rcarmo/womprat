@@ -37,13 +37,16 @@ type Tab struct {
 
 type App struct {
 	mu       sync.Mutex
+	config   *AppConfig
 	tsServer *tsnet.Server
 	tabs     []Tab
 	sshConns map[string]*ssh.Client
 }
 
 func main() {
+	cfg, _ := LoadConfig()
 	app := &App{
+		config:   cfg,
 		sshConns: make(map[string]*ssh.Client),
 	}
 
@@ -107,6 +110,9 @@ func (a *App) registerRoutes(mux *http.ServeMux) {
 	// Serve frontend
 	mux.Handle("/", http.FileServer(http.FS(frontendFS)))
 
+	// Settings API
+	a.registerSettingsRoutes(mux)
+
 	// API endpoints
 	mux.HandleFunc("/api/auth/status", a.handleAuthStatus)
 	mux.HandleFunc("/api/auth/save-key", a.handleSaveKey)
@@ -115,7 +121,7 @@ func (a *App) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/ssh/connect", a.handleSSHConnect)
 	mux.HandleFunc("/api/ssh/resize", a.handleSSHResize)
 	// WebSocket for terminal I/O
-	mux.HandleFunc("/api/ssh/ws", a.handleSSHWebSocket)
+	mux.HandleFunc("/api/ssh/ws", a.handleSSHWebSocketFull)
 }
 
 func (a *App) handleAuthStatus(w http.ResponseWriter, r *http.Request) {
