@@ -88,6 +88,9 @@ func main() {
 		log.Fatal("Failed to create WebView2 window")
 	}
 	defer w.Destroy()
+
+	// Set dark title bar on Windows
+	applyDarkMode(w)
 	w.Navigate(url)
 	w.Run()
 }
