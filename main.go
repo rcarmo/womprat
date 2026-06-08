@@ -158,7 +158,8 @@ func (a *App) handleTSStatus(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]string{"status": "disconnected"})
 		return
 	}
-	status, err := a.tsServer.LocalClient().Status(r.Context())
+	lc, _ := a.tsServer.LocalClient()
+	status, err := lc.Status(r.Context())
 	if err != nil {
 		json.NewEncoder(w).Encode(map[string]string{"status": "error", "error": err.Error()})
 		return
@@ -175,7 +176,8 @@ func (a *App) handleTSPeers(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode([]string{})
 		return
 	}
-	status, err := a.tsServer.LocalClient().Status(r.Context())
+	lc, _ := a.tsServer.LocalClient()
+	status, err := lc.Status(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return
