@@ -65,7 +65,16 @@ func main() {
 	// Start Tailscale
 	if err := app.startTailscale(); err != nil {
 		log.Printf("Tailscale start failed: %v (will prompt for key)", err)
+	} else {
+		// Start SOCKS5 proxy for transparent browser routing through tsnet
+		if err := startSOCKS5(app.tsServer); err != nil {
+			log.Printf("SOCKS5 failed: %v", err)
+		}
 	}
+
+	// Configure WebView2 to use our SOCKS proxy for all non-localhost traffic
+	// This env var is read by the native WebView2 loader at environment creation time
+	os.Setenv("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", "--proxy-server=socks5://127.0.0.1:1080 --proxy-bypass-list=127.0.0.1;localhost")
 
 	// Open WebView2 window
 	url := fmt.Sprintf("http://127.0.0.1:%d/", port)
@@ -118,7 +127,6 @@ func (a *App) registerRoutes(mux *http.ServeMux) {
 	a.registerSettingsRoutes(mux)
 
 	// Reverse proxy for browser tabs (routes through tsnet)
-	a.startProxyHandler(mux)
 
 
 	// API endpoints

@@ -167,7 +167,7 @@ async function loadPeers() {
       <span>${p.name}</span>
       <span style="color:var(--dim);font-size:.72rem">${p.os}</span>
       <div class="peer-actions">
-        <button onclick="openTerminal('${p.ips[0] || p.name}','${p.name}')">SSH</button>
+        <button onclick="openTerminal('${p.ips[0] || p.name}','${p.name}','root',22)">SSH</button>
         <button onclick="openBrowser('http://${p.ips[0] || p.name}:8080','${p.name}')">Web</button>
       </div>
     </div>
@@ -178,7 +178,7 @@ window.togglePeerMenu = function() {
   document.getElementById('peer-menu').classList.toggle('show');
 };
 
-window.openTerminal = async function(host, name) {
+window.openTerminal = async function(host, name, user, port) {
   document.getElementById('peer-menu').classList.remove('show');
   const tabId = `term-${Date.now()}`;
   const tab = { id: tabId, type: 'terminal', title: name, host };
@@ -189,7 +189,7 @@ window.openTerminal = async function(host, name) {
   // Connect SSH
   const res = await fetch('/api/ssh/connect', {
     method: 'POST', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ host, user: 'root', port: 22 })
+    body: JSON.stringify({ host, user: user || 'root', port: port || 22 })
   });
   const data = await res.json();
   if (data.tabId) {
@@ -267,7 +267,7 @@ function activateTab(id) {
                  id="url-${id}">
           <button onclick="navigateTab('${id}')">Go</button>
         </div>
-        <iframe class="browser-frame" src="/p/${encodeURIComponent(tab.url)}"></iframe>`;
+        <iframe class="browser-frame" src="${tab.url}"></iframe>`;
     }
     panels.appendChild(panel);
   }
@@ -278,9 +278,22 @@ function activateTab(id) {
 }
 
 window.navigateTab = function(id) {
-  const url = document.getElementById(`url-${id}`).value;
+  const url = document.getElementById(`url-${id}`).value.trim();
+  // Handle ssh:// URLs - open as terminal tab instead
+  const sshMatch = url.match(/^ssh:\/\/(?:([^@]+)@)?([^:\/]+)(?::(\d+))?/);
+  if (sshMatch) {
+    const user = sshMatch[1] || 'root';
+    const host = sshMatch[2];
+    const port = sshMatch[3] ? parseInt(sshMatch[3]) : 22;
+    openTerminal(host, host, user, port);
+    closeTab(id, new Event('click'));
+    return;
+  }
+  // Ensure http(s) prefix
+  let navUrl = url;
+  if (!/^https?:\/\//.test(navUrl)) navUrl = 'http://' + navUrl;
   const iframe = document.querySelector(`#panel-${id} iframe`);
-  if (iframe) iframe.src = '/p/' + encodeURIComponent(url);
+  if (iframe) iframe.src = navUrl;
 };
 
 window.openSettings = function() {
