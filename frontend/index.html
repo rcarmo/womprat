@@ -9,20 +9,21 @@
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{--bg:#0d1117;--surface:#161b22;--border:#30363d;--text:#e6edf3;--dim:#8b949e;
-  --accent:#58a6ff;--tab-h:36px}
-html,body{height:100%;background:var(--bg);color:var(--text);font-family:system-ui,sans-serif;font-size:13px;overflow:hidden}
+  --accent:#58a6ff;--tab-h:2.4em}
+html{font-size:100%}
+body{height:100%;background:var(--bg);color:var(--text);font-family:system-ui,sans-serif;font-size:small;overflow:hidden}
 
 /* Tab bar */
 #tab-bar{display:flex;height:var(--tab-h);background:var(--surface);border-bottom:1px solid var(--border);
   -webkit-app-region:drag;user-select:none;align-items:center;padding:0 .5rem;gap:2px}
-.tab{display:flex;align-items:center;gap:.4rem;padding:0 .8rem;height:28px;border-radius:6px;
-  cursor:pointer;color:var(--dim);font-size:.8rem;font-weight:500;-webkit-app-region:no-drag;transition:.1s}
+.tab{display:flex;align-items:center;gap:.4rem;padding:0 .8rem;height:1.8em;border-radius:6px;
+  cursor:pointer;color:var(--dim);font-size:0.85em;font-weight:500;-webkit-app-region:no-drag;transition:.1s}
 .tab:hover{background:rgba(255,255,255,.06);color:var(--text)}
 .tab.active{background:rgba(88,166,255,.12);color:var(--accent)}
-.tab-close{opacity:.4;font-size:.9rem;margin-left:.3rem;cursor:pointer}
+.tab-close{opacity:.4;font-size:0.9em;margin-left:.3rem;cursor:pointer}
 .tab-close:hover{opacity:1;color:#f85149}
-#new-tab{width:28px;height:28px;display:flex;align-items:center;justify-content:center;
-  border-radius:6px;cursor:pointer;color:var(--dim);font-size:1.1rem;-webkit-app-region:no-drag}
+#new-tab{width:1.8em;height:1.8em;display:flex;align-items:center;justify-content:center;
+  border-radius:6px;cursor:pointer;color:var(--dim);font-size:1.1em;-webkit-app-region:no-drag}
 #new-tab:hover{background:rgba(255,255,255,.06);color:var(--text)}
 
 /* Panels */
@@ -88,7 +89,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:system-
 <div id="tab-bar">
   <div id="new-tab" onclick="togglePeerMenu()">+</div>
   <div style="margin-left:auto;display:flex;gap:4px">
-    <div id="settings-btn" onclick="openSettings()" style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:6px;cursor:pointer;color:var(--dim);font-size:.9rem;-webkit-app-region:no-drag" title="Settings">⚙</div>
+    <div id="settings-btn" onclick="openSettings()" style="width:1.8em;height:1.8em;display:flex;align-items:center;justify-content:center;border-radius:6px;cursor:pointer;color:var(--dim);font-size:0.9em;-webkit-app-region:no-drag" title="Settings">⚙</div>
   </div>
 </div>
 
