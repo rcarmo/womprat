@@ -7,6 +7,16 @@
 <title>womprat</title>
 <link rel="stylesheet" href="vendor/xterm.css">
 <style>
+@font-face {
+  font-family: 'FiraCode Nerd Font Mono';
+  src: url('fonts/FiraCodeNerdFontMono-Regular.ttf') format('truetype');
+  font-weight: 400; font-style: normal; font-display: block;
+}
+@font-face {
+  font-family: 'FiraCode Nerd Font Mono';
+  src: url('fonts/FiraCodeNerdFontMono-Bold.ttf') format('truetype');
+  font-weight: 700; font-style: normal; font-display: block;
+}
 *{box-sizing:border-box;margin:0;padding:0}
 :root{--bg:#0d1117;--surface:#161b22;--border:#30363d;--text:#e6edf3;--dim:#8b949e;
   --accent:#58a6ff;--tab-h:2.4em}
@@ -186,7 +196,7 @@ window.openTerminal = async function(host, name) {
     // Open WebSocket for terminal I/O
     const ws = new WebSocket(`ws://${location.host}/api/ssh/ws?tab=${data.tabId}`);
     const panel = document.getElementById(`panel-${tabId}`);
-    const term = new Terminal({ cursorBlink: true, fontSize: 14, theme: {
+    const term = new Terminal({ cursorBlink: true, fontSize: 14, fontFamily: 'FiraCode Nerd Font Mono, monospace', fontWeight: '400', fontWeightBold: '700', theme: {
       background: '#0d1117', foreground: '#e6edf3', cursor: '#58a6ff'
     }});
     const fit = new FitAddon();
