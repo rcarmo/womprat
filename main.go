@@ -14,8 +14,7 @@ import (
 	"sync"
 
 	"github.com/jchv/go-webview2"
-	"github.com/zalando/go-keyring"
-	"golang.org/x/crypto/ssh"
+		"golang.org/x/crypto/ssh"
 	"tailscale.com/tsnet"
 )
 
@@ -24,9 +23,7 @@ var frontendFS embed.FS
 
 const (
 	appName    = "womprat"
-	keyService = "womprat-tailscale"
-	keyUser    = "authkey"
-)
+	)
 
 // Tab represents either a terminal (SSH) or browser tab
 type Tab struct {
@@ -86,7 +83,7 @@ func main() {
 }
 
 func (a *App) startTailscale() error {
-	authKey, err := keyring.Get(keyService, keyUser)
+	authKey, err := GetCredential("tailscale-key")
 	if err != nil || authKey == "" {
 		return fmt.Errorf("no tailscale auth key in keychain")
 	}
@@ -122,7 +119,7 @@ func (a *App) registerRoutes(mux *http.ServeMux) {
 }
 
 func (a *App) handleAuthStatus(w http.ResponseWriter, r *http.Request) {
-	_, err := keyring.Get(keyService, keyUser)
+	_, err := GetCredential("tailscale-key")
 	status := map[string]interface{}{
 		"hasKey":    err == nil,
 		"connected": a.tsServer != nil,
@@ -138,7 +135,7 @@ func (a *App) handleSaveKey(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 400)
 		return
 	}
-	if err := keyring.Set(keyService, keyUser, body.Key); err != nil {
+	if err := SaveCredential("tailscale-key", body.Key); err != nil {
 		http.Error(w, err.Error(), 500)
 		return
 	}
