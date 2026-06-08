@@ -15,18 +15,18 @@ import (
 func (a *App) handleProxy(w http.ResponseWriter, r *http.Request) {
 	targetURL := r.URL.Query().Get("url")
 	if targetURL == "" {
-		http.Error(w, "missing url param", 400)
+		httpError(w, 400, "Missing URL parameter", "")
 		return
 	}
 
 	parsed, err := url.Parse(targetURL)
 	if err != nil {
-		http.Error(w, "invalid url: "+err.Error(), 400)
+		httpError(w, 400, "Invalid URL", err.Error())
 		return
 	}
 
 	if a.tsServer == nil {
-		http.Error(w, "tailscale not connected", 503)
+		httpError(w, 503, "Tailscale not connected", "Connect via Settings to access tailnet hosts.")
 		return
 	}
 
@@ -43,7 +43,7 @@ func (a *App) handleProxy(w http.ResponseWriter, r *http.Request) {
 	// Build the proxied request
 	proxyReq, err := http.NewRequestWithContext(r.Context(), r.Method, targetURL, r.Body)
 	if err != nil {
-		http.Error(w, err.Error(), 500)
+		httpError(w, 500, "Internal error", err.Error())
 		return
 	}
 
@@ -56,7 +56,7 @@ func (a *App) handleProxy(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := client.Do(proxyReq)
 	if err != nil {
-		http.Error(w, "proxy error: "+err.Error(), 502)
+		httpError(w, 502, "Could not reach host", err.Error())
 		return
 	}
 	defer resp.Body.Close()
