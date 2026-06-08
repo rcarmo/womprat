@@ -240,7 +240,7 @@ function activateTab(id) {
                  id="url-${id}">
           <button onclick="navigateTab('${id}')">Go</button>
         </div>
-        <iframe class="browser-frame" src="/api/proxy?url=${encodeURIComponent(tab.url)}" sandbox="allow-same-origin allow-scripts allow-forms"></iframe>`;
+        <iframe class="browser-frame" src="${tab.url}"></iframe>`;
     }
     panels.appendChild(panel);
   }
@@ -253,7 +253,7 @@ function activateTab(id) {
 window.navigateTab = function(id) {
   const url = document.getElementById(`url-${id}`).value;
   const iframe = document.querySelector(`#panel-${id} iframe`);
-  if (iframe) iframe.src = '/api/proxy?url=' + encodeURIComponent(url);
+  if (iframe) iframe.src = url;
 };
 
 window.openSettings = function() {
