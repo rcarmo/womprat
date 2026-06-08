@@ -113,6 +113,9 @@ func (a *App) registerRoutes(mux *http.ServeMux) {
 	// Settings API
 	a.registerSettingsRoutes(mux)
 
+	// HTTP proxy through tsnet for browser tabs
+	mux.HandleFunc("/api/proxy", a.handleProxy)
+
 	// API endpoints
 	mux.HandleFunc("/api/auth/status", a.handleAuthStatus)
 	mux.HandleFunc("/api/auth/save-key", a.handleSaveKey)
