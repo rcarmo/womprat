@@ -73,6 +73,9 @@ body{height:100%;background:var(--bg);color:var(--text);font-family:system-ui,sa
   border:1px solid var(--border);border-radius:8px;padding:.5rem;z-index:50;
   min-width:220px;display:none;max-height:60vh;overflow-y:auto}
 #peer-menu.show{display:block}
+.recent-item{display:flex;align-items:center;gap:.6rem;padding:.6rem .8rem;
+  border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:.85em}
+.recent-item:hover{background:rgba(255,255,255,.04);border-color:var(--accent)}
 .peer-item{display:flex;align-items:center;gap:.5rem;padding:.4rem .6rem;border-radius:6px;cursor:pointer;font-size:.82rem}
 .peer-item:hover{background:rgba(255,255,255,.06)}
 .peer-dot{width:8px;height:8px;border-radius:50%}
@@ -104,7 +107,18 @@ body{height:100%;background:var(--bg);color:var(--text);font-family:system-ui,sa
 </div>
 
 <div id="peer-menu"></div>
-<div id="panels"></div>
+<div id="panels">
+<!-- Home panel (shown when no tabs active) -->
+<div class="panel active" id="panel-home">
+  <div style="padding:2rem;max-width:500px;margin:0 auto">
+    <h2 style="font-size:1.1em;margin-bottom:1rem;color:var(--dim)">Recent</h2>
+    <div id="recent-list" style="display:flex;flex-direction:column;gap:.4rem"></div>
+    <div style="margin-top:1.5rem;color:var(--dim);font-size:.82em">
+      Press <kbd style="padding:.15em .4em;background:var(--surface);border:1px solid var(--border);border-radius:4px">+</kbd> to connect to a peer, or type a URL in a new tab.
+    </div>
+  </div>
+</div>
+</div>
 
 <script type="module">
 import { Terminal } from './vendor/xterm.mjs';
@@ -229,6 +243,7 @@ window.openBrowser = function(url, name) {
 window.closeTab = function(id, e) {
   e.stopPropagation();
   state.tabs = state.tabs.filter(t => t.id !== id);
+  saveOpenTabs(); updateHomeVisibility();
   document.getElementById(`panel-${id}`)?.remove();
   renderTabs();
   if (state.activeTab === id && state.tabs.length) activateTab(state.tabs[0].id);
@@ -321,7 +336,56 @@ window.openSettings = function() {
   activateTab(tabId);
 };
 
+async function loadRecentTabs() {
+  try {
+    const res = await fetch('/api/settings/config');
+    const cfg = await res.json();
+    const list = document.getElementById('recent-list');
+    const tabs = cfg.openTabs || [];
+    if (!tabs.length) {
+      list.innerHTML = '<div style="color:var(--dim);font-size:.85em">No recent tabs</div>';
+      return;
+    }
+    list.innerHTML = tabs.map(t => `
+      <div class="recent-item" onclick="${t.type==='terminal'
+        ? `openTerminal('${t.host}','${t.title}','${t.user||'root'}',22)`
+        : `openBrowser('${t.url}','${t.title}')`}">
+        <span>${t.type==='terminal' ? '⬛' : '🌐'}</span>
+        <span style="font-weight:600">${t.title}</span>
+        <span style="color:var(--dim);font-size:.8em;margin-left:auto">${t.type==='terminal' ? t.host : t.url}</span>
+      </div>
+    `).join('');
+  } catch {}
+}
+
+// Save tabs on changes
+function saveOpenTabs() {
+  const tabs = state.tabs.filter(t => t.id !== 'settings').map(t => ({
+    type: t.type, title: t.title,
+    host: t.host || '', user: t.user || '', url: t.url || ''
+  }));
+  fetch('/api/settings/save-tabs', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({tabs})
+  }).catch(() => {});
+}
+
+// Show/hide home panel
+function updateHomeVisibility() {
+  const home = document.getElementById('panel-home');
+  if (state.tabs.length === 0) {
+    home.style.display = 'flex';
+  } else {
+    home.style.display = 'none';
+  }
+}
+
+// Hook tab changes
+const origRenderTabs = renderTabs;
+// Actually just call saveOpenTabs + updateHome after every tab change
+
 checkAuth();
+loadRecentTabs();
 </script>
 </body>
 </html>

@@ -30,6 +30,7 @@ func (a *App) registerSettingsRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/settings/hosts", a.handleHosts)
 	mux.HandleFunc("/api/settings/appearance", a.handleAppearance)
 	mux.HandleFunc("/api/settings/exit-node", a.handleExitNode)
+	mux.HandleFunc("/api/settings/save-tabs", a.handleSaveTabs)
 	mux.HandleFunc("/api/settings/config", a.handleGetConfig)
 }
 
@@ -247,4 +248,13 @@ func (a *App) handleExitNode(w http.ResponseWriter, r *http.Request) {
 		}
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok", "exitNode": body.ExitNode})
 	}
+}
+
+func (a *App) handleSaveTabs(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" { http.Error(w, "method not allowed", 405); return }
+	var body struct{ Tabs []SavedTab `json:"tabs"` }
+	json.NewDecoder(r.Body).Decode(&body)
+	a.config.OpenTabs = body.Tabs
+	SaveConfig(a.config)
+	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }

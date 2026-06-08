@@ -122,32 +122,30 @@ tr:hover td{background:rgba(255,255,255,.02)}
   <div class="section">
     <h3>Connection</h3>
     <div id="ts-status" class="status warn">Checking…</div>
-    <label for="ts-key" style="margin-top:.8rem">Auth Key</label>
+    <table style="margin-top:.8rem">
+      <tr><td style="color:var(--dim)">Hostname</td><td id="ts-hostname" class="mono">—</td></tr>
+      <tr><td style="color:var(--dim)">Tailscale IP</td><td id="ts-ip" class="mono">—</td></tr>
+      <tr><td style="color:var(--dim)">Peers online</td><td id="ts-peers">—</td></tr>
+    </table>
+  </div>
+  <div class="section">
+    <h3>Exit Node</h3>
+    <p style="color:var(--dim);font-size:.82rem;margin-bottom:.6rem">Route all internet traffic through a tailnet peer. Without an exit node, only tailnet hosts are reachable.</p>
+    <select id="exit-node" style="width:100%" onchange="setExitNode(this.value)">
+      <option value="">None — tailnet only</option>
+    </select>
+    <div id="exit-status" style="margin-top:.5rem"></div>
+  </div>
+  <div class="section">
+    <h3>Auth Key</h3>
+    <p style="color:var(--dim);font-size:.82rem;margin-bottom:.6rem">Replace the Tailscale auth key (re-authenticates the connection).</p>
     <div class="row">
       <input type="password" id="ts-key" placeholder="tskey-auth-...">
       <button class="btn-secondary" onclick="toggleVis('ts-key')">Show</button>
     </div>
     <div class="btn-row">
-      <button class="btn-primary" onclick="saveTailscale()">Save & Connect</button>
-      <button class="btn-secondary" onclick="disconnectTailscale()">Disconnect</button>
+      <button class="btn-primary" onclick="saveTailscale()">Save &amp; Reconnect</button>
     </div>
-  </div>
-  <div class="section">
-    <h3>Exit Node</h3>
-    <p style="color:var(--dim);font-size:.82rem;margin-bottom:.6rem">Route internet traffic through a tailnet peer. Leave empty for tailnet-only access.</p>
-    <div class="row">
-      <select id="exit-node" style="flex:1" onchange="setExitNode(this.value)">
-        <option value="">None (tailnet only)</option>
-      </select>
-    </div>
-    <div id="exit-status" style="margin-top:.4rem"></div>
-
-    <h3>Network Info</h3>
-    <table>
-      <tr><td style="color:var(--dim)">Hostname</td><td id="ts-hostname" class="mono">—</td></tr>
-      <tr><td style="color:var(--dim)">Tailscale IP</td><td id="ts-ip" class="mono">—</td></tr>
-      <tr><td style="color:var(--dim)">Peers online</td><td id="ts-peers">—</td></tr>
-    </table>
   </div>
 </div>
 
