@@ -12,9 +12,14 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-type fakeWebView struct{ urls []string }
+type fakeWebView struct {
+	urls  []string
+	evals []string
+}
 
 func (f *fakeWebView) Navigate(url string) { f.urls = append(f.urls, url) }
+func (f *fakeWebView) Eval(js string)      { f.evals = append(f.evals, js) }
+func (f *fakeWebView) Resize()             {}
 
 func newTestApp(t *testing.T) *App {
 	t.Helper()
@@ -48,8 +53,8 @@ func TestNavigateAndNewBrowserNormalizeURL(t *testing.T) {
 	if got := app.tabs[0].URL; got != "http://example.com" {
 		t.Fatalf("navigate URL = %q", got)
 	}
-	if got := app.webview.(*fakeWebView).urls[0]; got != "http://example.com" {
-		t.Fatalf("navigated webview to %q", got)
+	if got := app.webview.(*fakeWebView).evals[0]; !strings.Contains(got, "showBrowserTab") || !strings.Contains(got, "http://example.com") {
+		t.Fatalf("shell eval = %q", got)
 	}
 
 	app.newBrowserTab("https://example.net")
@@ -79,8 +84,8 @@ func TestCloseTabSelectsAdjacent(t *testing.T) {
 	if got := app.activeTab; got != "c" {
 		t.Fatalf("active after closing middle = %q, want c", got)
 	}
-	if got := app.webview.(*fakeWebView).urls[len(app.webview.(*fakeWebView).urls)-1]; got != "http://c" {
-		t.Fatalf("navigated to %q", got)
+	if got := app.webview.(*fakeWebView).evals[len(app.webview.(*fakeWebView).evals)-1]; !strings.Contains(got, "activateTab") || !strings.Contains(got, "c") {
+		t.Fatalf("shell eval = %q", got)
 	}
 }
 

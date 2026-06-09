@@ -274,6 +274,15 @@ tr:hover td{background:rgba(255,255,255,.02)}
     </table>
   </div>
   <div class="section">
+    <h3>Diagnostics</h3>
+    <p style="color:var(--dim);font-size:.82rem;margin-bottom:.6rem">Debug logging writes a runtime log next to the executable and enables WebView dev tooling. Leave off for normal use.</p>
+    <label style="display:flex;align-items:center;gap:.6rem;cursor:pointer">
+      <input type="checkbox" id="debug-log" onchange="setDebugLog(this.checked)">
+      <span>Enable debug logging</span>
+    </label>
+    <div id="debug-log-path" class="mono" style="margin-top:.5rem;color:var(--dim);font-size:.78rem;word-break:break-all"></div>
+  </div>
+  <div class="section">
     <h3>Runtime</h3>
     <table>
       <tr><td style="color:var(--dim)">Tailscale</td><td class="mono" id="about-ts-connected">—</td></tr>
@@ -408,7 +417,7 @@ async function loadExitNodes() {
   const peers = await fetch('/api/tailscale/peers').then(r=>r.json()).catch(()=>[]);
   const conf = await fetch('/api/settings/exit-node').then(r=>r.json()).catch(()=>({}));
   sel.innerHTML = '<option value="">None — tailnet only</option>';
-  peers.filter(p=>p.online).forEach(p => {
+  peers.filter(p=>p.online && p.exitNodeOption).forEach(p => {
     const opt = document.createElement('option');
     opt.value = p.name;
     opt.textContent = p.name + ' (' + (p.ips?.[0] || '') + ')';
@@ -571,6 +580,25 @@ function setText(id, value) {
   const el = document.getElementById(id);
   if (el) el.textContent = value ?? '—';
 }
+async function loadDebugLog() {
+  try {
+    const d = await fetch('/api/settings/debug-log').then(r=>r.json());
+    const cb = document.getElementById('debug-log');
+    if (cb) cb.checked = !!d.enabled;
+    const p = document.getElementById('debug-log-path');
+    if (p) p.textContent = d.enabled ? (d.logPath || '') : '';
+  } catch {}
+}
+async function setDebugLog(enabled) {
+  try {
+    const d = await fetch('/api/settings/debug-log', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({enabled})
+    }).then(r=>r.json());
+    const p = document.getElementById('debug-log-path');
+    if (p) p.textContent = d.enabled ? (d.logPath || '') : '';
+  } catch {}
+}
 async function loadAbout() {
   try {
     const about = await fetch('/api/about').then(r=>r.json());
@@ -606,6 +634,7 @@ async function initSettings() {
   await loadBrowserSettings();
   await loadKeys();
   await loadAbout();
+  await loadDebugLog();
 }
 initSettings();
 </script>

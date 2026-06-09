@@ -16,8 +16,7 @@ var (
 
 const DWMWA_USE_IMMERSIVE_DARK_MODE = 20
 
-func applyDarkMode(w webview2.WebView) {
-	hwnd := uintptr(w.Window())
+func applyDarkModeToHWND(hwnd uintptr) {
 	if hwnd == 0 {
 		return
 	}
@@ -28,4 +27,8 @@ func applyDarkMode(w webview2.WebView) {
 		uintptr(unsafe.Pointer(&preference)),
 		uintptr(unsafe.Sizeof(preference)),
 	)
+}
+
+func applyDarkMode(w webview2.WebView) {
+	applyDarkModeToHWND(uintptr(w.Window()))
 }

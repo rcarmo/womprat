@@ -42,6 +42,9 @@ type AppConfig struct {
 	Theme       string `json:"theme"`
 	RestoreTabs bool   `json:"restoreTabs"`
 	AutoConnect bool   `json:"autoConnect"`
+
+	// Diagnostics
+	DebugLog bool `json:"debugLog"` // write runtime log file and enable WebView dev tooling
 }
 
 type SavedTab struct {
