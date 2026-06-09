@@ -53,35 +53,23 @@ type Tab struct {
 	Port    int    `json:"port,omitempty"`
 }
 
-type shellWebView interface {
-	Navigate(string)
-	Eval(string)
-}
-
-type browserContentView interface {
-	Navigate(string)
-	GoBack()
-	GoForward()
-	Reload()
-	Show()
-	Hide()
-}
-
 type App struct {
-	mu             sync.Mutex
-	config         *AppConfig
-	tsServer       *tsnet.Server
-	tabs           []Tab
-	activeTab      string
-	sshConns       map[string]*ssh.Client
-	pendingAuth    map[string]*pendingSSH
-	sessionToken   string
-	locked         bool
-	webview        shellWebView
-	contentWebView browserContentView
-	serverPort     int
-	lastCloseAt    time.Time
-	lastCloseTab   string
+	mu           sync.Mutex
+	config       *AppConfig
+	tsServer     *tsnet.Server
+	tabs         []Tab
+	activeTab    string
+	sshConns     map[string]*ssh.Client
+	pendingAuth  map[string]*pendingSSH
+	sessionToken string
+	locked       bool
+	webview      interface {
+		Navigate(string)
+		Eval(string)
+	}
+	serverPort   int
+	lastCloseAt  time.Time
+	lastCloseTab string
 }
 
 func main() {
@@ -157,10 +145,6 @@ func (a *App) navigateBrowser(url string) {
 	a.persistOpenTabs()
 	if tabID != "" {
 		a.evalShell("window.showBrowserTab(%s,%s)", jsString(tabID), jsString(url))
-		if a.contentWebView != nil {
-			a.contentWebView.Show()
-			a.contentWebView.Navigate(url)
-		}
 	}
 }
 
@@ -237,16 +221,7 @@ func (a *App) switchTab(tabID string) {
 	}
 
 	switch tab.Type {
-	case "browser":
-		a.evalShell("window.activateTab(%s)", jsString(tabID))
-		if a.contentWebView != nil {
-			a.contentWebView.Show()
-			a.contentWebView.Navigate(tab.URL)
-		}
-	case "terminal", "settings":
-		if a.contentWebView != nil {
-			a.contentWebView.Hide()
-		}
+	case "browser", "terminal", "settings":
 		a.evalShell("window.activateTab(%s)", jsString(tabID))
 	}
 }
@@ -364,10 +339,6 @@ func (a *App) newBrowserTab(url string) {
 	a.mu.Unlock()
 	a.persistOpenTabs()
 	a.evalShell("window.showBrowserTab(%s,%s)", jsString(tabID), jsString(url))
-	if a.contentWebView != nil {
-		a.contentWebView.Show()
-		a.contentWebView.Navigate(url)
-	}
 }
 
 func (a *App) openSettingsTab() {
@@ -376,9 +347,6 @@ func (a *App) openSettingsTab() {
 	a.tabs = upsertTab(a.tabs, tab)
 	a.activeTab = tab.ID
 	a.mu.Unlock()
-	if a.contentWebView != nil {
-		a.contentWebView.Hide()
-	}
 	a.evalShell("window.activateTab(%s)", jsString(tab.ID))
 }
 
@@ -395,9 +363,6 @@ func (a *App) newTerminalTab(host, user string, port int) {
 	a.activeTab = tabID
 	a.mu.Unlock()
 	a.persistOpenTabs()
-	if a.contentWebView != nil {
-		a.contentWebView.Hide()
-	}
 	a.evalShell("window.activateTab(%s)", jsString(tabID))
 }
 
@@ -551,7 +516,7 @@ func (a *App) serveFrontend(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		// Internal shell pages may frame only other local shell pages (settings).
 		// External web content must be direct WebView navigation, never iframe.
-		w.Header().Set("Content-Security-Policy", "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; connect-src 'self' ws: http://127.0.0.1:*; frame-src 'self' http://127.0.0.1:*; img-src 'self' data: blob: http: https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'unsafe-eval'")
+		w.Header().Set("Content-Security-Policy", "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; connect-src 'self' ws: http://127.0.0.1:*; frame-src 'self' http://127.0.0.1:* http: https:; img-src 'self' data: blob: http: https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'unsafe-eval'")
 		content := strings.Replace(string(data), "</head>",
 			fmt.Sprintf(`<script>window.__SESSION_TOKEN="%s";window.__PORT=%d;</script></head>`, a.sessionToken, a.serverPort), 1)
 		w.Write([]byte(content))

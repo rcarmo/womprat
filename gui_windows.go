@@ -3,7 +3,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"time"
@@ -28,14 +27,6 @@ func runGUI(app *App, shellURL string) {
 	}
 	defer w.Destroy()
 	app.webview = w
-
-	content, err := newNativeContentView(w.Window(), webviewDataPath())
-	if err != nil {
-		log.Printf("content WebView unavailable: %v", err)
-	} else {
-		app.contentWebView = content
-		content.Hide()
-	}
 
 	// Set native title bar appearance
 	applyDarkMode(w)
@@ -66,24 +57,6 @@ func runGUI(app *App, shellURL string) {
 
 	w.Bind("womprat_navigate", func(url string) {
 		app.navigateBrowser(url)
-	})
-
-	w.Bind("womprat_browserBack", func() {
-		if app.contentWebView != nil {
-			app.contentWebView.GoBack()
-		}
-	})
-
-	w.Bind("womprat_browserForward", func() {
-		if app.contentWebView != nil {
-			app.contentWebView.GoForward()
-		}
-	})
-
-	w.Bind("womprat_browserReload", func() {
-		if app.contentWebView != nil {
-			app.contentWebView.Reload()
-		}
 	})
 
 	w.Bind("womprat_switchTab", func(tabID string) {

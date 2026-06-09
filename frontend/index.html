@@ -88,8 +88,8 @@ button,a,.tab,.recent-item,.option{
 .term-panel .xterm{flex:1}
 
 /* Local panels */
-.browser-panel{flex-direction:column;background:transparent;pointer-events:none}
-.browser-placeholder{flex:1;display:flex;align-items:center;justify-content:center;color:var(--dim);font-size:.85em;background:transparent}
+.browser-panel{flex-direction:column;background:#fff}
+.browser-frame{flex:1;border:none;width:100%;height:100%;background:#fff}
 
 /* Setup screen */
 #setup{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
@@ -736,7 +736,21 @@ function activateTab(id) {
     panel.id = `panel-${id}`;
     if (tab.type === 'browser') {
       panel.className = 'panel browser-panel';
-      panel.innerHTML = '<div class="browser-placeholder" aria-hidden="true"></div>';
+      const frame = document.createElement('iframe');
+      frame.className = 'browser-frame';
+      frame.referrerPolicy = 'no-referrer-when-downgrade';
+      frame.src = tab.url || 'about:blank';
+      frame.addEventListener('load', () => {
+        setURLProgress(false);
+        const active = state.tabs.find(t => t.id === id);
+        if (active) {
+          try { active.url = frame.contentWindow.location.href || active.url; } catch {}
+          if (state.activeTab === id) document.getElementById('url-input').value = active.url || '';
+          registerLocalTab(active);
+          saveOpenTabs();
+        }
+      });
+      panel.appendChild(frame);
     } else if (tab.type === 'terminal') {
       panel.className = 'panel term-panel';
       panel.innerHTML = '<div class="term-container" style="flex:1"></div>';
@@ -772,19 +786,24 @@ window.showBrowserTab = function(id, url, title) {
   }
   renderTabs();
   activateTab(id);
-  setURLProgress(true);
+  const frame = document.querySelector(`#panel-${CSS.escape(id)} .browser-frame`);
+  if (frame && frame.src !== navUrl) {
+    setURLProgress(true);
+    frame.src = navUrl;
+  }
   saveURLHistory(navUrl);
   registerLocalTab(tab);
   saveOpenTabs();
 };
 
-function activeBrowserTab() {
+function activeBrowserFrame() {
   const tab = state.tabs.find(t => t.id === state.activeTab);
-  return tab?.type === 'browser' ? tab : null;
+  if (!tab || tab.type !== 'browser') return null;
+  return document.querySelector(`#panel-${CSS.escape(tab.id)} .browser-frame`);
 }
-window.historyBack = function() { if (activeBrowserTab() && window.womprat_browserBack) womprat_browserBack(); };
-window.historyForward = function() { if (activeBrowserTab() && window.womprat_browserForward) womprat_browserForward(); };
-window.historyReload = function() { if (activeBrowserTab() && window.womprat_browserReload) { setURLProgress(true); womprat_browserReload(); } else location.reload(); };
+window.historyBack = function() { try { activeBrowserFrame()?.contentWindow?.history?.back(); } catch {} };
+window.historyForward = function() { try { activeBrowserFrame()?.contentWindow?.history?.forward(); } catch {} };
+window.historyReload = function() { const f = activeBrowserFrame(); if (f) { setURLProgress(true); f.src = f.src; } else location.reload(); };
 
 function focusAddress(selectAll = true) {
   const input = document.getElementById('url-input');
