@@ -94,5 +94,3 @@ require (
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
 )
-
-replace github.com/jchv/go-webview2 => ./internal/go-webview2

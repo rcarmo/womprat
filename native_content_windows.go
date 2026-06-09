@@ -13,11 +13,12 @@ import (
 )
 
 const (
-	hwndTop       = 0
-	swpNoActivate = 0x0010
-	swpNoZOrder   = 0x0004
-	swHide        = 0
-	swShow        = 5
+	browserChromeHeight = 84
+	hwndTop             = 0
+	swpNoActivate       = 0x0010
+	swpNoZOrder         = 0x0004
+	swHide              = 0
+	swShow              = 5
 )
 
 var (

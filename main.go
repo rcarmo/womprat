@@ -28,10 +28,7 @@ var frontendFS embed.FS
 
 var useExitNode = false
 
-const (
-	appName             = "womprat"
-	browserChromeHeight = 84
-)
+const appName = "womprat"
 
 var (
 	version       = "0.1.0"
@@ -65,7 +62,6 @@ type Tab struct {
 type shellWebView interface {
 	Navigate(string)
 	Eval(string)
-	SetBounds(x int, y int, w int, h int)
 }
 
 type browserContentView interface {
@@ -152,25 +148,11 @@ func jsString(v interface{}) string {
 	return string(b)
 }
 
-const shellBoundsExtent = 32767
-
 func (a *App) evalShell(format string, args ...interface{}) {
 	if a.webview == nil {
 		return
 	}
 	a.webview.Eval(fmt.Sprintf(format, args...))
-}
-
-func (a *App) showBrowserShellChromeOnly() {
-	if a.webview != nil {
-		a.webview.SetBounds(0, 0, shellBoundsExtent, browserChromeHeight)
-	}
-}
-
-func (a *App) showFullShell() {
-	if a.webview != nil {
-		a.webview.SetBounds(0, 0, shellBoundsExtent, shellBoundsExtent)
-	}
 }
 
 func (a *App) navigateBrowser(url string) {
@@ -193,7 +175,6 @@ func (a *App) navigateBrowser(url string) {
 		return
 	}
 	a.evalShell("window.showBrowserTab(%s,%s,{skipNative:true})", jsString(tabID), jsString(url))
-	a.showBrowserShellChromeOnly()
 	if a.contentViews != nil {
 		view := a.contentViews.Ensure(tabID)
 		a.contentViews.Show(tabID)
@@ -289,7 +270,6 @@ func (a *App) switchTab(tabID string) {
 	switch tab.Type {
 	case "browser":
 		a.evalShell("window.activateTab(%s,{skipNative:true})", jsString(tabID))
-		a.showBrowserShellChromeOnly()
 		if a.contentViews != nil {
 			view := a.contentViews.Get(tabID)
 			if view == nil {
@@ -301,7 +281,6 @@ func (a *App) switchTab(tabID string) {
 			a.contentViews.Show(tabID)
 		}
 	case "terminal", "settings":
-		a.showFullShell()
 		if a.contentViews != nil {
 			a.contentViews.HideAll()
 		}
@@ -432,7 +411,6 @@ func (a *App) newBrowserTab(url string) {
 	a.mu.Unlock()
 	a.persistOpenTabs()
 	a.evalShell("window.showBrowserTab(%s,%s,{skipNative:true})", jsString(tabID), jsString(url))
-	a.showBrowserShellChromeOnly()
 	if a.contentViews != nil {
 		view := a.contentViews.Ensure(tabID)
 		a.contentViews.Show(tabID)
@@ -446,7 +424,6 @@ func (a *App) openSettingsTab() {
 	a.tabs = upsertTab(a.tabs, tab)
 	a.activeTab = tab.ID
 	a.mu.Unlock()
-	a.showFullShell()
 	if a.contentViews != nil {
 		a.contentViews.HideAll()
 	}
@@ -466,7 +443,6 @@ func (a *App) newTerminalTab(host, user string, port int) {
 	a.activeTab = tabID
 	a.mu.Unlock()
 	a.persistOpenTabs()
-	a.showFullShell()
 	if a.contentViews != nil {
 		a.contentViews.HideAll()
 	}
@@ -514,7 +490,6 @@ func (a *App) clearActiveTab() {
 	a.mu.Lock()
 	a.activeTab = ""
 	a.mu.Unlock()
-	a.showFullShell()
 	if a.contentViews != nil {
 		a.contentViews.HideAll()
 	}
