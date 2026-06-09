@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"embed"
@@ -61,6 +62,7 @@ type App struct {
 	sshConns     map[string]*ssh.Client
 	pendingAuth  map[string]*pendingSSH
 	sessionToken string
+	locked       bool
 	webview      webview2.WebView
 	serverPort   int
 }
@@ -73,6 +75,7 @@ func main() {
 		sshConns:     make(map[string]*ssh.Client),
 		pendingAuth:  make(map[string]*pendingSSH),
 		sessionToken: token,
+		locked:       shouldStartLocked(cfg),
 	}
 	useExitNode = cfg.ExitNode != ""
 
@@ -93,9 +96,11 @@ func main() {
 	// Start SOCKS5 proxy (port must be open before WebView2 starts)
 	startSOCKS5Listener(app)
 
-	// Start Tailscale
-	if err := app.startTailscale(); err != nil {
-		log.Printf("Tailscale start failed: %v (will prompt for key)", err)
+	// Start Tailscale only after the configured unlock gate is satisfied.
+	if !app.locked {
+		if err := app.startTailscale(); err != nil {
+			log.Printf("Tailscale start failed: %v (will prompt for key)", err)
+		}
 	}
 
 	// Create WebView2
@@ -341,6 +346,7 @@ func tsnetStateDir() string {
 func (a *App) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/", a.serveFrontend)
 	mux.HandleFunc("/api/auth/status", a.authMiddleware(a.handleAuthStatus))
+	mux.HandleFunc("/api/auth/unlock", a.authMiddleware(a.handleUnlock))
 	mux.HandleFunc("/api/auth/save-key", a.authMiddleware(a.handleSaveKey))
 	mux.HandleFunc("/api/tailscale/status", a.authMiddleware(a.handleTSStatus))
 	mux.HandleFunc("/api/tailscale/peers", a.authMiddleware(a.handleTSPeers))
@@ -367,8 +373,18 @@ func (a *App) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			httpError(w, 403, "Forbidden", "Invalid session token")
 			return
 		}
+		if a.isLocked() && r.URL.Path != "/api/auth/status" && r.URL.Path != "/api/auth/unlock" {
+			httpError(w, 423, "Locked", "Unlock womprat before accessing protected settings or credentials")
+			return
+		}
 		next(w, r)
 	}
+}
+
+func (a *App) isLocked() bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.locked
 }
 
 func (a *App) serveFrontend(w http.ResponseWriter, r *http.Request) {
@@ -419,9 +435,34 @@ func (a *App) ts() *tsnet.Server {
 func (a *App) handleAuthStatus(w http.ResponseWriter, r *http.Request) {
 	_, err := GetCredential("tailscale-key")
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"hasKey":    err == nil,
-		"connected": a.ts() != nil,
+		"hasKey":       err == nil,
+		"connected":    a.ts() != nil,
+		"locked":       a.isLocked(),
+		"unlockMethod": a.config.UnlockMethod,
 	})
+}
+
+func (a *App) handleUnlock(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.Error(w, "method not allowed", 405)
+		return
+	}
+	var body struct {
+		Password string `json:"password"`
+	}
+	json.NewDecoder(r.Body).Decode(&body)
+	if ok, err := verifyMasterPassword(body.Password); err != nil || !ok {
+		httpError(w, 401, "Unlock failed", "Invalid master password")
+		return
+	}
+	a.mu.Lock()
+	a.locked = false
+	a.mu.Unlock()
+	if err := a.startTailscale(); err != nil {
+		json.NewEncoder(w).Encode(map[string]string{"status": "unlocked", "tailscale": err.Error()})
+		return
+	}
+	json.NewEncoder(w).Encode(map[string]string{"status": "unlocked"})
 }
 
 func (a *App) handleSaveKey(w http.ResponseWriter, r *http.Request) {
@@ -500,23 +541,27 @@ func (a *App) handleAbout(w http.ResponseWriter, r *http.Request) {
 	a.mu.Unlock()
 
 	info := map[string]interface{}{
-		"name":        appName,
-		"version":     version,
-		"commit":      commit,
-		"go":          runtime.Version(),
-		"platform":    runtime.GOOS + "/" + runtime.GOARCH,
-		"webview2":    "System WebView2 runtime",
-		"tailscale":   moduleVersion("tailscale.com"),
-		"tsnet":       moduleVersion("tailscale.com/tsnet"),
-		"configDir":   configDir(),
-		"webviewData": webviewDataPath(),
-		"socks":       socksAddr,
-		"localAPI":    fmt.Sprintf("127.0.0.1:%d", a.serverPort),
-		"tsConnected": tsConnected,
-		"exitNode":    exitNode,
-		"tabCount":    tabCount,
-		"restoreTabs": restoreTabs,
-		"autoConnect": autoConnect,
+		"name":                 appName,
+		"version":              version,
+		"commit":               commit,
+		"go":                   runtime.Version(),
+		"platform":             runtime.GOOS + "/" + runtime.GOARCH,
+		"webview2":             "System WebView2 runtime",
+		"tailscale":            moduleVersion("tailscale.com"),
+		"tsnet":                moduleVersion("tailscale.com/tsnet"),
+		"configDir":            configDir(),
+		"webviewData":          webviewDataPath(),
+		"socks":                socksAddr,
+		"localAPI":             fmt.Sprintf("127.0.0.1:%d", a.serverPort),
+		"tsConnected":          tsConnected,
+		"exitNode":             exitNode,
+		"tabCount":             tabCount,
+		"restoreTabs":          restoreTabs,
+		"autoConnect":          autoConnect,
+		"sshHostKeyPolicy":     "TOFU pinned in encrypted config",
+		"webviewProxyMode":     "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
+		"downloadInterception": "explicit <a download> links plus in-app API",
+		"cookieBackend":        "WebView2 SQLite cookie store",
 	}
 	json.NewEncoder(w).Encode(info)
 }
@@ -569,7 +614,7 @@ func (a *App) handleSSHConnect(w http.ResponseWriter, r *http.Request) {
 	config := &ssh.ClientConfig{
 		User:            body.User,
 		Auth:            authMethods,
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		HostKeyCallback: a.hostKeyCallback(body.Host),
 		Timeout:         10 * time.Second,
 	}
 
@@ -583,7 +628,7 @@ func (a *App) handleSSHConnect(w http.ResponseWriter, r *http.Request) {
 		}
 		noneConfig := &ssh.ClientConfig{
 			User: body.User, Auth: []ssh.AuthMethod{ssh.Password("")},
-			HostKeyCallback: ssh.InsecureIgnoreHostKey(), Timeout: 5 * time.Second,
+			HostKeyCallback: a.hostKeyCallback(body.Host), Timeout: 5 * time.Second,
 		}
 		_, _, _, _ = ssh.NewClientConn(conn2, addr, noneConfig)
 		conn2.Close()
@@ -604,6 +649,35 @@ func (a *App) handleSSHConnect(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleSSHResize(w http.ResponseWriter, r *http.Request) { w.WriteHeader(200) }
+
+func (a *App) hostKeyCallback(host string) ssh.HostKeyCallback {
+	return func(_ string, _ net.Addr, key ssh.PublicKey) error {
+		keyData := string(ssh.MarshalAuthorizedKey(key))
+		fingerprint := ssh.FingerprintSHA256(key)
+
+		a.mu.Lock()
+		conf := a.config.Hosts[host]
+		stored := conf.HostKey
+		if stored == "" {
+			conf.HostKey = keyData
+			conf.HostKeyFingerprint = fingerprint
+			a.config.Hosts[host] = conf
+			cfg := a.config
+			a.mu.Unlock()
+			return SaveConfig(cfg)
+		}
+		a.mu.Unlock()
+
+		storedKey, _, _, _, err := ssh.ParseAuthorizedKey([]byte(stored))
+		if err != nil {
+			return fmt.Errorf("stored SSH host key for %s is invalid: %w", host, err)
+		}
+		if !bytes.Equal(storedKey.Marshal(), key.Marshal()) {
+			return fmt.Errorf("SSH host key mismatch for %s: expected %s, got %s", host, ssh.FingerprintSHA256(storedKey), fingerprint)
+		}
+		return nil
+	}
+}
 
 func (a *App) handleSSHAuthPassword(w http.ResponseWriter, r *http.Request) {
 	var body struct {
@@ -642,7 +716,7 @@ func (a *App) handleSSHAuthPassword(w http.ResponseWriter, r *http.Request) {
 				return answers, nil
 			}),
 		},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(), Timeout: 10 * time.Second,
+		HostKeyCallback: a.hostKeyCallback(pending.host), Timeout: 10 * time.Second,
 	}
 	sshConn, chans, reqs, err := ssh.NewClientConn(conn, addr, config)
 	if err != nil {
@@ -715,6 +789,17 @@ func chromeOverlayJS(port int, token string) string {
       if (!/^https?:\/\//i.test(u)) u = 'http://' + u;
       updateRoutePill(true);
       womprat_navigate(u);
+    }
+
+    function installDownloadInterceptor() {
+      document.addEventListener('click', (e) => {
+        const a = e.target?.closest?.('a[href][download]');
+        if (!a) return;
+        const href = new URL(a.getAttribute('href'), location.href).href;
+        if (!/^https?:\/\//i.test(href)) return;
+        e.preventDefault();
+        fetch('http://127.0.0.1:%d/api/download?token=%s&url=' + encodeURIComponent(href)).catch(() => {});
+      }, true);
     }
 
     async function updateRoutePill(loading) {
@@ -812,6 +897,7 @@ func chromeOverlayJS(port int, token string) string {
       } catch (e) {}
     }
 
+    installDownloadInterceptor();
     updateRoutePill(true);
     document.addEventListener('readystatechange', () => updateRoutePill(false));
     window.addEventListener('load', () => updateRoutePill(false));
@@ -821,7 +907,7 @@ func chromeOverlayJS(port int, token string) string {
   }
   install();
 })();
-`, port, chromeOverlayCSS)
+`, port, chromeOverlayCSS, port, token)
 }
 
 var chromeOverlayCSS = "`" + `

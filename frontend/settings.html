@@ -98,17 +98,13 @@ tr:hover td{background:rgba(255,255,255,.02)}
   <div class="section">
     <h3>Unlock Method</h3>
     <p style="color:var(--dim);font-size:.82rem;margin-bottom:.8rem">How should womprat protect your stored secrets?</p>
-    <div class="option selected" onclick="selectUnlock('hello')">
-      <input type="radio" name="unlock" value="hello" checked>
-      <div><div class="option-label">Windows Hello</div><div class="option-desc">Face, fingerprint, or PIN — recommended</div></div>
+    <div class="option selected" onclick="selectUnlock('dpapi')">
+      <input type="radio" name="unlock" value="dpapi" checked>
+      <div><div class="option-label">Transparent (DPAPI)</div><div class="option-desc">No prompt — secrets protected by your Windows login</div></div>
     </div>
     <div class="option" onclick="selectUnlock('master')">
       <input type="radio" name="unlock" value="master">
-      <div><div class="option-label">Master Password</div><div class="option-desc">Enter a password each time the app launches</div></div>
-    </div>
-    <div class="option" onclick="selectUnlock('dpapi')">
-      <input type="radio" name="unlock" value="dpapi">
-      <div><div class="option-label">Transparent (DPAPI)</div><div class="option-desc">No prompt — secrets protected by your Windows login only</div></div>
+      <div><div class="option-label">Master Password</div><div class="option-desc">PBKDF2-protected unlock prompt before credentials and Tailscale start</div></div>
     </div>
   </div>
   <div class="section" id="master-pw-section" style="display:none">
@@ -211,14 +207,14 @@ tr:hover td{background:rgba(255,255,255,.02)}
   </div>
   <div class="section">
     <h3>Saved Passwords</h3>
-    <p style="color:var(--dim);font-size:.82rem;margin-bottom:.6rem">Form passwords saved by the browser for tailnet services.</p>
+    <p style="color:var(--dim);font-size:.82rem;margin-bottom:.6rem">WebView2 stores saved passwords in its encrypted profile. womprat can clear that store but does not enumerate credentials.</p>
     <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer;text-transform:none;font-size:.85rem">
       <input type="checkbox" id="save-passwords" checked style="accent-color:var(--accent)">
       Offer to save passwords for web forms
     </label>
     <table style="margin-top:.6rem">
       <thead><tr><th>Site</th><th>Username</th><th></th></tr></thead>
-      <tbody id="passwords-table"><tr><td colspan="3" style="color:var(--dim)">None saved</td></tr></tbody>
+      <tbody id="passwords-table"><tr><td colspan="3" style="color:var(--dim)">Listing disabled</td></tr></tbody>
     </table>
     <div class="btn-row" style="margin-top:.6rem">
       <button class="btn-danger" onclick="clearAllPasswords()">Clear All Saved Passwords</button>
@@ -285,6 +281,10 @@ tr:hover td{background:rgba(255,255,255,.02)}
       <tr><td style="color:var(--dim)">SOCKS Proxy</td><td class="mono" id="about-socks">—</td></tr>
       <tr><td style="color:var(--dim)">Local API</td><td class="mono" id="about-api">—</td></tr>
       <tr><td style="color:var(--dim)">Open Tabs</td><td class="mono" id="about-tabs">—</td></tr>
+      <tr><td style="color:var(--dim)">SSH Host Keys</td><td class="mono" id="about-hostkey-policy">—</td></tr>
+      <tr><td style="color:var(--dim)">Proxy Mode</td><td class="mono" id="about-proxy-mode">—</td></tr>
+      <tr><td style="color:var(--dim)">Downloads</td><td class="mono" id="about-downloads">—</td></tr>
+      <tr><td style="color:var(--dim)">Cookies</td><td class="mono" id="about-cookie-backend">—</td></tr>
     </table>
   </div>
   <div class="section">
@@ -451,7 +451,7 @@ async function loadBrowserSettings() {
         <td><button class="btn-danger" onclick="deletePassword(${jsArg(p.site)})" style="padding:.15rem .4rem;font-size:.7rem">Delete</button></td>
       </tr>`).join('');
     } else {
-      pt.innerHTML = '<tr><td colspan="3" style="color:var(--dim)">None saved</td></tr>';
+      pt.innerHTML = '<tr><td colspan="3" style="color:var(--dim)">Listing disabled</td></tr>';
     }
   } catch {}
 }
@@ -586,6 +586,10 @@ async function loadAbout() {
     setText('about-socks', about.socks);
     setText('about-api', about.localAPI);
     setText('about-tabs', String(about.tabCount ?? 0));
+    setText('about-hostkey-policy', about.sshHostKeyPolicy);
+    setText('about-proxy-mode', about.webviewProxyMode);
+    setText('about-downloads', about.downloadInterception);
+    setText('about-cookie-backend', about.cookieBackend);
     setText('about-config-dir', about.configDir);
     setText('about-webview-data', about.webviewData);
     setText('about-restore-tabs', about.restoreTabs ? 'enabled' : 'disabled');

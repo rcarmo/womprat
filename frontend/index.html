@@ -135,9 +135,10 @@ button,a,.tab,.recent-item,.option{
 <div id="setup">
   <div class="setup-card">
     <h2>womprat</h2>
-    <p>Enter your Tailscale auth key to connect.<br>It will be saved in your system keychain.</p>
+    <p id="setup-help">Enter your Tailscale auth key to connect.<br>It will be saved encrypted for this Windows user.</p>
     <input id="auth-key" type="password" placeholder="tskey-auth-...">
-    <button onclick="saveKey()">Connect</button>
+    <input id="unlock-password" type="password" placeholder="Master password" style="display:none">
+    <button id="setup-action" onclick="saveKey()">Connect</button>
     <div class="status" id="setup-status"></div>
   </div>
 </div>
@@ -277,10 +278,40 @@ purgeLegacyExternalIframes();
 async function checkAuth() {
   const res = await fetch('/api/auth/status');
   const data = await res.json();
+  if (data.locked) {
+    showUnlock();
+    return;
+  }
   if (data.hasKey && data.connected) {
     document.getElementById('setup').classList.add('hidden');
   }
 }
+
+function showUnlock() {
+  document.getElementById('setup').classList.remove('hidden');
+  document.getElementById('setup-help').textContent = 'Enter your master password to unlock womprat.';
+  document.getElementById('auth-key').style.display = 'none';
+  document.getElementById('unlock-password').style.display = 'block';
+  const btn = document.getElementById('setup-action');
+  btn.textContent = 'Unlock';
+  btn.onclick = unlockApp;
+  document.getElementById('unlock-password').focus();
+}
+
+window.unlockApp = async function() {
+  const password = document.getElementById('unlock-password').value;
+  const status = document.getElementById('setup-status');
+  status.textContent = 'Unlocking...';
+  const res = await fetch('/api/auth/unlock', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({password})
+  });
+  if (!res.ok) {
+    status.textContent = 'Unlock failed';
+    return;
+  }
+  document.getElementById('setup').classList.add('hidden');
+};
 
 window.saveKey = async function() {
   const key = document.getElementById('auth-key').value.trim();

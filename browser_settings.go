@@ -1,11 +1,15 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
+
+	_ "modernc.org/sqlite"
 )
 
 type BrowserData struct {
@@ -62,8 +66,9 @@ func (a *App) handleClearCookies(w http.ResponseWriter, r *http.Request) {
 		deleteCookiesForDomain(body.Domain)
 	} else {
 		// Clear all cookies
-		cookieFile := filepath.Join(webviewDataPath(), "EBWebView", "Default", "Cookies")
-		os.Remove(cookieFile)
+		for _, cookieFile := range cookieDBPaths() {
+			os.Remove(cookieFile)
+		}
 	}
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
@@ -126,40 +131,77 @@ func getCacheSize() string {
 }
 
 func listCookieDomains() []CookieDomain {
-	// WebView2 stores cookies in a SQLite DB — we'd need to parse it
-	// For now return empty; full implementation needs sqlite3
-	return []CookieDomain{}
+	cookieFile := firstExistingCookieDB()
+	if cookieFile == "" {
+		return []CookieDomain{}
+	}
+	db, err := sql.Open("sqlite", "file:"+filepath.ToSlash(cookieFile)+"?mode=ro&immutable=1")
+	if err != nil {
+		return []CookieDomain{}
+	}
+	defer db.Close()
+	rows, err := db.Query(`SELECT host_key, COUNT(*) FROM cookies GROUP BY host_key ORDER BY host_key`)
+	if err != nil {
+		return []CookieDomain{}
+	}
+	defer rows.Close()
+	var out []CookieDomain
+	for rows.Next() {
+		var c CookieDomain
+		if rows.Scan(&c.Domain, &c.Count) == nil {
+			out = append(out, c)
+		}
+	}
+	return out
 }
 
 func listSavedPasswords() []SavedPassword {
-	// List credentials with prefix "browser-pw/"
-	pwDir := filepath.Join(configDir(), "creds")
-	entries, err := os.ReadDir(pwDir)
-	if err != nil {
-		return []SavedPassword{}
+	// WebView2 stores passwords in its encrypted Login Data store. We can clear
+	// that store, but we intentionally do not enumerate saved credentials.
+	return []SavedPassword{}
+}
+
+func cookieDBPaths() []string {
+	base := filepath.Join(webviewDataPath(), "EBWebView", "Default")
+	return []string{
+		filepath.Join(base, "Network", "Cookies"),
+		filepath.Join(base, "Cookies"),
 	}
-	var passwords []SavedPassword
-	for _, e := range entries {
-		if len(e.Name()) > 11 && e.Name()[:10] == "browser-pw" {
-			site := e.Name()[11:] // strip "browser-pw/"
-			passwords = append(passwords, SavedPassword{Site: site, Username: "(saved)"})
+}
+
+func firstExistingCookieDB() string {
+	for _, p := range cookieDBPaths() {
+		if st, err := os.Stat(p); err == nil && !st.IsDir() {
+			return p
 		}
 	}
-	return passwords
+	return ""
 }
 
 func deleteCookiesForDomain(domain string) {
-	// Would need sqlite3 to selectively delete from Cookies DB
-	// Placeholder
-	_ = domain
+	if domain == "" {
+		return
+	}
+	for _, cookieFile := range cookieDBPaths() {
+		if _, err := os.Stat(cookieFile); err != nil {
+			continue
+		}
+		db, err := sql.Open("sqlite", "file:"+filepath.ToSlash(cookieFile)+"?mode=rw")
+		if err != nil {
+			continue
+		}
+		_, _ = db.Exec(`DELETE FROM cookies WHERE host_key = ? OR host_key = ? OR host_key LIKE ?`, domain, strings.TrimPrefix(domain, "."), "%"+strings.TrimPrefix(domain, "."))
+		db.Close()
+	}
 }
 
 func clearAllSavedPasswords() {
-	pwDir := filepath.Join(configDir(), "creds")
-	entries, _ := os.ReadDir(pwDir)
-	for _, e := range entries {
-		if len(e.Name()) > 10 && e.Name()[:10] == "browser-pw" {
-			os.Remove(filepath.Join(pwDir, e.Name()))
-		}
+	base := filepath.Join(webviewDataPath(), "EBWebView", "Default")
+	for _, name := range []string{"Login Data", "Login Data For Account"} {
+		os.Remove(filepath.Join(base, name))
+		os.Remove(filepath.Join(base, name+"-journal"))
+		os.Remove(filepath.Join(base, name+"-wal"))
+		os.Remove(filepath.Join(base, name+"-shm"))
 	}
+	os.RemoveAll(filepath.Join(configDir(), "creds", "browser-pw")) // legacy app-side placeholder store
 }

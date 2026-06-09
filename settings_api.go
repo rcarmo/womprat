@@ -1,9 +1,11 @@
 package main
 
 import (
+	"context"
 	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
@@ -12,7 +14,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	"golang.org/x/crypto/pbkdf2"
 	"golang.org/x/crypto/ssh"
+	"tailscale.com/ipn"
 )
 
 // SSHKeyEntry stored in credential manager
@@ -47,6 +51,10 @@ func (a *App) handleSetUnlockMethod(w http.ResponseWriter, r *http.Request) {
 		Method string `json:"method"`
 	}
 	json.NewDecoder(r.Body).Decode(&body)
+	if body.Method != "master" && body.Method != "dpapi" {
+		http.Error(w, "unsupported unlock method", 400)
+		return
+	}
 	a.config.UnlockMethod = body.Method
 	SaveConfig(a.config)
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
@@ -61,12 +69,28 @@ func (a *App) handleSetMasterPassword(w http.ResponseWriter, r *http.Request) {
 		Password string `json:"password"`
 	}
 	json.NewDecoder(r.Body).Decode(&body)
-	// Store PBKDF2 hash of the master password
-	hash := sha256.Sum256([]byte(body.Password + "womprat-salt"))
-	SaveCredential("master-hash", fmt.Sprintf("%x", hash))
+	if body.Password == "" {
+		http.Error(w, "empty password", 400)
+		return
+	}
+	salt := make([]byte, 16)
+	if _, err := rand.Read(salt); err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	const iterations = 310000
+	hash := pbkdf2.Key([]byte(body.Password), salt, iterations, 32, sha256.New)
+	record := map[string]interface{}{
+		"kdf":        "pbkdf2-sha256",
+		"iterations": iterations,
+		"salt":       base64.StdEncoding.EncodeToString(salt),
+		"hash":       base64.StdEncoding.EncodeToString(hash),
+	}
+	data, _ := json.Marshal(record)
+	SaveCredential("master-hash", string(data))
 	a.config.UnlockMethod = "master"
 	SaveConfig(a.config)
-	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	json.NewEncoder(w).Encode(map[string]string{"status": "ok", "kdf": "pbkdf2-sha256"})
 }
 
 func (a *App) handleSetTailscaleKey(w http.ResponseWriter, r *http.Request) {
@@ -284,9 +308,10 @@ func (a *App) handleExitNode(w http.ResponseWriter, r *http.Request) {
 			ExitNode string `json:"exitNode"`
 		}
 		json.NewDecoder(r.Body).Decode(&body)
-		// Toggle proxy routing mode. Actual Tailscale exit-node selection is still
-		// handled by tsnet/control state; this flag only decides whether the local
-		// SOCKS proxy sends public destinations to tsnet or direct.
+		if err := a.applyExitNodePreference(r.Context(), body.ExitNode); err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
 		a.mu.Lock()
 		a.config.ExitNode = body.ExitNode
 		useExitNode = body.ExitNode != ""
@@ -294,6 +319,49 @@ func (a *App) handleExitNode(w http.ResponseWriter, r *http.Request) {
 		SaveConfig(a.config)
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok", "exitNode": body.ExitNode})
 	}
+}
+
+func (a *App) applyExitNodePreference(ctx context.Context, exitNode string) error {
+	ts := a.ts()
+	if ts == nil {
+		if exitNode == "" {
+			return nil
+		}
+		return fmt.Errorf("tailscale not connected")
+	}
+	lc, err := ts.LocalClient()
+	if err != nil {
+		return err
+	}
+	prefs := &ipn.MaskedPrefs{
+		Prefs: ipn.Prefs{
+			RouteAll: exitNode != "",
+		},
+		RouteAllSet:   true,
+		ExitNodeIPSet: true,
+		ExitNodeIDSet: true,
+	}
+	if exitNode != "" {
+		status, err := lc.Status(ctx)
+		if err != nil {
+			return err
+		}
+		for _, p := range status.Peer {
+			name := strings.TrimSuffix(p.HostName, ".")
+			if name == exitNode || p.DNSName == exitNode || strings.TrimSuffix(p.DNSName, ".") == exitNode {
+				if len(p.TailscaleIPs) == 0 {
+					return fmt.Errorf("exit node %s has no tailscale IP", exitNode)
+				}
+				prefs.ExitNodeIP = p.TailscaleIPs[0]
+				break
+			}
+		}
+		if !prefs.ExitNodeIP.IsValid() {
+			return fmt.Errorf("exit node %s was not found in tailnet peers", exitNode)
+		}
+	}
+	_, err = lc.EditPrefs(ctx, prefs)
+	return err
 }
 
 func (a *App) handleSaveTabs(w http.ResponseWriter, r *http.Request) {

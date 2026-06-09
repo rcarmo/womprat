@@ -50,11 +50,13 @@ type SavedTab struct {
 }
 
 type HostConfig struct {
-	User     string `json:"user"`
-	Port     int    `json:"port"`
-	KeyName  string `json:"keyName"` // credential name in Windows Credential Manager
-	Nickname string `json:"nickname"`
-	URL      string `json:"url"` // preferred browser URL for this tailnet host
+	User               string `json:"user"`
+	Port               int    `json:"port"`
+	KeyName            string `json:"keyName"` // credential name in Windows Credential Manager
+	Nickname           string `json:"nickname"`
+	URL                string `json:"url"`                // preferred browser URL for this tailnet host
+	HostKey            string `json:"hostKey"`            // authorized_keys-format SSH host key (TOFU)
+	HostKeyFingerprint string `json:"hostKeyFingerprint"` // SHA256 fingerprint for display/audit
 }
 
 func defaultConfig() *AppConfig {
@@ -101,6 +103,9 @@ func LoadConfig() (*AppConfig, error) {
 	}
 	if cfg.Hosts == nil {
 		cfg.Hosts = make(map[string]HostConfig)
+	}
+	if cfg.UnlockMethod == "hello" || cfg.UnlockMethod == "" {
+		cfg.UnlockMethod = "dpapi"
 	}
 	return &cfg, nil
 }
