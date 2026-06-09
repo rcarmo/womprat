@@ -245,6 +245,15 @@ function setURLProgress(_active, _done = false) {
   // Disabled for now: native WebView2 navigation events can arrive out of phase
   // with shell state, and a stuck strip is worse than no progress indicator.
 }
+window.wompratContentError = function(tabId, message) {
+  const tab = state.tabs.find(t => t.id === tabId);
+  if (tab) tab.title = 'Browser error';
+  const panel = document.getElementById(`panel-${tabId}`);
+  if (panel) {
+    panel.innerHTML = `<div class="browser-placeholder">Browser WebView failed: ${escapeHTML(message || 'unknown error')}</div>`;
+  }
+  renderTabs();
+};
 window.wompratNavigationDone = function(tabId, url) {
   const tab = state.tabs.find(t => t.id === tabId);
   if (tab && url && /^https?:\/\//i.test(url)) {

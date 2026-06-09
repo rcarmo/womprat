@@ -4,6 +4,10 @@ package main
 
 import (
 	"fmt"
+	"log"
+	"os"
+	"path/filepath"
+	"regexp"
 	"sync"
 	"time"
 	"unsafe"
@@ -19,6 +23,10 @@ const (
 	swpNoZOrder         = 0x0004
 	swHide              = 0
 	swShow              = 5
+	wsChild             = 0x40000000
+	wsVisible           = 0x10000000
+	wsClipChildren      = 0x02000000
+	wsClipSiblings      = 0x04000000
 )
 
 var (
@@ -59,6 +67,10 @@ func (m *nativeContentManager) Ensure(tabID string) browserContentView {
 	}
 	v, err := newNativeContentView(m.parent, m.dataPath, tabID, m.shell)
 	if err != nil {
+		log.Printf("content WebView for %s unavailable: %v", tabID, err)
+		if m.shell != nil {
+			m.shell.Eval(fmt.Sprintf("window.wompratContentError(%s,%s)", jsString(tabID), jsString(err.Error())))
+		}
 		return nilContentView{}
 	}
 	v.Hide()
@@ -148,16 +160,31 @@ type nativeContentView struct {
 	edge   *webview2edge.Chromium
 }
 
+var unsafePathChars = regexp.MustCompile(`[^A-Za-z0-9_.-]+`)
+
+func contentDataPath(base, tabID string) string {
+	name := unsafePathChars.ReplaceAllString(tabID, "_")
+	if name == "" {
+		name = "tab"
+	}
+	return filepath.Join(base, "browser-tabs", name)
+}
+
 func newNativeContentView(parent uintptr, dataPath, tabID string, shell shellWebView) (*nativeContentView, error) {
 	className, _ := windows.UTF16PtrFromString("STATIC")
 	hwnd, _, err := procCreateWindowExW.Call(0, uintptr(unsafe.Pointer(className)), 0,
-		0x40000000|0x10000000, 0, browserChromeHeight, 100, 100, parent, 0, 0, 0)
+		wsChild|wsVisible|wsClipChildren|wsClipSiblings, 0, browserChromeHeight, 100, 100, parent, 0, 0, 0)
 	if hwnd == 0 {
 		return nil, fmt.Errorf("create content child window: %w", err)
 	}
 	cv := &nativeContentView{parent: parent, hwnd: hwnd, tabID: tabID, shell: shell}
 	edge := webview2edge.NewChromium()
-	edge.DataPath = dataPath
+	tabDataPath := contentDataPath(dataPath, tabID)
+	if err := os.MkdirAll(tabDataPath, 0700); err != nil {
+		procDestroyWindow.Call(hwnd)
+		return nil, fmt.Errorf("create content data path: %w", err)
+	}
+	edge.DataPath = tabDataPath
 	edge.NavigationCompletedCallback = func(_ *webview2edge.ICoreWebView2, _ *webview2edge.ICoreWebView2NavigationCompletedEventArgs) {
 		if cv.shell != nil {
 			cv.shell.Eval(fmt.Sprintf("window.wompratNavigationDone(%s,%s)", jsString(cv.tabID), jsString(cv.url)))
