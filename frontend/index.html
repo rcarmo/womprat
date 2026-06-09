@@ -615,7 +615,7 @@ function renderTabs() {
   const bar = document.getElementById('tab-bar');
   const existing = bar.querySelectorAll('.tab');
   existing.forEach(el => el.remove());
-  const plus = document.getElementById('new-tab');
+  const trailingControls = bar.querySelector('div[style*="margin-left:auto"]');
   state.tabs.forEach(tab => {
     const el = document.createElement('div');
     el.className = `tab${tab.id === state.activeTab ? ' active' : ''}`;
@@ -632,7 +632,7 @@ function renderTabs() {
     close.addEventListener('mousedown', stopCloseEvent, true);
     close.addEventListener('click', (e) => { stopCloseEvent(e); closeTab(tab.id, e); }, true);
     el.appendChild(close);
-    bar.insertBefore(el, plus);
+    bar.insertBefore(el, trailingControls);
   });
 }
 

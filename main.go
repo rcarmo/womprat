@@ -854,8 +854,8 @@ func chromeOverlayJS(port int, token string) string {
     bar.id = 'womprat-chrome';
     bar.innerHTML = `+"`"+`
       <div id="womprat-tab-row">
-        <div id="womprat-tabs"></div>
         <button id="womprat-new-tab" title="New tab" aria-label="New tab">${i('add')}</button>
+        <div id="womprat-tabs"></div>
         <button id="womprat-home" title="Home" aria-label="Home">${i('home')}</button>
       </div>
       <div id="womprat-url-row">
