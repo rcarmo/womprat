@@ -986,7 +986,8 @@ func chromeOverlayJS(port int, token string) string {
         <button id="womprat-back" title="Back" aria-label="Back">${i('back')}</button>
         <button id="womprat-forward" title="Forward" aria-label="Forward">${i('forward')}</button>
         <button id="womprat-reload" title="Reload" aria-label="Reload">${i('reload')}</button>
-        <input id="womprat-url" spellcheck="false">
+        <input id="womprat-url" list="womprat-url-history" spellcheck="false">
+        <datalist id="womprat-url-history"></datalist>
         <span id="womprat-route" title="Exit node route status"></span>
         <button id="womprat-go">Go</button>
         <div id="womprat-progress" aria-hidden="true"><div></div></div>
@@ -1047,6 +1048,19 @@ func chromeOverlayJS(port int, token string) string {
         if (!document.body.hasAttribute('tabindex')) document.body.setAttribute('tabindex', '-1');
         document.body.focus({ preventScroll: true });
       }
+    }
+
+    function refreshURLHistoryDatalist(state) {
+      const list = document.getElementById('womprat-url-history');
+      if (!list) return;
+      list.textContent = '';
+      const urls = [];
+      (state?.tabs || []).forEach(t => { if (t.type === 'browser' && t.url && /^https?:\/\//i.test(t.url)) urls.push(t.url); });
+      [...new Set(urls)].slice(0, 100).forEach(u => {
+        const opt = document.createElement('option');
+        opt.value = u;
+        list.appendChild(opt);
+      });
     }
 
     function navigateFromInput() {
@@ -1181,6 +1195,7 @@ func chromeOverlayJS(port int, token string) string {
     async function refresh() {
       try {
         const state = JSON.parse(await womprat_getTabs());
+        refreshURLHistoryDatalist(state);
         const tabs = document.getElementById('womprat-tabs');
         tabs.textContent = '';
         state.tabs.forEach((t) => {

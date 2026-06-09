@@ -167,7 +167,8 @@ button,a,.tab,.recent-item,.option{
   <button class="icon-button" onclick="historyBack(state.activeTab)" title="Back" aria-label="Back" data-icon="arrowLeft"></button>
   <button class="icon-button" onclick="historyForward(state.activeTab)" title="Forward" aria-label="Forward" data-icon="arrowRight"></button>
   <button class="icon-button" onclick="historyReload(state.activeTab)" title="Reload" aria-label="Reload" data-icon="arrowClockwise"></button>
-  <input id="url-input" placeholder="Enter URL or ssh://user@host" onkeydown="if(event.key==='Enter')navigateFromBar()">
+  <input id="url-input" list="url-history" placeholder="Enter URL or ssh://user@host" onkeydown="if(event.key==='Enter')navigateFromBar()">
+  <datalist id="url-history"></datalist>
   <span id="route-pill" class="route-pill" title="Exit node route status"></span>
   <button class="icon-button text-button" onclick="navigateFromBar()">Go</button>
   <div id="url-progress" aria-hidden="true"><div class="bar"></div></div>
@@ -271,6 +272,30 @@ function registerLocalTab(tab) {
     womprat_registerLocalTab(JSON.stringify(tab));
   }
 }
+function loadURLHistory() {
+  try { return JSON.parse(localStorage.getItem('wompratURLHistory') || '[]'); }
+  catch { return []; }
+}
+function saveURLHistory(url) {
+  if (!/^https?:\/\//i.test(url)) return;
+  const history = loadURLHistory().filter(u => u !== url);
+  history.unshift(url);
+  localStorage.setItem('wompratURLHistory', JSON.stringify(history.slice(0, 100)));
+  refreshURLHistoryDatalist();
+}
+function refreshURLHistoryDatalist(extra = []) {
+  const list = document.getElementById('url-history');
+  if (!list) return;
+  const urls = new Set(loadURLHistory());
+  for (const t of state.tabs || []) if (t.type === 'browser' && t.url) urls.add(t.url);
+  for (const u of extra || []) if (u) urls.add(u);
+  list.textContent = '';
+  [...urls].filter(u => /^https?:\/\//i.test(u)).slice(0, 100).forEach(u => {
+    const opt = document.createElement('option');
+    opt.value = u;
+    list.appendChild(opt);
+  });
+}
 async function updateNetworkIndicator() {
   const pill = document.getElementById('route-pill');
   if (!pill) return;
@@ -371,6 +396,7 @@ window.newBlankTab = function() {
   document.getElementById('panels')?.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   updateHomeVisibility();
   renderTabs();
+  refreshURLHistoryDatalist();
   const input = document.getElementById('url-input');
   if (input) {
     input.value = '';
@@ -580,6 +606,7 @@ window.openBrowser = function(url, name) {
 
   updateNetworkIndicator();
   setURLProgress(true);
+  saveURLHistory(navUrl);
   focusContentArea();
   // Browser tabs are real WebView2 navigations managed by Go.
   // Do not create shell panels/iframes for external pages.
@@ -860,6 +887,7 @@ window.navigateFromBar = function() {
   if (!/^https?:\/\//.test(navUrl)) navUrl = 'http://' + navUrl;
   updateNetworkIndicator();
   setURLProgress(true);
+  saveURLHistory(navUrl);
   focusContentArea();
   // External browsing is direct WebView2 navigation, never a shell iframe.
   const active = state.tabs.find(t => t.id === state.activeTab);
@@ -892,7 +920,10 @@ function activateRecentTab(tab) {
     return;
   }
   const url = tab.url || tab.title;
-  if (url) openBrowser(url, tab.title || url);
+  if (url) {
+    saveURLHistory(/^https?:\/\//i.test(url) ? url : 'http://' + url);
+    openBrowser(url, tab.title || url);
+  }
 }
 
 async function loadRecentTabs() {
@@ -901,6 +932,7 @@ async function loadRecentTabs() {
     const cfg = await res.json();
     const list = document.getElementById('recent-list');
     const tabs = cfg.openTabs || [];
+    refreshURLHistoryDatalist(tabs.filter(t => t.type === 'browser').map(t => t.url || t.title));
     list.textContent = '';
     if (!tabs.length) {
       const empty = document.createElement('div');
