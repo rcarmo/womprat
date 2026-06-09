@@ -406,8 +406,11 @@ window.openTerminal = async function(host, name, user, port, options = {}) {
     const searchAddon = term._addonManager?._addons?.find(a => a?.instance?.findNext) || null;
     term.attachCustomKeyEventHandler((ev) => {
       const key = ev.key.toLowerCase();
-      if (ev.ctrlKey && !ev.shiftKey && !ev.altKey && key === 'w') {
+      if (ev.ctrlKey && ev.shiftKey && !ev.altKey && key === 'w') {
         ev.preventDefault?.();
+        ev.stopPropagation?.();
+        ev.stopImmediatePropagation?.();
+        window.__wompratSuppressCloseShortcutUntil = Date.now() + 250;
         closeTab(tabId);
         return false;
       }
@@ -748,6 +751,23 @@ function installBrowserHotkeys() {
   document.addEventListener('keydown', (e) => {
     const key = e.key.toLowerCase();
     const ctrl = e.ctrlKey || e.metaKey;
+    const active = state.tabs.find(t => t.id === state.activeTab);
+    const terminalFocused = active?.type === 'terminal';
+    if (terminalFocused) {
+      if (ctrl && e.shiftKey && key === 'w') {
+        e.preventDefault();
+        if (Date.now() < (window.__wompratSuppressCloseShortcutUntil || 0)) return;
+        closeActiveShellTab();
+        return;
+      }
+      if (ctrl && e.shiftKey && key === 't') { e.preventDefault(); newBlankTab(); return; }
+      if (ctrl && e.shiftKey && key === 'l') { e.preventDefault(); focusAddress(true); return; }
+      if (ctrl && e.shiftKey && key === 'r') { e.preventDefault(); historyReload(state.activeTab); return; }
+      if (ctrl && e.shiftKey && (key === 'tab' || key === 'pagedown')) { e.preventDefault(); switchRelativeTab(1); return; }
+      if (ctrl && e.shiftKey && key === 'pageup') { e.preventDefault(); switchRelativeTab(-1); return; }
+      if (ctrl && e.shiftKey && /^[1-9]$/.test(key)) { e.preventDefault(); switchTabAt(key === '9' ? 8 : Number(key) - 1); return; }
+      return;
+    }
     if (e.altKey && !ctrl && key === 'arrowleft') { e.preventDefault(); history.back(); return; }
     if (e.altKey && !ctrl && key === 'arrowright') { e.preventDefault(); history.forward(); return; }
     if (key === 'f5' || (ctrl && key === 'r')) { e.preventDefault(); location.reload(); return; }
