@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"sync"
 	"time"
 	"unsafe"
 
@@ -123,6 +122,8 @@ func createHostWindow(title string, width, height int) (uintptr, error) {
 	if hwnd == 0 {
 		return 0, fmt.Errorf("create host window: %w", err)
 	}
+	procShowWindowHost.Call(hwnd, swShow)
+	procUpdateWindow.Call(hwnd)
 	return hwnd, nil
 }
 
@@ -232,30 +233,14 @@ func runGUI(app *App, shellURL string) {
 		}
 	})
 
-	// Show the host window, then lay out the shell WebView so it paints. Showing
-	// must happen while we can still issue a layout pass, otherwise WebView2 can
-	// come up blank. The dark window-class brush prevents a white flash.
-	var showOnce sync.Once
-	showShell := func() {
-		showOnce.Do(func() {
-			showHostWindow(host)
-			resizeChildToClient(host, shellChild, 0, 0)
-			w.Resize()
-			if contentViews != nil {
-				contentViews.HideAll()
-			}
-		})
-	}
-	w.Bind("womprat_shellReady", func() { showShell() })
-	w.Init(`document.addEventListener('DOMContentLoaded',function(){try{window.womprat_shellReady&&window.womprat_shellReady();}catch(e){}});window.addEventListener('load',function(){try{window.womprat_shellReady&&window.womprat_shellReady();}catch(e){}});`)
-	// Fallback: show shortly after launch even if the ready signal never fires.
-	time.AfterFunc(1200*time.Millisecond, func() { w.Dispatch(showShell) })
-
 	log.Printf("gui: navigating shell to %s", shellURL)
 	w.Navigate(fmt.Sprintf("%s?v=%d", shellURL, time.Now().UnixMilli()))
 	if contentViews != nil {
 		contentViews.HideAll()
 	}
+	// Lay out the shell WebView against the visible host so it paints.
+	resizeChildToClient(host, shellChild, 0, 0)
+	w.Resize()
 	log.Printf("gui: entering run loop")
 	w.Run()
 }
