@@ -286,13 +286,19 @@ function saveURLHistory(url) {
   localStorage.setItem('wompratURLHistory', JSON.stringify(history.slice(0, 100)));
   refreshURLHistoryDatalist();
 }
+function formatSSHURL(user, host, port) {
+  const u = user || 'root';
+  const h = host || '';
+  const p = Number(port || 0);
+  return p && p !== 22 ? `ssh://${u}@${h}:${p}` : `ssh://${u}@${h}`;
+}
 function refreshURLHistoryDatalist(extra = []) {
   const list = document.getElementById('url-history');
   if (!list) return;
   const urls = new Set(loadURLHistory());
   for (const t of state.tabs || []) {
     if (t.type === 'browser' && t.url) urls.add(t.url);
-    if (t.type === 'terminal' && t.host) urls.add(`ssh://${t.user || 'root'}@${t.host}:${t.port || 22}`);
+    if (t.type === 'terminal' && t.host) urls.add(formatSSHURL(t.user, t.host, t.port));
   }
   for (const u of extra || []) if (u) urls.add(u);
   list.textContent = '';
@@ -890,7 +896,7 @@ window.navigateFromBar = function() {
     const user = sshMatch[1] || 'root';
     const host = sshMatch[2];
     const port = sshMatch[3] ? parseInt(sshMatch[3]) : 22;
-    saveURLHistory(`ssh://${user}@${host}:${port}`);
+    saveURLHistory(formatSSHURL(user, host, port));
     openTerminal(host, host, user, port);
     return;
   }
@@ -927,7 +933,7 @@ window.openSettings = function() {
 function activateRecentTab(tab) {
   if (!tab) return;
   if (tab.type === 'terminal') {
-    saveURLHistory(`ssh://${tab.user || 'root'}@${tab.host || tab.title}:${Number(tab.port || 22)}`);
+    saveURLHistory(formatSSHURL(tab.user || 'root', tab.host || tab.title, tab.port));
     openTerminal(tab.host || tab.title, tab.title || tab.host, tab.user || 'root', Number(tab.port || 22));
     return;
   }
@@ -944,7 +950,7 @@ async function loadRecentTabs() {
     const cfg = await res.json();
     const list = document.getElementById('recent-list');
     const tabs = cfg.openTabs || [];
-    refreshURLHistoryDatalist(tabs.map(t => t.type === 'terminal' ? `ssh://${t.user || 'root'}@${t.host || t.title}:${t.port || 22}` : (t.url || t.title)));
+    refreshURLHistoryDatalist(tabs.map(t => t.type === 'terminal' ? formatSSHURL(t.user || 'root', t.host || t.title, t.port) : (t.url || t.title)));
     list.textContent = '';
     if (!tabs.length) {
       const empty = document.createElement('div');

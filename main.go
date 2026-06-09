@@ -1064,6 +1064,11 @@ func chromeOverlayJS(port int, token string) string {
       }
     }
 
+    function formatSSHURL(user, host, port) {
+      const p = Number(port || 0);
+      return p && p !== 22 ? 'ssh://' + (user || 'root') + '@' + host + ':' + p : 'ssh://' + (user || 'root') + '@' + host;
+    }
+
     function refreshURLHistoryDatalist(state) {
       const list = document.getElementById('womprat-url-history');
       if (!list) return;
@@ -1071,7 +1076,7 @@ func chromeOverlayJS(port int, token string) string {
       const urls = [];
       (state?.tabs || []).forEach(t => {
         if (t.type === 'browser' && t.url && /^https?:\/\//i.test(t.url)) urls.push(t.url);
-        if (t.type === 'terminal' && t.host) urls.push('ssh://' + (t.user || 'root') + '@' + t.host + ':' + (t.port || 22));
+        if (t.type === 'terminal' && t.host) urls.push(formatSSHURL(t.user, t.host, t.port));
       });
       [...new Set(urls)].slice(0, 100).forEach(u => {
         const opt = document.createElement('option');
@@ -1093,7 +1098,7 @@ func chromeOverlayJS(port int, token string) string {
         const user = sshMatch[1] || 'root';
         const host = sshMatch[2];
         const port = sshMatch[3] ? parseInt(sshMatch[3], 10) : 22;
-        input.value = 'ssh://' + user + '@' + host + ':' + port;
+        input.value = formatSSHURL(user, host, port);
         if (window.womprat_newTerminal) womprat_newTerminal(host, user, port);
         return;
       }
