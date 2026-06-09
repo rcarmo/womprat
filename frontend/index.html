@@ -87,14 +87,14 @@ button,a,.tab,.recent-item,.option{
 /* Terminal panel */
 .term-panel{min-height:0;background:#202020}
 .term-panel .term-container{flex:1;min-height:0;width:100%;height:100%;display:flex;overflow:hidden;background:#202020;padding:4px 6px}
-.term-panel .xterm{flex:1;width:100%;height:100%}
-.term-panel .xterm .xterm-viewport{background:transparent!important;scrollbar-width:thin;scrollbar-color:transparent transparent}
-.term-panel .xterm .xterm-viewport::-webkit-scrollbar{width:6px;height:6px;background:transparent}
-.term-panel .xterm .xterm-viewport::-webkit-scrollbar-track{background:transparent}
-.term-panel .xterm .xterm-viewport::-webkit-scrollbar-thumb{background:transparent;border-radius:3px;transition:background .45s ease}
-.term-panel.scrolling .xterm .xterm-viewport{scrollbar-color:rgba(255,255,255,.35) transparent}
-.term-panel.scrolling .xterm .xterm-viewport::-webkit-scrollbar-thumb{background:rgba(255,255,255,.35)}
-.term-panel .xterm .xterm-viewport:hover::-webkit-scrollbar-thumb{background:rgba(255,255,255,.28)}
+.term-panel .xterm{flex:1;width:100%;height:100%;padding:0}
+.term-panel .xterm .xterm-viewport,
+.term-panel .xterm .xterm-screen{background:transparent!important}
+/* xterm uses the VS Code scrollable-element overlay scrollbar (auto fade). Style
+   its slider rather than the native ::-webkit-scrollbar, which xterm does not use. */
+.term-panel .xterm .xterm-scrollable-element>.scrollbar.vertical{width:6px!important}
+.term-panel .xterm .xterm-scrollable-element>.scrollbar>.slider{background:rgba(255,255,255,.28)!important;border-radius:3px!important}
+.term-panel .xterm .xterm-scrollable-element>.scrollbar:hover>.slider{background:rgba(255,255,255,.45)!important}
 
 /* Local panels */
 .browser-panel{flex-direction:column}
@@ -550,19 +550,6 @@ window.openTerminal = async function(host, name, user, port, options = {}) {
   fit.fit();
   terminalSessions.set(tabId, { term, fit, fontSize: TERMINAL_FONT_SIZE, ws: null });
   window.addEventListener('resize', () => { if (state.activeTab === tabId) fit.fit(); });
-  // Overlay scrollbar: reveal while scrolling or on terminal output, fade on idle.
-  // The native thumb is automatically proportional to the scrollback buffer.
-  const termViewport = container.querySelector('.xterm-viewport');
-  let scrollbarFadeTimer = null;
-  const revealScrollbar = () => {
-    panel.classList.add('scrolling');
-    clearTimeout(scrollbarFadeTimer);
-    scrollbarFadeTimer = setTimeout(() => panel.classList.remove('scrolling'), 900);
-  };
-  if (termViewport) {
-    termViewport.addEventListener('scroll', revealScrollbar, { passive: true });
-  }
-  term.onScroll(revealScrollbar);
 
   term.write(`\x1b[2m Connecting to ${sshUser}@${host}:${sshPort}...\x1b[0m\r\n`);
 
