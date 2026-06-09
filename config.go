@@ -77,7 +77,8 @@ func configPath() string {
 }
 
 // LoadConfig reads and decrypts the config file
-// On Windows this uses DPAPI; on other platforms it's plaintext (dev mode)
+// On Windows: DPAPI (only same user can decrypt)
+// On other: AES-GCM with machine-local key
 func LoadConfig() (*AppConfig, error) {
 	data, err := os.ReadFile(configPath())
 	if err != nil {
@@ -87,10 +88,11 @@ func LoadConfig() (*AppConfig, error) {
 		return nil, err
 	}
 
-	// TODO: DPAPI decrypt on Windows
-	// decrypted, err := dpapi.DecryptBytes(data)
-	// For now, treat as plaintext JSON
-	decrypted := data
+	decrypted, err := decryptConfig(data)
+	if err != nil {
+		// If decryption fails (corrupt, wrong user, etc.), start fresh
+		return defaultConfig(), nil
+	}
 
 	var cfg AppConfig
 	if err := json.Unmarshal(decrypted, &cfg); err != nil {
@@ -109,9 +111,10 @@ func SaveConfig(cfg *AppConfig) error {
 		return err
 	}
 
-	// TODO: DPAPI encrypt on Windows
-	// encrypted, err := dpapi.EncryptBytes(data)
-	encrypted := data
+	encrypted, err := encryptConfig(data)
+	if err != nil {
+		return err
+	}
 
 	return os.WriteFile(configPath(), encrypted, 0600)
 }
@@ -121,24 +124,29 @@ const (
 	credPrefix = "womprat/"
 )
 
-// SaveCredential stores a secret in Windows Credential Manager
+// SaveCredential stores an encrypted secret
 func SaveCredential(name, value string) error {
-	// TODO: Use github.com/danieljoos/wincred on Windows
-	// Fallback for dev: write to config dir
+	encrypted, err := encryptConfig([]byte(value))
+	if err != nil {
+		return err
+	}
 	path := filepath.Join(configDir(), "creds", name)
 	os.MkdirAll(filepath.Dir(path), 0700)
-	return os.WriteFile(path, []byte(value), 0600)
+	return os.WriteFile(path, encrypted, 0600)
 }
 
-// GetCredential retrieves a secret from Windows Credential Manager
+// GetCredential retrieves and decrypts a stored secret
 func GetCredential(name string) (string, error) {
-	// TODO: Use github.com/danieljoos/wincred on Windows
 	path := filepath.Join(configDir(), "creds", name)
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return "", err
 	}
-	return string(data), nil
+	decrypted, err := decryptConfig(data)
+	if err != nil {
+		return "", err
+	}
+	return string(decrypted), nil
 }
 
 // DeleteCredential removes a secret
