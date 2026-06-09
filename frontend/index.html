@@ -638,7 +638,10 @@ function renderTabs() {
     el.className = `tab${tab.id === state.activeTab ? ' active' : ''}`;
     el.draggable = true;
     el.dataset.tabId = tab.id;
-    el.onclick = () => activateTab(tab.id);
+    el.onclick = (e) => {
+      if (e.target?.closest?.('.tab-close')) return;
+      activateTab(tab.id);
+    };
     el.addEventListener('dragstart', (e) => {
       el.classList.add('dragging');
       e.dataTransfer.effectAllowed = 'move';
@@ -664,8 +667,12 @@ function renderTabs() {
     close.setAttribute('aria-label', 'Close tab');
     close.innerHTML = icon('dismiss');
     const stopCloseEvent = (e) => { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation?.(); };
+    close.draggable = false;
     close.addEventListener('pointerdown', stopCloseEvent, true);
+    close.addEventListener('pointerup', stopCloseEvent, true);
     close.addEventListener('mousedown', stopCloseEvent, true);
+    close.addEventListener('mouseup', stopCloseEvent, true);
+    close.addEventListener('dblclick', stopCloseEvent, true);
     close.addEventListener('click', (e) => { stopCloseEvent(e); closeTab(tab.id, e); }, true);
     el.appendChild(close);
     list.appendChild(el);

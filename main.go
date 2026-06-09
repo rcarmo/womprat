@@ -66,6 +66,8 @@ type App struct {
 	locked       bool
 	webview      webview2.WebView
 	serverPort   int
+	lastCloseAt  time.Time
+	lastCloseTab string
 }
 
 func main() {
@@ -363,6 +365,14 @@ func (a *App) forgetTab(tabID string) {
 
 func (a *App) closeTab(tabID string) {
 	a.mu.Lock()
+	now := time.Now()
+	if !a.lastCloseAt.IsZero() && now.Sub(a.lastCloseAt) < 250*time.Millisecond {
+		log.Printf("ignoring duplicate/overlapping tab close for %s after %s", tabID, a.lastCloseTab)
+		a.mu.Unlock()
+		return
+	}
+	a.lastCloseAt = now
+	a.lastCloseTab = tabID
 	oldActive := a.activeTab
 	closedIndex := -1
 	newTabs := []Tab{}
@@ -1215,16 +1225,23 @@ func chromeOverlayJS(port int, token string) string {
           const label = document.createElement('span');
           label.textContent = (t.title || t.url || t.host || 'tab').slice(0, 24);
           title.appendChild(label);
-          title.addEventListener('click', () => womprat_switchTab(t.id));
+          title.addEventListener('click', (e) => {
+            if (e.target?.closest?.('.wt-close')) return;
+            womprat_switchTab(t.id);
+          });
           const close = document.createElement('button');
           close.type = 'button';
           close.className = 'wt-close';
           close.title = 'Close tab';
           close.setAttribute('aria-label', 'Close tab');
           close.innerHTML = i('close');
+          close.draggable = false;
           const stopCloseEvent = (e) => { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation?.(); };
           close.addEventListener('pointerdown', stopCloseEvent, true);
+          close.addEventListener('pointerup', stopCloseEvent, true);
           close.addEventListener('mousedown', stopCloseEvent, true);
+          close.addEventListener('mouseup', stopCloseEvent, true);
+          close.addEventListener('dblclick', stopCloseEvent, true);
           close.addEventListener('click', (e) => { stopCloseEvent(e); womprat_closeTab(t.id); }, true);
           item.appendChild(iconSlot);
           item.appendChild(title);
