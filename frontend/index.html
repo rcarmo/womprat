@@ -52,6 +52,7 @@ button,a,.tab,.recent-item,.option{
   transition:background .1s,border-color .15s,color .1s}
 .fluent-icon{width:20px;height:20px;display:inline-block;flex:0 0 20px;color:currentColor;vertical-align:middle}
 .fluent-icon svg{width:100%;height:100%;display:block}
+.tab-favicon{width:16px;height:16px;flex:0 0 16px;object-fit:contain;border-radius:2px;vertical-align:middle}
 .icon-button{width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;
   border:1px solid transparent;border-radius:var(--radius);background:transparent;color:var(--text-secondary);
   cursor:pointer;padding:0;flex:0 0 auto}
@@ -575,6 +576,13 @@ window.closeTab = function(id, e) {
   else updateHomeVisibility();
 };
 
+function tabIconHTML(tab) {
+  if (tab.type === 'browser' && tab.favicon) {
+    return `<img class="tab-favicon" src="${escapeHTML(tab.favicon)}" alt="" referrerpolicy="no-referrer">`;
+  }
+  return icon(tab.type === 'terminal' ? 'terminal' : tab.type === 'settings' ? 'settings' : 'globe');
+}
+
 function renderTabs() {
   const bar = document.getElementById('tab-bar');
   const existing = bar.querySelectorAll('.tab');
@@ -584,7 +592,7 @@ function renderTabs() {
     const el = document.createElement('div');
     el.className = `tab${tab.id === state.activeTab ? ' active' : ''}`;
     el.onclick = () => activateTab(tab.id);
-    el.innerHTML = `${icon(tab.type === 'terminal' ? 'terminal' : tab.type === 'settings' ? 'settings' : 'globe')} <span class="tab-title">${escapeHTML(tab.title)}</span> <span class="tab-close" onclick="closeTab(${jsArg(tab.id)},event)" title="Close">${icon('dismiss')}</span>`;
+    el.innerHTML = `${tabIconHTML(tab)} <span class="tab-title">${escapeHTML(tab.title)}</span> <span class="tab-close" onclick="closeTab(${jsArg(tab.id)},event)" title="Close">${icon('dismiss')}</span>`;
     bar.insertBefore(el, plus);
   });
 }
@@ -786,7 +794,9 @@ async function loadRecentTabs() {
       });
 
       const iconSpan = document.createElement('span');
-      iconSpan.innerHTML = icon(t.type === 'terminal' ? 'terminal' : 'globe');
+      iconSpan.innerHTML = t.type === 'browser' && t.favicon
+        ? `<img class="tab-favicon" src="${escapeHTML(t.favicon)}" alt="" referrerpolicy="no-referrer">`
+        : icon(t.type === 'terminal' ? 'terminal' : 'globe');
       const title = document.createElement('span');
       title.style.fontWeight = '600';
       title.textContent = t.title || t.host || t.url || 'Untitled';
@@ -803,7 +813,7 @@ async function hydrateNativeTabs() {
   if (!window.womprat_getTabs) return;
   try {
     const native = JSON.parse(await womprat_getTabs());
-    const localTabs = (native.tabs || []).filter(t => t.type === 'terminal' || t.type === 'settings');
+    const localTabs = (native.tabs || []).filter(t => t.type === 'terminal' || t.type === 'settings' || t.type === 'browser');
     const requested = new URLSearchParams(location.search).get('tab') || native.activeTab;
     const target = localTabs.find(t => t.id === requested);
     state.tabs = localTabs.filter(t => !target || t.id !== target.id);
@@ -822,7 +832,7 @@ async function hydrateNativeTabs() {
 function saveOpenTabs() {
   const tabs = state.tabs.filter(t => t.id !== 'settings').map(t => ({
     type: t.type, title: t.title,
-    host: t.host || '', user: t.user || '', port: t.port || 0, url: t.url || ''
+    host: t.host || '', user: t.user || '', port: t.port || 0, url: t.url || '', favicon: t.favicon || ''
   }));
   fetch('/api/settings/save-tabs', {
     method: 'POST', headers: {'Content-Type':'application/json'},

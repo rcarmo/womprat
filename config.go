@@ -42,12 +42,13 @@ type AppConfig struct {
 }
 
 type SavedTab struct {
-	Type  string `json:"type"` // "terminal" or "browser"
-	Title string `json:"title"`
-	Host  string `json:"host,omitempty"`
-	User  string `json:"user,omitempty"`
-	Port  int    `json:"port,omitempty"`
-	URL   string `json:"url,omitempty"`
+	Type    string `json:"type"` // "terminal" or "browser"
+	Title   string `json:"title"`
+	Host    string `json:"host,omitempty"`
+	User    string `json:"user,omitempty"`
+	Port    int    `json:"port,omitempty"`
+	URL     string `json:"url,omitempty"`
+	Favicon string `json:"favicon,omitempty"`
 }
 
 type HostConfig struct {

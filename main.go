@@ -44,13 +44,14 @@ type pendingSSH struct {
 }
 
 type Tab struct {
-	ID    string `json:"id"`
-	Type  string `json:"type"` // "terminal", "browser", "settings"
-	Title string `json:"title"`
-	URL   string `json:"url,omitempty"`
-	Host  string `json:"host,omitempty"`
-	User  string `json:"user,omitempty"`
-	Port  int    `json:"port,omitempty"`
+	ID      string `json:"id"`
+	Type    string `json:"type"` // "terminal", "browser", "settings"
+	Title   string `json:"title"`
+	URL     string `json:"url,omitempty"`
+	Favicon string `json:"favicon,omitempty"`
+	Host    string `json:"host,omitempty"`
+	User    string `json:"user,omitempty"`
+	Port    int    `json:"port,omitempty"`
 }
 
 type App struct {
@@ -157,8 +158,8 @@ func main() {
 		app.switchTab(tabID)
 	})
 
-	w.Bind("womprat_updateTitle", func(title, url string) {
-		app.updateActiveBrowserTitle(title, url)
+	w.Bind("womprat_updateTitle", func(title, url, favicon string) {
+		app.updateActiveBrowserTitle(title, url, favicon)
 	})
 
 	w.Bind("womprat_closeTab", func(tabID string) {
@@ -211,7 +212,7 @@ func (a *App) navigateBrowser(url string) {
 	a.webview.Navigate(url)
 }
 
-func (a *App) updateActiveBrowserTitle(title, url string) {
+func (a *App) updateActiveBrowserTitle(title, url, favicon string) {
 	title = strings.TrimSpace(title)
 	url = strings.TrimSpace(url)
 	if title == "" {
@@ -232,6 +233,10 @@ func (a *App) updateActiveBrowserTitle(title, url string) {
 				a.tabs[i].URL = url
 				changed = true
 			}
+			if favicon != "" && a.tabs[i].Favicon != favicon {
+				a.tabs[i].Favicon = favicon
+				changed = true
+			}
 			break
 		}
 	}
@@ -248,7 +253,7 @@ func (a *App) persistOpenTabs() {
 		if t.Type == "settings" {
 			continue
 		}
-		saved = append(saved, SavedTab{Type: t.Type, Title: t.Title, Host: t.Host, User: t.User, Port: t.Port, URL: t.URL})
+		saved = append(saved, SavedTab{Type: t.Type, Title: t.Title, Host: t.Host, User: t.User, Port: t.Port, URL: t.URL, Favicon: t.Favicon})
 	}
 	a.config.OpenTabs = saved
 	cfg := a.config
@@ -906,9 +911,23 @@ func chromeOverlayJS(port int, token string) string {
       womprat_navigate(u);
     }
 
+    function currentFavicon() {
+      const selectors = [
+        'link[rel~="icon"][href]',
+        'link[rel="shortcut icon"][href]',
+        'link[rel="apple-touch-icon"][href]',
+        'link[rel="mask-icon"][href]'
+      ];
+      for (const sel of selectors) {
+        const el = document.querySelector(sel);
+        if (el?.href) return new URL(el.getAttribute('href'), location.href).href;
+      }
+      return new URL('/favicon.ico', location.origin).href;
+    }
+
     function reportPageTitle() {
       const title = (document.title || location.hostname || location.href || '').trim();
-      if (window.womprat_updateTitle) womprat_updateTitle(title, location.href);
+      if (window.womprat_updateTitle) womprat_updateTitle(title, location.href, currentFavicon());
     }
 
     function installTitleReporter() {
@@ -917,6 +936,7 @@ func chromeOverlayJS(port int, token string) string {
       document.addEventListener('readystatechange', reportPageTitle);
       const titleEl = document.querySelector('title');
       if (titleEl) new MutationObserver(reportPageTitle).observe(titleEl, { childList: true, subtree: true, characterData: true });
+      new MutationObserver(reportPageTitle).observe(document.documentElement, { childList: true, subtree: true });
       setInterval(reportPageTitle, 1500);
     }
 
@@ -1010,7 +1030,17 @@ func chromeOverlayJS(port int, token string) string {
           item.className = 'wt' + (t.id === state.activeTab ? ' active' : '');
           const title = document.createElement('button');
           title.className = 'wt-title';
-          title.textContent = (t.title || t.url || t.host || 'tab').slice(0, 24);
+          if (t.favicon) {
+            const fav = document.createElement('img');
+            fav.className = 'wt-favicon';
+            fav.src = t.favicon;
+            fav.alt = '';
+            fav.referrerPolicy = 'no-referrer';
+            title.appendChild(fav);
+          }
+          const label = document.createElement('span');
+          label.textContent = (t.title || t.url || t.host || 'tab').slice(0, 24);
+          title.appendChild(label);
           title.addEventListener('click', () => womprat_switchTab(t.id));
           const close = document.createElement('button');
           close.className = 'wt-close';
@@ -1056,8 +1086,10 @@ var chromeOverlayCSS = "`" + `
   white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;flex:0 1 auto!important;display:inline-flex!important;align-items:center!important;gap:4px!important;min-width:0!important}
 #womprat-chrome .wt:hover{background:rgba(255,255,255,.08)!important;color:#fff!important}
 #womprat-chrome .wt.active{background:rgba(255,255,255,.12)!important;color:#fff!important;font-weight:600!important}
-#womprat-chrome .wt-title{height:30px!important;min-width:0!important;max-width:190px!important;flex:1 1 auto!important;padding:0!important;border:0!important;background:transparent!important;color:inherit!important;justify-content:flex-start!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important;font-weight:inherit!important}
+#womprat-chrome .wt-title{height:30px!important;min-width:0!important;max-width:190px!important;flex:1 1 auto!important;padding:0!important;border:0!important;background:transparent!important;color:inherit!important;justify-content:flex-start!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important;font-weight:inherit!important;gap:6px!important}
 #womprat-chrome .wt-title:hover{background:transparent!important;color:inherit!important}
+#womprat-chrome .wt-title span{overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important}
+#womprat-chrome .wt-favicon{width:16px!important;height:16px!important;min-width:16px!important;object-fit:contain!important;border-radius:2px!important}
 #womprat-chrome .wt-close{width:24px!important;height:24px!important;min-width:24px!important;padding:0!important;border:0!important;border-radius:4px!important;background:transparent!important;color:#cfcfcf!important;opacity:.65!important;flex:0 0 24px!important}
 #womprat-chrome .wt-close:hover{background:rgba(255,255,255,.10)!important;color:#fff!important;opacity:1!important}
 #womprat-chrome .wt-close .womprat-icon{width:16px!important;height:16px!important;flex-basis:16px!important}
