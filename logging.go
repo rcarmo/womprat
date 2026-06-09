@@ -10,10 +10,26 @@ import (
 	"time"
 )
 
-// logFilePath returns the path to the rolling log file. On Windows the app is a
-// GUI binary with no console, so logs must go to a file to be visible.
+// logFilePath returns the path to the runtime log file, placed in the same
+// folder as the running executable so it sits alongside the app at runtime. On
+// Windows the app is a GUI binary with no console, so logs must go to a file.
 func logFilePath() string {
-	return filepath.Join(configDir(), "womprat-log.txt")
+	dir := runtimeDir()
+	return filepath.Join(dir, "womprat-log.txt")
+}
+
+// runtimeDir is the directory of the running executable, falling back to the
+// current working directory and then the config dir.
+func runtimeDir() string {
+	if exe, err := os.Executable(); err == nil {
+		if dir := filepath.Dir(exe); dir != "" {
+			return dir
+		}
+	}
+	if wd, err := os.Getwd(); err == nil && wd != "" {
+		return wd
+	}
+	return configDir()
 }
 
 // setupLogging routes the standard logger to a log file (and stderr when one is
