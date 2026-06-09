@@ -190,6 +190,10 @@ func main() {
 		app.goHome()
 	})
 
+	w.Bind("womprat_clearActiveTab", func() {
+		app.clearActiveTab()
+	})
+
 	// Inject floating chrome overlay into every page
 	w.Init(chromeOverlayJS(app.serverPort, app.sessionToken))
 
@@ -409,10 +413,14 @@ func upsertTab(tabs []Tab, tab Tab) []Tab {
 	return append(tabs, tab)
 }
 
-func (a *App) goHome() {
+func (a *App) clearActiveTab() {
 	a.mu.Lock()
 	a.activeTab = ""
 	a.mu.Unlock()
+}
+
+func (a *App) goHome() {
+	a.clearActiveTab()
 	shellURL := fmt.Sprintf("http://127.0.0.1:%d/?v=%d", a.serverPort, time.Now().UnixMilli())
 	a.webview.Navigate(shellURL)
 }

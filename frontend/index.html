@@ -364,7 +364,7 @@ window.saveKey = async function() {
 
 window.newBlankTab = function() {
   state.activeTab = null;
-  if (window.womprat_goHome) womprat_goHome();
+  if (window.womprat_clearActiveTab) womprat_clearActiveTab();
   document.getElementById('panels')?.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   updateHomeVisibility();
   renderTabs();
