@@ -39,8 +39,13 @@ jobs:
       - name: Install Windows resource toolchain
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends llvm
-          command -v llvm-windres
+          sudo apt-get install -y --no-install-recommends llvm-18
+          mkdir -p "$HOME/.local/bin"
+          if ! command -v llvm-windres >/dev/null 2>&1; then
+            ln -sf "$(command -v llvm-windres-18)" "$HOME/.local/bin/llvm-windres"
+            echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          fi
+          command -v llvm-windres || command -v llvm-windres-18
 
       - name: Compute release metadata
         id: meta
