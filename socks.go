@@ -7,8 +7,6 @@ import (
 	"io"
 	"log"
 	"net"
-	"strings"
-	"time"
 )
 
 var socksAddr = "127.0.0.1:1080"
@@ -74,19 +72,18 @@ func handleSOCKS5(conn net.Conn, app *App) {
 
 	app.mu.Lock()
 	ts := app.tsServer
-	exitNode := useExitNode
 	app.mu.Unlock()
-
-	var remote net.Conn
-	if shouldRouteViaTSNet(host, exitNode) {
-		if ts == nil {
-			writeSOCKSReply(conn, 0x05)
-			return
-		}
-		remote, err = ts.Dial(context.Background(), "tcp", addr)
-	} else {
-		remote, err = net.DialTimeout("tcp", addr, 10*time.Second)
+	if ts == nil {
+		writeSOCKSReply(conn, 0x05)
+		return
 	}
+
+	// All WebView browser SOCKS traffic resolves and dials through tsnet. There
+	// is intentionally no direct net.Dial fallback here: public internet, LAN
+	// names, MagicDNS, and .local aliases must all use Tailscale's resolver and
+	// routing policy. If an exit node is configured, tsnet handles it; otherwise
+	// non-tailnet destinations fail closed instead of escaping locally.
+	remote, err := ts.Dial(context.Background(), "tcp", addr)
 	if err != nil {
 		writeSOCKSReply(conn, 0x05)
 		return
@@ -135,35 +132,6 @@ func readSOCKSAddr(r io.Reader, atyp byte) (string, uint16, error) {
 func writeSOCKSReply(w io.Writer, rep byte) error {
 	_, err := w.Write([]byte{0x05, rep, 0x00, 0x01, 0, 0, 0, 0, 0, 0})
 	return err
-}
-
-func shouldRouteViaTSNet(host string, exitNode bool) bool {
-	if exitNode {
-		return true
-	}
-	return isTailnetDest(host)
-}
-
-func isTailnetDest(host string) bool {
-	h := strings.Trim(strings.ToLower(host), "[]")
-	if ip := net.ParseIP(h); ip != nil {
-		if ip4 := ip.To4(); ip4 != nil {
-			return ip4[0] == 100 && (ip4[1]&0xC0) == 64 // 100.64.0.0/10
-		}
-		return len(ip) == net.IPv6len && ip[0] == 0xfd && ip[1] == 0x7a // Tailscale ULA
-	}
-
-	// MagicDNS short names and ts.net names should go through tsnet.
-	// Public FQDNs (e.g. news.ycombinator.com) should go direct unless an exit
-	// node is active. Without an exit node, .local stays direct for mDNS/LAN;
-	// with an exit node, shouldRouteViaTSNet returns before this function.
-	if strings.HasSuffix(h, ".local") {
-		return false
-	}
-	if strings.HasSuffix(h, ".ts.net") {
-		return true
-	}
-	return !strings.Contains(h, ".")
 }
 
 func relay(dst, src net.Conn) {

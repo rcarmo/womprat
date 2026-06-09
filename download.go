@@ -63,7 +63,7 @@ func (a *App) handleDownload(w http.ResponseWriter, r *http.Request) {
 	currentDownload = st
 	downloadMu.Unlock()
 
-	go a.downloadToFile(parsed.String(), parsed.Hostname(), savePath, st)
+	go a.downloadToFile(parsed.String(), savePath, st)
 
 	json.NewEncoder(w).Encode(map[string]string{
 		"status":   "started",
@@ -71,21 +71,16 @@ func (a *App) handleDownload(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (a *App) downloadToFile(targetURL, host, savePath string, st *downloadState) {
+func (a *App) downloadToFile(targetURL, savePath string, st *downloadState) {
 	transport := &http.Transport{
 		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 			a.mu.Lock()
 			ts := a.tsServer
-			exitNode := useExitNode
 			a.mu.Unlock()
-			if shouldRouteViaTSNet(host, exitNode) {
-				if ts == nil {
-					return nil, fmt.Errorf("tailscale not connected")
-				}
-				return ts.Dial(ctx, network, addr)
+			if ts == nil {
+				return nil, fmt.Errorf("tailscale not connected")
 			}
-			var d net.Dialer
-			return d.DialContext(ctx, network, addr)
+			return ts.Dial(ctx, network, addr)
 		},
 	}
 	client := &http.Client{Transport: transport, Timeout: 5 * time.Minute}
