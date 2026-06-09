@@ -99,6 +99,9 @@ button,a,.tab,.recent-item,.option{
 .term-panel .xterm .xterm-scrollable-element>.scrollbar:hover{opacity:1!important;transition:opacity .1s ease!important}
 .term-panel .xterm .xterm-scrollable-element>.scrollbar>.slider{background:rgba(255,255,255,.32)!important;border-radius:2px!important}
 .term-panel .xterm .xterm-scrollable-element>.scrollbar:hover>.slider{background:rgba(255,255,255,.5)!important}
+/* overviewRuler.width also enables a decoration canvas pinned at right:0 that
+   shows a faint 1px line; we only use the option to size the scrollbar, so hide it. */
+.term-panel .xterm .xterm-decoration-overview-ruler{display:none!important}
 
 /* Local panels */
 .browser-panel{flex-direction:column}
