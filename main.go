@@ -894,7 +894,7 @@ func chromeOverlayJS(port int, token string) string {
         const ns = window.womprat_getNetworkState ? JSON.parse(await womprat_getNetworkState()) : {};
         const isLoading = loading || document.readyState !== 'complete';
         if (ns.exitActive && ns.exitNode) {
-          pill.textContent = 'EXIT ' + ns.exitNode;
+          pill.textContent = ns.exitNode;
           pill.title = isLoading ? 'Loading via exit node ' + ns.exitNode : 'Traffic is routed via exit node ' + ns.exitNode;
           pill.className = 'active' + (isLoading ? ' loading' : '');
         } else {
@@ -1029,9 +1029,9 @@ var chromeOverlayCSS = "`" + `
   border-radius:4px!important;background:rgba(255,255,255,.06)!important;color:#f3f3f3!important;padding:0 10px!important;font-size:14px!important;
   line-height:32px!important;outline:none!important;color-scheme:dark!important}
 #womprat-chrome #womprat-url:focus{border-color:#60cdff!important;background:rgba(0,0,0,.28)!important}
-#womprat-chrome #womprat-route{display:none!important;align-items:center!important;height:24px!important;max-width:180px!important;padding:0 8px!important;border-radius:999px!important;
-  border:1px solid rgba(96,205,255,.35)!important;background:rgba(96,205,255,.10)!important;color:#60cdff!important;
-  font-size:11px!important;font-weight:700!important;letter-spacing:.04em!important;text-transform:uppercase!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;flex:0 1 auto!important}
+#womprat-chrome #womprat-route{display:none!important;align-items:center!important;height:22px!important;max-width:150px!important;padding:0 7px!important;border-radius:999px!important;
+  border:1px solid rgba(255,255,255,.10)!important;background:rgba(255,255,255,.05)!important;color:rgba(255,255,255,.55)!important;
+  font-size:11px!important;font-weight:600!important;letter-spacing:0!important;text-transform:none!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;flex:0 1 auto!important}
 #womprat-chrome #womprat-route.active{display:inline-flex!important}
 #womprat-chrome #womprat-route.loading::after{content:""!important;width:6px!important;height:6px!important;border-radius:50%!important;background:currentColor!important;margin-left:6px!important;animation:wompratPulse 1s infinite ease-in-out!important}
 @keyframes wompratPulse{0%,100%{opacity:.35;transform:scale(.85)}50%{opacity:1;transform:scale(1.15)}}

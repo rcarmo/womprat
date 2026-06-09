@@ -109,9 +109,9 @@ button,a,.tab,.recent-item,.option{
 #url-bar .icon-button{min-width:32px;padding:0}
 #url-bar .text-button{min-width:44px;padding:0 12px;font-size:14px;font-weight:600;line-height:var(--control-h)}
 #url-bar .fluent-icon{width:20px;height:20px}
-.route-pill{display:none;align-items:center;height:24px;max-width:180px;padding:0 8px;border-radius:999px;
-  border:1px solid rgba(96,205,255,.35);background:rgba(96,205,255,.10);color:var(--accent);
-  font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto}
+.route-pill{display:none;align-items:center;height:22px;max-width:150px;padding:0 7px;border-radius:999px;
+  border:1px solid var(--border);background:var(--layer);color:var(--dim);
+  font-size:11px;font-weight:600;letter-spacing:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto}
 .route-pill.active{display:inline-flex}
 .route-pill.loading::after{content:"";width:6px;height:6px;border-radius:50%;background:currentColor;margin-left:6px;animation:pulse 1s infinite ease-in-out}
 @keyframes pulse{0%,100%{opacity:.35;transform:scale(.85)}50%{opacity:1;transform:scale(1.15)}}
@@ -241,7 +241,7 @@ async function updateNetworkIndicator(loading = false) {
   try {
     const ns = window.womprat_getNetworkState ? JSON.parse(await womprat_getNetworkState()) : {};
     if (ns.exitActive && ns.exitNode) {
-      pill.textContent = `EXIT ${ns.exitNode}`;
+      pill.textContent = ns.exitNode;
       pill.title = loading ? `Loading via exit node ${ns.exitNode}` : `Traffic is routed via exit node ${ns.exitNode}`;
       pill.classList.add('active');
       pill.classList.toggle('loading', !!loading);
