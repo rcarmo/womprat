@@ -90,6 +90,7 @@ func main() {
 		w := webview2.NewWithOptions(webview2.WebViewOptions{
 		Debug:     false,
 		AutoFocus: true,
+		DataPath:  webviewDataPath(),
 		WindowOptions: webview2.WindowOptions{
 			Title:  "womprat",
 			Width:  1200,
@@ -135,6 +136,9 @@ func (a *App) registerRoutes(mux *http.ServeMux) {
 
 	// Settings API
 	a.registerSettingsRoutes(mux)
+
+	// Browser settings
+	a.registerBrowserRoutes(mux)
 
 	// Reverse proxy for browser tabs (routes through tsnet)
 

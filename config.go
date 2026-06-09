@@ -28,6 +28,9 @@ type AppConfig struct {
 	// Per-host SSH settings
 	Hosts map[string]HostConfig `json:"hosts"`
 
+	// Browser
+	SavePasswords bool   `json:"savePasswords"`
+
 	// Networking
 	ExitNode    string `json:"exitNode"`    // tailnet peer to use as exit node (empty = direct)
 

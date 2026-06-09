@@ -86,6 +86,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
   <button class="tab-btn" onclick="showTab('tailscale')">Tailscale</button>
   <button class="tab-btn" onclick="showTab('keys')">SSH Keys</button>
   <button class="tab-btn" onclick="showTab('hosts')">Hosts</button>
+  <button class="tab-btn" onclick="showTab('browser')">Browser</button>
   <button class="tab-btn" onclick="showTab('appearance')">Appearance</button>
   <button class="tab-btn" onclick="showTab('about')">About</button>
 </div>
@@ -182,6 +183,52 @@ tr:hover td{background:rgba(255,255,255,.02)}
       <button class="btn-secondary" onclick="refreshHosts()">Refresh from Tailnet</button>
       <button class="btn-secondary" onclick="addHost()">Add Manual Host</button>
     </div>
+  </div>
+</div>
+
+<!-- ═══ Browser ═══ -->
+<div class="tab-panel" id="panel-browser">
+  <div class="section">
+    <h3>Cache</h3>
+    <p style="color:var(--dim);font-size:.82rem;margin-bottom:.6rem">Cached pages and assets from browsed tailnet services.</p>
+    <div style="display:flex;align-items:center;gap:.8rem">
+      <span id="cache-size" style="font-size:.85rem;color:var(--dim)">Calculating…</span>
+      <button class="btn-danger" onclick="clearCache()">Clear Cache</button>
+    </div>
+  </div>
+  <div class="section">
+    <h3>Cookies</h3>
+    <p style="color:var(--dim);font-size:.82rem;margin-bottom:.6rem">Session cookies from tailnet web services (Gitea, Proxmox, piclaw, etc.)</p>
+    <table>
+      <thead><tr><th>Domain</th><th>Cookies</th><th></th></tr></thead>
+      <tbody id="cookies-table"><tr><td colspan="3" style="color:var(--dim)">Loading…</td></tr></tbody>
+    </table>
+    <div class="btn-row" style="margin-top:.6rem">
+      <button class="btn-danger" onclick="clearAllCookies()">Clear All Cookies</button>
+    </div>
+  </div>
+  <div class="section">
+    <h3>Saved Passwords</h3>
+    <p style="color:var(--dim);font-size:.82rem;margin-bottom:.6rem">Form passwords saved by the browser for tailnet services.</p>
+    <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer;text-transform:none;font-size:.85rem">
+      <input type="checkbox" id="save-passwords" checked style="accent-color:var(--accent)">
+      Offer to save passwords for web forms
+    </label>
+    <table style="margin-top:.6rem">
+      <thead><tr><th>Site</th><th>Username</th><th></th></tr></thead>
+      <tbody id="passwords-table"><tr><td colspan="3" style="color:var(--dim)">None saved</td></tr></tbody>
+    </table>
+    <div class="btn-row" style="margin-top:.6rem">
+      <button class="btn-danger" onclick="clearAllPasswords()">Clear All Saved Passwords</button>
+    </div>
+  </div>
+  <div class="section">
+    <h3>Browsing Data</h3>
+    <p style="color:var(--dim);font-size:.82rem;margin-bottom:.6rem">Clear all browsing data at once.</p>
+    <div class="btn-row">
+      <button class="btn-danger" onclick="clearAllBrowsingData()">Clear All Browsing Data</button>
+    </div>
+    <p style="color:var(--dim);font-size:.78rem;margin-top:.5rem">This clears cache, cookies, saved passwords, and browsing history.</p>
   </div>
 </div>
 
@@ -302,7 +349,88 @@ async function setExitNode(node) {
   }
 }
 
+async function loadBrowserSettings() {
+  try {
+    const res = await fetch('/api/settings/browser');
+    const data = await res.json();
+    document.getElementById('cache-size').textContent = data.cacheSize || '0 KB';
+    document.getElementById('save-passwords').checked = data.savePasswords !== false;
+    
+    // Cookies table
+    const ct = document.getElementById('cookies-table');
+    if (data.cookies && data.cookies.length) {
+      ct.innerHTML = data.cookies.map(c => `<tr>
+        <td class="mono" style="font-size:.78rem">${c.domain}</td>
+        <td>${c.count}</td>
+        <td><button class="btn-danger" onclick="clearCookiesFor('${c.domain}')" style="padding:.15rem .4rem;font-size:.7rem">✕</button></td>
+      </tr>`).join('');
+    } else {
+      ct.innerHTML = '<tr><td colspan="3" style="color:var(--dim)">No cookies</td></tr>';
+    }
+    
+    // Passwords table
+    const pt = document.getElementById('passwords-table');
+    if (data.passwords && data.passwords.length) {
+      pt.innerHTML = data.passwords.map(p => `<tr>
+        <td class="mono" style="font-size:.78rem">${p.site}</td>
+        <td>${p.username}</td>
+        <td><button class="btn-danger" onclick="deletePassword('${p.site}')" style="padding:.15rem .4rem;font-size:.7rem">✕</button></td>
+      </tr>`).join('');
+    } else {
+      pt.innerHTML = '<tr><td colspan="3" style="color:var(--dim)">None saved</td></tr>';
+    }
+  } catch {}
+}
+
+async function clearCache() {
+  if (!confirm('Clear all cached data?')) return;
+  await fetch('/api/settings/browser/clear-cache', {method:'POST'});
+  document.getElementById('cache-size').textContent = '0 KB';
+}
+
+async function clearAllCookies() {
+  if (!confirm('Clear all cookies? You will be logged out of all services.')) return;
+  await fetch('/api/settings/browser/clear-cookies', {method:'POST'});
+  loadBrowserSettings();
+}
+
+async function clearCookiesFor(domain) {
+  await fetch('/api/settings/browser/clear-cookies', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({domain})
+  });
+  loadBrowserSettings();
+}
+
+async function clearAllPasswords() {
+  if (!confirm('Delete all saved passwords?')) return;
+  await fetch('/api/settings/browser/clear-passwords', {method:'POST'});
+  loadBrowserSettings();
+}
+
+async function deletePassword(site) {
+  await fetch('/api/settings/browser/clear-passwords', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({site})
+  });
+  loadBrowserSettings();
+}
+
+async function clearAllBrowsingData() {
+  if (!confirm('Clear ALL browsing data (cache, cookies, passwords, history)?')) return;
+  await fetch('/api/settings/browser/clear-all', {method:'POST'});
+  loadBrowserSettings();
+}
+
+document.getElementById('save-passwords')?.addEventListener('change', (e) => {
+  fetch('/api/settings/browser/save-passwords', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({enabled: e.target.checked})
+  });
+});
+
 checkTailscale();
+loadBrowserSettings();
 loadExitNodes();
 }
 
@@ -333,7 +461,88 @@ async function setExitNode(node) {
   }
 }
 
+async function loadBrowserSettings() {
+  try {
+    const res = await fetch('/api/settings/browser');
+    const data = await res.json();
+    document.getElementById('cache-size').textContent = data.cacheSize || '0 KB';
+    document.getElementById('save-passwords').checked = data.savePasswords !== false;
+    
+    // Cookies table
+    const ct = document.getElementById('cookies-table');
+    if (data.cookies && data.cookies.length) {
+      ct.innerHTML = data.cookies.map(c => `<tr>
+        <td class="mono" style="font-size:.78rem">${c.domain}</td>
+        <td>${c.count}</td>
+        <td><button class="btn-danger" onclick="clearCookiesFor('${c.domain}')" style="padding:.15rem .4rem;font-size:.7rem">✕</button></td>
+      </tr>`).join('');
+    } else {
+      ct.innerHTML = '<tr><td colspan="3" style="color:var(--dim)">No cookies</td></tr>';
+    }
+    
+    // Passwords table
+    const pt = document.getElementById('passwords-table');
+    if (data.passwords && data.passwords.length) {
+      pt.innerHTML = data.passwords.map(p => `<tr>
+        <td class="mono" style="font-size:.78rem">${p.site}</td>
+        <td>${p.username}</td>
+        <td><button class="btn-danger" onclick="deletePassword('${p.site}')" style="padding:.15rem .4rem;font-size:.7rem">✕</button></td>
+      </tr>`).join('');
+    } else {
+      pt.innerHTML = '<tr><td colspan="3" style="color:var(--dim)">None saved</td></tr>';
+    }
+  } catch {}
+}
+
+async function clearCache() {
+  if (!confirm('Clear all cached data?')) return;
+  await fetch('/api/settings/browser/clear-cache', {method:'POST'});
+  document.getElementById('cache-size').textContent = '0 KB';
+}
+
+async function clearAllCookies() {
+  if (!confirm('Clear all cookies? You will be logged out of all services.')) return;
+  await fetch('/api/settings/browser/clear-cookies', {method:'POST'});
+  loadBrowserSettings();
+}
+
+async function clearCookiesFor(domain) {
+  await fetch('/api/settings/browser/clear-cookies', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({domain})
+  });
+  loadBrowserSettings();
+}
+
+async function clearAllPasswords() {
+  if (!confirm('Delete all saved passwords?')) return;
+  await fetch('/api/settings/browser/clear-passwords', {method:'POST'});
+  loadBrowserSettings();
+}
+
+async function deletePassword(site) {
+  await fetch('/api/settings/browser/clear-passwords', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({site})
+  });
+  loadBrowserSettings();
+}
+
+async function clearAllBrowsingData() {
+  if (!confirm('Clear ALL browsing data (cache, cookies, passwords, history)?')) return;
+  await fetch('/api/settings/browser/clear-all', {method:'POST'});
+  loadBrowserSettings();
+}
+
+document.getElementById('save-passwords')?.addEventListener('change', (e) => {
+  fetch('/api/settings/browser/save-passwords', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({enabled: e.target.checked})
+  });
+});
+
 checkTailscale();
+loadBrowserSettings();
 loadExitNodes();
 }
 
@@ -468,7 +677,88 @@ async function setExitNode(node) {
   }
 }
 
+async function loadBrowserSettings() {
+  try {
+    const res = await fetch('/api/settings/browser');
+    const data = await res.json();
+    document.getElementById('cache-size').textContent = data.cacheSize || '0 KB';
+    document.getElementById('save-passwords').checked = data.savePasswords !== false;
+    
+    // Cookies table
+    const ct = document.getElementById('cookies-table');
+    if (data.cookies && data.cookies.length) {
+      ct.innerHTML = data.cookies.map(c => `<tr>
+        <td class="mono" style="font-size:.78rem">${c.domain}</td>
+        <td>${c.count}</td>
+        <td><button class="btn-danger" onclick="clearCookiesFor('${c.domain}')" style="padding:.15rem .4rem;font-size:.7rem">✕</button></td>
+      </tr>`).join('');
+    } else {
+      ct.innerHTML = '<tr><td colspan="3" style="color:var(--dim)">No cookies</td></tr>';
+    }
+    
+    // Passwords table
+    const pt = document.getElementById('passwords-table');
+    if (data.passwords && data.passwords.length) {
+      pt.innerHTML = data.passwords.map(p => `<tr>
+        <td class="mono" style="font-size:.78rem">${p.site}</td>
+        <td>${p.username}</td>
+        <td><button class="btn-danger" onclick="deletePassword('${p.site}')" style="padding:.15rem .4rem;font-size:.7rem">✕</button></td>
+      </tr>`).join('');
+    } else {
+      pt.innerHTML = '<tr><td colspan="3" style="color:var(--dim)">None saved</td></tr>';
+    }
+  } catch {}
+}
+
+async function clearCache() {
+  if (!confirm('Clear all cached data?')) return;
+  await fetch('/api/settings/browser/clear-cache', {method:'POST'});
+  document.getElementById('cache-size').textContent = '0 KB';
+}
+
+async function clearAllCookies() {
+  if (!confirm('Clear all cookies? You will be logged out of all services.')) return;
+  await fetch('/api/settings/browser/clear-cookies', {method:'POST'});
+  loadBrowserSettings();
+}
+
+async function clearCookiesFor(domain) {
+  await fetch('/api/settings/browser/clear-cookies', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({domain})
+  });
+  loadBrowserSettings();
+}
+
+async function clearAllPasswords() {
+  if (!confirm('Delete all saved passwords?')) return;
+  await fetch('/api/settings/browser/clear-passwords', {method:'POST'});
+  loadBrowserSettings();
+}
+
+async function deletePassword(site) {
+  await fetch('/api/settings/browser/clear-passwords', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({site})
+  });
+  loadBrowserSettings();
+}
+
+async function clearAllBrowsingData() {
+  if (!confirm('Clear ALL browsing data (cache, cookies, passwords, history)?')) return;
+  await fetch('/api/settings/browser/clear-all', {method:'POST'});
+  loadBrowserSettings();
+}
+
+document.getElementById('save-passwords')?.addEventListener('change', (e) => {
+  fetch('/api/settings/browser/save-passwords', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({enabled: e.target.checked})
+  });
+});
+
 checkTailscale();
+loadBrowserSettings();
 loadExitNodes();
 loadKeys();
 </script>
