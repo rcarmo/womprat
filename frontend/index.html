@@ -262,7 +262,17 @@ window.wompratContentError = function(tabId, message) {
   setBrowserStatus(tabId, `Browser WebView failed: ${message || 'unknown error'}`);
   renderTabs();
 };
+window.wompratReportChrome = function() {
+  try {
+    const bar = document.getElementById('url-bar');
+    if (!bar || !window.womprat_setChromeHeight) return;
+    const bottom = bar.getBoundingClientRect().bottom;
+    const px = Math.round(bottom * (window.devicePixelRatio || 1));
+    if (px > 0) womprat_setChromeHeight(px);
+  } catch {}
+};
 window.wompratOnHostResize = function() {
+  wompratReportChrome();
   const tab = state.tabs.find(t => t.id === state.activeTab);
   if (tab && tab.type === 'terminal') {
     const s = terminalSessions.get(tab.id);
@@ -1189,10 +1199,14 @@ window.addEventListener('message', (e) => {
     triggerDownload(e.data.url);
   }
 });
-window.addEventListener('load', () => setURLProgress(false, true));
+window.addEventListener('load', () => { setURLProgress(false, true); wompratReportChrome(); });
 document.addEventListener('readystatechange', () => {
   if (document.readyState === 'complete') setURLProgress(false, true);
 });
+window.addEventListener('resize', () => wompratReportChrome());
+try { matchMedia('(resolution: 1dppx)').addEventListener('change', () => wompratReportChrome()); } catch {}
+wompratReportChrome();
+setTimeout(wompratReportChrome, 300);
 checkAuth();
 loadRecentTabs();
 hydrateNativeTabs();

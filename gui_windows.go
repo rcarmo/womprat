@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"sync"
 	"time"
 	"unsafe"
 
@@ -122,8 +123,6 @@ func createHostWindow(title string, width, height int) (uintptr, error) {
 	if hwnd == 0 {
 		return 0, fmt.Errorf("create host window: %w", err)
 	}
-	procShowWindowHost.Call(hwnd, swShow)
-	procUpdateWindow.Call(hwnd)
 	return hwnd, nil
 }
 
@@ -226,16 +225,36 @@ func runGUI(app *App, shellURL string) {
 	w.Bind("womprat_registerLocalTab", func(tabJSON string) { app.registerLocalTab(tabJSON) })
 	w.Bind("womprat_goHome", func() { app.goHome() })
 	w.Bind("womprat_clearActiveTab", func() { app.clearActiveTab() })
+	w.Bind("womprat_setChromeHeight", func(px int) {
+		setReportedChromePx(int32(px))
+		if activeHost != nil {
+			activeHost.resizeAll()
+		}
+	})
+
+	// Defer showing the host window until the shell DOM is ready so WebView2's
+	// default white surface never flashes before the dark shell paints.
+	var showOnce sync.Once
+	showShell := func() {
+		showOnce.Do(func() {
+			resizeChildToClient(host, shellChild, 0, 0)
+			w.Resize()
+			if contentViews != nil {
+				contentViews.HideAll()
+			}
+			showHostWindow(host)
+		})
+	}
+	w.Bind("womprat_shellReady", func() { showShell() })
+	w.Init(`document.addEventListener('DOMContentLoaded',function(){try{window.womprat_shellReady&&window.womprat_shellReady();}catch(e){}});window.addEventListener('load',function(){try{window.womprat_shellReady&&window.womprat_shellReady();}catch(e){}});`)
+	// Fallback: show anyway shortly after launch if the ready signal never fires.
+	time.AfterFunc(2500*time.Millisecond, func() { w.Dispatch(showShell) })
 
 	log.Printf("gui: navigating shell to %s", shellURL)
 	w.Navigate(fmt.Sprintf("%s?v=%d", shellURL, time.Now().UnixMilli()))
 	if contentViews != nil {
 		contentViews.HideAll()
 	}
-	// Ensure the shell WebView controller is laid out against the visible host
-	// window so it paints (avoids a blank window when no WM_SIZE follows show).
-	resizeChildToClient(host, shellChild, 0, 0)
-	w.Resize()
 	log.Printf("gui: entering run loop")
 	w.Run()
 }

@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"unsafe"
 
 	webview2edge "github.com/jchv/go-webview2/pkg/edge"
@@ -39,11 +40,25 @@ var (
 	procGetDpiForWindow = contentUser32.NewProc("GetDpiForWindow")
 )
 
+// reportedChromePx is the shell chrome height in physical pixels, measured by the
+// shell itself (chrome bottom * devicePixelRatio) and reported via a binding.
+// This is DPI-proof, unlike scaling a CSS constant by GetDpiForWindow which can
+// disagree with the WebView's own DPI handling.
+var reportedChromePx int32
+
+func setReportedChromePx(px int32) {
+	if px > 0 {
+		atomic.StoreInt32(&reportedChromePx, px)
+	}
+}
+
 // chromePx returns the shell chrome height in physical pixels for the given
-// window, scaling the CSS-pixel chrome height by the window DPI. Native window
-// positioning uses physical pixels while the shell WebView lays out in CSS
-// pixels, so without this the browser content is misplaced on scaled displays.
+// window. It prefers the shell-reported value and falls back to scaling the CSS
+// chrome height by the window DPI.
 func chromePx(hwnd uintptr) int32 {
+	if r := atomic.LoadInt32(&reportedChromePx); r > 0 {
+		return r
+	}
 	dpi, _, _ := procGetDpiForWindow.Call(hwnd)
 	if dpi == 0 {
 		dpi = 96
