@@ -164,8 +164,6 @@ func (a *App) registerRoutes(mux *http.ServeMux) {
 	a.registerBrowserRoutes(mux)
 
 
-	// Browser proxy (strips CSP for iframe embedding)
-	a.registerProxyRoutes(mux)
 
 	// Downloads
 	a.registerDownloadRoutes(mux)

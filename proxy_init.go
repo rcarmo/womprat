@@ -16,5 +16,5 @@ func init() {
 	// Simplest that works: proxy everything through SOCKS, and in the SOCKS handler
 	// dial public internet directly (not through tsnet) when no exit node.
 	os.Setenv("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
-		"--proxy-server=socks5://127.0.0.1:1080 --proxy-bypass-list=127.0.0.1;localhost --force-dark-mode --enable-features=WebContentsForceDark")
+		"--proxy-server=socks5://127.0.0.1:1080 --proxy-bypass-list=127.0.0.1;localhost --force-dark-mode --enable-features=WebContentsForceDark --disable-web-security --disable-features=CrossOriginOpenerPolicy")
 }
