@@ -1,0 +1,41 @@
+# Build outputs
+/womprat.exe
+/womprat-*.exe
+/*.exe
+/*.dll
+/*.pdb
+/*.ilk
+/*.obj
+/*.o
+/*.a
+/*.lib
+
+# Release/package outputs
+/dist/
+/*.zip
+/*.tar.gz
+/*.sha256
+/SHA256SUMS.txt
+
+# Makefile/Bun temporary output
+/.tmp/
+
+# Local Go/test artefacts
+/coverage.out
+/*.test
+
+# Local runtime state (the app normally stores this under %APPDATA%, but keep
+# accidental in-tree runs/config out of git)
+/config.enc
+/creds/
+/webview2/
+/tsnet/
+
+# Editor/OS noise
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
