@@ -89,6 +89,7 @@ button,a,.tab,.recent-item,.option{
 
 /* Local panels */
 .browser-panel{flex-direction:column}
+.browser-placeholder{flex:1;display:flex;align-items:center;justify-content:center;color:var(--dim);font-size:.85em;pointer-events:none}
 .browser-frame{flex:1;border:none}
 
 /* Setup screen */
@@ -255,8 +256,22 @@ function setURLProgress(active, done = false) {
     urlProgressTimer = setTimeout(() => {
       el.classList.remove('active', 'done');
     }, 450);
+  } else if (active) {
+    urlProgressTimer = setTimeout(() => {
+      el.classList.remove('active', 'done');
+    }, 15000);
   }
 }
+window.wompratNavigationDone = function(tabId, url) {
+  const tab = state.tabs.find(t => t.id === tabId);
+  if (tab && url && /^https?:\/\//i.test(url)) {
+    tab.url = url;
+    if (state.activeTab === tabId) document.getElementById('url-input').value = url;
+    registerLocalTab(tab);
+    saveOpenTabs();
+  }
+  setURLProgress(false, true);
+};
 function applyShellContentZoom() {
   shellContentZoom = Math.max(0.5, Math.min(3, shellContentZoom));
   sessionStorage.setItem('wompratShellContentZoom', String(shellContentZoom));
@@ -429,6 +444,15 @@ window.openTerminal = async function(host, name, user, port, options = {}) {
   if (!options.skipRegister) registerLocalTab(tab);
   saveOpenTabs(); updateHomeVisibility();
 
+  const existingSession = terminalSessions.get(tabId);
+  if (existingSession) {
+    requestAnimationFrame(() => {
+      existingSession.fit?.fit?.();
+      existingSession.term?.focus?.();
+    });
+    return;
+  }
+
   const panel = document.getElementById(`panel-${tabId}`);
   const container = panel.querySelector('.term-container');
 
@@ -478,7 +502,7 @@ window.openTerminal = async function(host, name, user, port, options = {}) {
     });
   term.open(container);
   fit.fit();
-  terminalSessions.set(tabId, { term, fit, fontSize: 14 });
+  terminalSessions.set(tabId, { term, fit, fontSize: 14, ws: null });
   window.addEventListener('resize', () => { if (state.activeTab === tabId) fit.fit(); });
 
   term.write(`\x1b[2m Connecting to ${sshUser}@${host}:${sshPort}...\x1b[0m\r\n`);
@@ -553,6 +577,8 @@ async function submitPassword(sshTabId, password, term, tabId, host, name, user,
 function connectWebSocket(sshTabId, term, tabId, host, name, user, port, cols, rows) {
   term.write(`\x1b[2m Connected.\x1b[0m\r\n\r\n`);
   const ws = new WebSocket(`ws://${location.host}/api/ssh/ws?tab=${sshTabId}&cols=${cols}&rows=${rows}&token=${TOKEN}`);
+  const session = terminalSessions.get(tabId);
+  if (session) session.ws = ws;
 
   ws.onopen = () => {
     term.loadAddon(new AttachAddon(ws));
@@ -634,14 +660,18 @@ window.closeTab = function(id, e) {
   const closingActive = state.activeTab === id;
   const closing = state.tabs.find(t => t.id === id);
   state.tabs = state.tabs.filter(t => t.id !== id);
-  terminalSessions.delete(id);
+  const terminalSession = terminalSessions.get(id);
+  if (terminalSession) {
+    try { terminalSession.ws?.close?.(); } catch {}
+    try { terminalSession.term?.dispose?.(); } catch {}
+    terminalSessions.delete(id);
+  }
   document.getElementById(`panel-${id}`)?.remove();
 
   if (closing?.type === 'settings') {
     if (window.womprat_forgetTab) womprat_forgetTab(id);
   } else if (window.womprat_closeTab) {
     womprat_closeTab(id);
-    return;
   }
 
   saveOpenTabs();
@@ -705,14 +735,13 @@ function renderTabs() {
     close.title = 'Close';
     close.setAttribute('aria-label', 'Close tab');
     close.innerHTML = icon('dismiss');
-    const stopCloseEvent = (e) => { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation?.(); };
+    const stopCloseEvent = (e) => { e.stopPropagation(); e.stopImmediatePropagation?.(); };
+    const closeFromEvent = (e) => { e.preventDefault(); stopCloseEvent(e); closeTab(tab.id, e); };
     close.draggable = false;
     close.addEventListener('pointerdown', stopCloseEvent, true);
-    close.addEventListener('pointerup', stopCloseEvent, true);
     close.addEventListener('mousedown', stopCloseEvent, true);
-    close.addEventListener('mouseup', stopCloseEvent, true);
     close.addEventListener('dblclick', stopCloseEvent, true);
-    close.addEventListener('click', (e) => { stopCloseEvent(e); closeTab(tab.id, e); }, true);
+    close.addEventListener('click', closeFromEvent, true);
     el.appendChild(close);
     list.appendChild(el);
   });
@@ -732,24 +761,17 @@ function reorderTab(fromId, beforeId) {
   if (window.womprat_reorderTab) womprat_reorderTab(fromId, beforeIndex);
 }
 
-function activateTab(id) {
-  state.activeTab = id;
+function activateTab(id, options = {}) {
   const tab = state.tabs.find(t => t.id === id);
   if (!tab) return;
+  state.activeTab = id;
+  if (!options.skipNative && window.womprat_switchTab) womprat_switchTab(id);
 
-  // External browser tabs must never be represented as shell iframes. Switching
-  // to an existing browser tab must preserve its Go-side tab ID; creating a new
-  // browser tab here duplicates state and makes failures look like tab loss.
-  if (tab.type === 'browser') {
-    if (window.womprat_switchTab) womprat_switchTab(tab.id);
-    else location.href = tab.url || tab.title || 'about:blank';
-    return;
-  }
-
-  // Update URL bar with active local tab's address
+  // Update URL bar with active tab's address
   const urlInput = document.getElementById('url-input');
   if (urlInput) {
-    if (tab.type === 'terminal') urlInput.value = 'ssh://' + (tab.user||'root') + '@' + (tab.host||'') + ':' + (tab.port||22);
+    if (tab.type === 'browser') urlInput.value = tab.url || '';
+    else if (tab.type === 'terminal') urlInput.value = 'ssh://' + (tab.user||'root') + '@' + (tab.host||'') + ':' + (tab.port||22);
     else if (tab.type === 'settings') urlInput.value = 'settings:';
     else urlInput.value = '';
   }
@@ -759,7 +781,10 @@ function activateTab(id) {
   if (!document.getElementById(`panel-${id}`)) {
     const panel = document.createElement('div');
     panel.id = `panel-${id}`;
-    if (tab.type === 'terminal') {
+    if (tab.type === 'browser') {
+      panel.className = 'panel browser-panel';
+      panel.innerHTML = '<div class="browser-placeholder" aria-hidden="true"></div>';
+    } else if (tab.type === 'terminal') {
       panel.className = 'panel term-panel';
       panel.innerHTML = '<div class="term-container" style="flex:1"></div>';
     } else if (tab.type === 'settings') {
@@ -776,12 +801,43 @@ function activateTab(id) {
   registerLocalTab(tab);
   updateHomeVisibility();
   renderTabs();
-  if (tab.type === 'terminal') terminalSessions.get(id)?.term?.focus?.();
+  if (tab.type === 'terminal') {
+    requestAnimationFrame(() => {
+      terminalSessions.get(id)?.fit?.fit?.();
+      terminalSessions.get(id)?.term?.focus?.();
+    });
+  } else {
+    focusContentArea();
+  }
 }
 
-window.historyBack = function() { history.back(); };
-window.historyForward = function() { history.forward(); };
-window.historyReload = function() { location.reload(); };
+window.showBrowserTab = function(id, url, options = {}) {
+  let navUrl = url || 'about:blank';
+  if (!/^https?:\/\//i.test(navUrl) && navUrl !== 'about:blank') navUrl = 'http://' + navUrl;
+  let tab = state.tabs.find(t => t.id === id);
+  if (!tab) {
+    tab = { id, type: 'browser', title: navUrl, url: navUrl };
+    state.tabs.push(tab);
+  } else {
+    tab.type = 'browser';
+    tab.url = navUrl;
+    tab.title = tab.title || navUrl;
+  }
+  renderTabs();
+  activateTab(id, { skipNative: !!options.skipNative });
+  setURLProgress(true);
+  saveURLHistory(navUrl);
+  registerLocalTab(tab);
+  saveOpenTabs();
+};
+
+function activeBrowserTab() {
+  const tab = state.tabs.find(t => t.id === state.activeTab);
+  return tab?.type === 'browser' ? tab : null;
+}
+window.historyBack = function() { if (activeBrowserTab() && window.womprat_browserBack) womprat_browserBack(); else history.back(); };
+window.historyForward = function() { if (activeBrowserTab() && window.womprat_browserForward) womprat_browserForward(); else history.forward(); };
+window.historyReload = function() { if (activeBrowserTab() && window.womprat_browserReload) { setURLProgress(true); womprat_browserReload(); } else location.reload(); };
 
 function focusAddress(selectAll = true) {
   const input = document.getElementById('url-input');
@@ -927,7 +983,8 @@ window.openSettings = function() {
     registerLocalTab(tab);
     renderTabs();
   }
-  activateTab(tabId);
+  activateTab(tabId, { skipNative: true });
+  if (window.womprat_openSettings) womprat_openSettings();
 };
 
 function activateRecentTab(tab) {

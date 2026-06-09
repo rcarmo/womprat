@@ -28,6 +28,13 @@ func runGUI(app *App, shellURL string) {
 	}
 	defer w.Destroy()
 	app.webview = w
+	contentViews, err := newNativeContentManager(w.Window(), webviewDataPath(), w)
+	if err != nil {
+		log.Printf("content WebView manager unavailable: %v", err)
+	} else {
+		app.contentViews = contentViews
+		contentViews.HideAll()
+	}
 
 	// Set native title bar appearance
 	applyDarkMode(w)
@@ -62,6 +69,24 @@ func runGUI(app *App, shellURL string) {
 
 	w.Bind("womprat_switchTab", func(tabID string) {
 		app.switchTab(tabID)
+	})
+
+	w.Bind("womprat_browserBack", func() {
+		if view := app.activeContentView(); view != nil {
+			view.GoBack()
+		}
+	})
+
+	w.Bind("womprat_browserForward", func() {
+		if view := app.activeContentView(); view != nil {
+			view.GoForward()
+		}
+	})
+
+	w.Bind("womprat_browserReload", func() {
+		if view := app.activeContentView(); view != nil {
+			view.Reload()
+		}
 	})
 
 	w.Bind("womprat_updateTitle", func(title, url, favicon string) {
@@ -104,8 +129,9 @@ func runGUI(app *App, shellURL string) {
 		app.clearActiveTab()
 	})
 
-	// Inject floating chrome overlay into every page
-	w.Init(chromeOverlayJS(app.serverPort, app.sessionToken))
+	// Browser chrome lives in the local shell. External pages are hosted in
+	// per-tab native WebView2 child controllers and must not receive injected
+	// Womprat DOM/CSS.
 
 	// Navigate to shell with a cache-buster so stale WebView2 shell HTML/JS
 	// cannot resurrect removed iframe code paths.
