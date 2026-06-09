@@ -563,6 +563,7 @@ window.openBrowser = function(url, name) {
 
   updateNetworkIndicator();
   setURLProgress(true);
+  focusContentArea();
   // Browser tabs are real WebView2 navigations managed by Go.
   // Do not create shell panels/iframes for external pages.
   if (window.womprat_newBrowser) {
@@ -695,6 +696,18 @@ function adjustActiveContentZoom(delta) {
   shellContentZoom = Math.round((shellContentZoom + delta) * 100) / 100;
   applyShellContentZoom();
 }
+function focusContentArea() {
+  document.activeElement?.blur?.();
+  const tab = state.tabs.find(t => t.id === state.activeTab);
+  if (tab?.type === 'terminal') {
+    terminalSessions.get(tab.id)?.term?.focus?.();
+    return;
+  }
+  const panel = tab ? document.getElementById(`panel-${tab.id}`) : document.getElementById('panel-home');
+  const target = panel?.querySelector?.('iframe, .term-container, input, button, [tabindex]') || panel || document.body;
+  target?.focus?.();
+}
+
 function resetActiveContentZoom() {
   const session = terminalSessions.get(state.activeTab);
   if (session) {
@@ -750,6 +763,7 @@ window.navigateFromBar = function() {
   if (!/^https?:\/\//.test(navUrl)) navUrl = 'http://' + navUrl;
   updateNetworkIndicator();
   setURLProgress(true);
+  focusContentArea();
   // External browsing is direct WebView2 navigation, never a shell iframe.
   const active = state.tabs.find(t => t.id === state.activeTab);
   const shouldCreateBrowserTab = !active || active.type !== 'browser';

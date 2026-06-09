@@ -916,6 +916,14 @@ func chromeOverlayJS(port int, token string) string {
       }, true);
     }
 
+    function focusPageContent() {
+      input.blur();
+      if (document.body) {
+        if (!document.body.hasAttribute('tabindex')) document.body.setAttribute('tabindex', '-1');
+        document.body.focus({ preventScroll: true });
+      }
+    }
+
     function navigateFromInput() {
       let u = input.value.trim();
       if (!u) return;
@@ -930,6 +938,7 @@ func chromeOverlayJS(port int, token string) string {
       if (!/^https?:\/\//i.test(u)) u = 'http://' + u;
       updateRoutePill();
       setProgress(true, false);
+      focusPageContent();
       womprat_navigate(u);
     }
 
