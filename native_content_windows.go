@@ -219,11 +219,13 @@ func newNativeContentView(parent uintptr, dataPath, tabID string, shell shellWeb
 	cv := &nativeContentView{parent: parent, hwnd: hwnd, tabID: tabID, shell: shell}
 	edge := webview2edge.NewChromium()
 	edge.MessageCallback = func(raw string) {
-		// Browser content reports its document title via postMessage so the shell
-		// tab can display the page title instead of the raw URL.
-		title := strings.TrimSpace(parseTitleMessage(raw))
-		if title != "" && cv.shell != nil {
-			cv.shell.Eval(fmt.Sprintf("window.wompratSetTabTitle(%s,%s)", jsString(cv.tabID), jsString(title)))
+		// Browser content reports its document title and favicon via postMessage so
+		// the shell tab can display the page title and icon instead of the raw URL.
+		title, favicon := parseTitleMessage(raw)
+		title = strings.TrimSpace(title)
+		favicon = strings.TrimSpace(favicon)
+		if (title != "" || favicon != "") && cv.shell != nil {
+			cv.shell.Eval(fmt.Sprintf("window.wompratSetTabMeta(%s,%s,%s)", jsString(cv.tabID), jsString(title), jsString(favicon)))
 		}
 	}
 	// All browser tabs share the same WebView2 user-data folder as the shell so
@@ -252,22 +254,30 @@ func newNativeContentView(parent uintptr, dataPath, tabID string, shell shellWeb
 }
 
 const browserTitleReporterJS = `(function(){
-  function send(){ try{ window.chrome.webview.postMessage(JSON.stringify({wompratTitle: document.title || location.hostname || location.href})); }catch(e){} }
+  function favicon(){
+    try {
+      var links = document.querySelectorAll('link[rel~="icon"],link[rel="shortcut icon"],link[rel="apple-touch-icon"]');
+      for (var i=0;i<links.length;i++){ var h=links[i].getAttribute('href'); if(h){ return new URL(h, location.href).href; } }
+      return location.origin + '/favicon.ico';
+    } catch(e){ return ''; }
+  }
+  function send(){ try{ window.chrome.webview.postMessage(JSON.stringify({wompratTitle: document.title || location.hostname || location.href, wompratFavicon: favicon()})); }catch(e){} }
   document.addEventListener('DOMContentLoaded', send);
   window.addEventListener('load', send);
   try { var t=document.querySelector('title'); if(t){ new MutationObserver(send).observe(t,{childList:true}); } } catch(e){}
-  try { new MutationObserver(function(){ var t=document.querySelector('title'); if(t){ send(); } }).observe(document.documentElement,{subtree:true,childList:true}); } catch(e){}
+  try { new MutationObserver(function(){ send(); }).observe(document.head||document.documentElement,{subtree:true,childList:true}); } catch(e){}
   send();
 })();`
 
-func parseTitleMessage(raw string) string {
+func parseTitleMessage(raw string) (string, string) {
 	var m struct {
-		WompratTitle string `json:"wompratTitle"`
+		WompratTitle   string `json:"wompratTitle"`
+		WompratFavicon string `json:"wompratFavicon"`
 	}
 	if err := json.Unmarshal([]byte(raw), &m); err != nil {
-		return ""
+		return "", ""
 	}
-	return m.WompratTitle
+	return m.WompratTitle, m.WompratFavicon
 }
 
 func (v *nativeContentView) resize() {

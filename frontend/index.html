@@ -256,9 +256,15 @@ window.wompratContentError = function(tabId, message) {
   renderTabs();
 };
 window.wompratSetTabTitle = function(tabId, title) {
+  window.wompratSetTabMeta(tabId, title, '');
+};
+window.wompratSetTabMeta = function(tabId, title, favicon) {
   const tab = state.tabs.find(t => t.id === tabId);
-  if (!tab || !title) return;
-  tab.title = String(title).slice(0, 80);
+  if (!tab) return;
+  let changed = false;
+  if (title) { const t = String(title).slice(0, 80); if (tab.title !== t) { tab.title = t; changed = true; } }
+  if (favicon && isUsableFavicon(favicon) && tab.favicon !== favicon) { tab.favicon = favicon; changed = true; }
+  if (!changed) return;
   renderTabs();
   registerLocalTab(tab);
   saveOpenTabs();
