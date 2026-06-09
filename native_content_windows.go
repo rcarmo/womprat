@@ -233,6 +233,7 @@ func newNativeContentView(parent uintptr, dataPath, tabID string, shell shellWeb
 	edge.MessageCallback = func(raw string) {
 		if action := parseHotkeyMessage(raw); action != "" && cv.shell != nil {
 			arg := parseHotkeyArg(raw)
+			log.Printf("content: hotkey %s arg=%q tab=%s", action, arg, cv.tabID)
 			cv.shell.Eval(fmt.Sprintf("window.wompratBrowserHotkey(%s,%s)", jsString(action), jsString(arg)))
 			return
 		}
@@ -255,6 +256,13 @@ func newNativeContentView(parent uintptr, dataPath, tabID string, shell shellWeb
 	}
 	edge.DataPath = dataPath
 	edge.NavigationCompletedCallback = func(_ *webview2edge.ICoreWebView2, _ *webview2edge.ICoreWebView2NavigationCompletedEventArgs) {
+		// Re-inject the bridge on every completed navigation as well as via Init,
+		// because AddScriptToExecuteOnDocumentCreated can miss the very first page
+		// (script registration races the first navigation). The bridge self-guards
+		// against duplicate listeners.
+		if cv.edge != nil {
+			cv.edge.Eval(browserTitleReporterJS)
+		}
 		if cv.shell != nil {
 			cv.shell.Eval(fmt.Sprintf("window.wompratNavigationDone(%s,%s)", jsString(cv.tabID), jsString(cv.url)))
 		}
@@ -271,6 +279,7 @@ func newNativeContentView(parent uintptr, dataPath, tabID string, shell shellWeb
 }
 
 const browserTitleReporterJS = `(function(){
+  if (window.__wompratBridge) return; window.__wompratBridge = 1;
   function favicon(){
     try {
       var links = document.querySelectorAll('link[rel~="icon"],link[rel="shortcut icon"],link[rel="apple-touch-icon"]');
