@@ -361,6 +361,7 @@ window.saveKey = async function() {
 
 window.newBlankTab = function() {
   state.activeTab = null;
+  if (window.womprat_goHome) womprat_goHome();
   document.getElementById('panels')?.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   updateHomeVisibility();
   renderTabs();
@@ -677,7 +678,10 @@ function activateTab(id) {
   // Show active panel, hide others
   panels.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   document.getElementById(`panel-${id}`).classList.add('active');
+  registerLocalTab(tab);
+  updateHomeVisibility();
   renderTabs();
+  if (tab.type === 'terminal') terminalSessions.get(id)?.term?.focus?.();
 }
 
 window.historyBack = function() { history.back(); };
@@ -886,9 +890,10 @@ async function hydrateNativeTabs() {
   try {
     const native = JSON.parse(await womprat_getTabs());
     const localTabs = (native.tabs || []).filter(t => t.type === 'terminal' || t.type === 'settings' || t.type === 'browser');
-    const requested = new URLSearchParams(location.search).get('tab') || native.activeTab;
-    const target = localTabs.find(t => t.id === requested);
+    const requested = new URLSearchParams(location.search).get('tab') || '';
+    const target = localTabs.find(t => t.id === requested && (t.type === 'terminal' || t.type === 'settings'));
     state.tabs = localTabs.filter(t => !target || t.id !== target.id);
+    state.activeTab = target ? target.id : null;
     renderTabs();
     updateHomeVisibility();
     if (target?.type === 'terminal') {

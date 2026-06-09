@@ -311,23 +311,39 @@ func (a *App) forgetTab(tabID string) {
 
 func (a *App) closeTab(tabID string) {
 	a.mu.Lock()
+	oldActive := a.activeTab
+	closedIndex := -1
 	newTabs := []Tab{}
-	for _, t := range a.tabs {
-		if t.ID != tabID {
-			newTabs = append(newTabs, t)
+	for i, t := range a.tabs {
+		if t.ID == tabID {
+			closedIndex = i
+			continue
 		}
+		newTabs = append(newTabs, t)
 	}
 	a.tabs = newTabs
-	if a.activeTab == tabID && len(newTabs) > 0 {
-		a.activeTab = newTabs[0].ID
+	if oldActive == tabID {
+		if len(newTabs) > 0 {
+			nextIndex := closedIndex
+			if nextIndex >= len(newTabs) {
+				nextIndex = len(newTabs) - 1
+			}
+			if nextIndex < 0 {
+				nextIndex = 0
+			}
+			a.activeTab = newTabs[nextIndex].ID
+		} else {
+			a.activeTab = ""
+		}
 	}
+	nextActive := a.activeTab
 	a.mu.Unlock()
 	a.persistOpenTabs()
 
-	if len(newTabs) == 0 {
+	if len(newTabs) == 0 || nextActive == "" {
 		a.goHome()
-	} else {
-		a.switchTab(a.activeTab)
+	} else if oldActive == tabID {
+		a.switchTab(nextActive)
 	}
 }
 
