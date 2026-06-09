@@ -234,7 +234,7 @@ window.openTerminal = async function(host, name, user, port) {
   const container = panel.querySelector('.term-container');
 
   // Create terminal immediately with "Connecting..." message
-  const term = new Terminal({ cursorBlink: true, fontSize: 14,
+  const term = new Terminal({ cursorBlink: true, fontSize: 14, bellStyle: 'sound', copyOnSelect: true, rightClickSelectsWord: true,
     fontFamily: 'FiraCode Nerd Font Mono, monospace',
     fontWeight: '400', fontWeightBold: '700',
     theme: { background: '#202020', foreground: '#fff', cursor: '#60cdff',
@@ -249,6 +249,20 @@ window.openTerminal = async function(host, name, user, port) {
   term.loadAddon(new UnicodeGraphemesAddon());
   try { term.loadAddon(new WebglAddon()); } catch(e) {}
   term.unicode.activeVersion = '11';
+    // Search: Ctrl+Shift+F
+    const searchAddon = term._addonManager?._addons?.find(a => a?.instance?.findNext) || null;
+    term.attachCustomKeyEventHandler((ev) => {
+      if (ev.ctrlKey && ev.shiftKey && ev.key === 'F') {
+        // TODO: show search bar UI
+        return false;
+      }
+      return true;
+    });
+    // Update tab title from terminal title sequences
+    term.onTitleChange((title) => {
+      const t = state.tabs.find(t => t.id === tabId);
+      if (t && title) { t.title = title.slice(0, 30); renderTabs(); }
+    });
   term.open(container);
   fit.fit();
   window.addEventListener('resize', () => { if (state.activeTab === tabId) fit.fit(); });

@@ -3,6 +3,9 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 	"io"
 	"log"
 	"net/http"
@@ -94,6 +97,9 @@ func (a *App) handleSSHWebSocketFull(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := session.Shell(); err != nil {
+		// Send error message to terminal before closing
+		errMsg := "\r\n\x1b[31mShell failed: " + err.Error() + "\x1b[0m\r\n"
+		conn.Write(ctx, websocket.MessageBinary, []byte(errMsg))
 		conn.Close(websocket.StatusInternalError, err.Error())
 		return
 	}
@@ -170,21 +176,34 @@ func (a *App) handleSSHWebSocketFull(w http.ResponseWriter, r *http.Request) {
 
 // getSSHAuthMethods returns auth methods for connecting to a host
 func (a *App) getSSHAuthMethods(host string) []ssh.AuthMethod {
-	methods := []ssh.AuthMethod{}
+	var signers []ssh.Signer
 
 	// Try host-specific key first
 	hostConf := a.config.Hosts[host]
 	if hostConf.KeyName != "" {
 		if keyData, err := GetCredential("ssh-key/" + hostConf.KeyName); err == nil {
 			if signer, err := ssh.ParsePrivateKey([]byte(keyData)); err == nil {
-				methods = append(methods, ssh.PublicKeys(signer))
+				signers = append(signers, signer)
 			}
 		}
 	}
 
 	// Try all stored keys as fallback
-	// TODO: enumerate all ssh-key/* credentials
-	_ = fmt.Sprintf("trying keys for %s", host)
+	credsDir := filepath.Join(configDir(), "creds")
+	entries, _ := os.ReadDir(credsDir)
+	for _, e := range entries {
+		name := e.Name()
+		if !strings.HasPrefix(name, "ssh-key") { continue }
+		if hostConf.KeyName != "" && strings.HasSuffix(name, hostConf.KeyName) { continue } // already tried
+		keyData, err := os.ReadFile(filepath.Join(credsDir, name))
+		if err != nil { continue }
+		signer, err := ssh.ParsePrivateKey(keyData)
+		if err != nil { continue }
+		signers = append(signers, signer)
+	}
 
-	return methods
+	if len(signers) > 0 {
+		return []ssh.AuthMethod{ssh.PublicKeys(signers...)}
+	}
+	return []ssh.AuthMethod{}
 }

@@ -20,10 +20,7 @@ package main
 //   // pipe session.StdinPipe/StdoutPipe <-> websocket
 
 import (
-	"context"
 	"io"
-	"net/http"
-	"encoding/json"
 
 	"golang.org/x/crypto/ssh"
 	// "nhooyr.io/websocket"
@@ -96,16 +93,3 @@ func (s *SSHSession) Close() {
 
 // handleSSHWebSocketImpl is the real WebSocket handler
 // Uncomment and wire up once nhooyr.io/websocket is added to go.mod
-func handleSSHWebSocketImpl(a *App, w http.ResponseWriter, r *http.Request) {
-	_ = context.Background()
-	_ = json.NewEncoder(w)
-	// TODO: implement with nhooyr.io/websocket
-	// 1. Accept WebSocket upgrade
-	// 2. Get tabId from query param
-	// 3. Look up ssh.Client from a.sshConns[tabId]
-	// 4. Create SSHSession with PTY
-	// 5. Goroutine: read from SSH stdout → write to WebSocket
-	// 6. Goroutine: read from WebSocket → write to SSH stdin
-	// 7. Handle {"type":"resize"} messages inline
-	http.Error(w, "not yet wired", 501)
-}

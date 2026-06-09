@@ -316,14 +316,6 @@ func (a *App) handleSSHResize(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(200)
 }
 
-func (a *App) handleSSHWebSocket(w http.ResponseWriter, r *http.Request) {
-	// WebSocket upgrade + PTY I/O will be implemented with nhooyr.io/websocket
-	http.Error(w, "websocket handler - TODO", 501)
-}
-
-
-// Placeholder for reading SSH keys from ~/.ssh/
-
 // Utility to copy between reader/writer (for terminal I/O)
 
 func (a *App) handleSSHAuthPassword(w http.ResponseWriter, r *http.Request) {
