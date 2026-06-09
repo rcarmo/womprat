@@ -61,7 +61,16 @@ func (a *App) handleSSHWebSocketFull(w http.ResponseWriter, r *http.Request) {
 		ssh.TTY_OP_ISPEED: 115200,
 		ssh.TTY_OP_OSPEED: 115200,
 	}
-	if err := session.RequestPty("xterm-256color", 24, 80, modes); err != nil {
+	// Get initial size from query params
+	cols := 80
+	rows := 24
+	if c := r.URL.Query().Get("cols"); c != "" {
+		fmt.Sscanf(c, "%d", &cols)
+	}
+	if ro := r.URL.Query().Get("rows"); ro != "" {
+		fmt.Sscanf(ro, "%d", &rows)
+	}
+	if err := session.RequestPty("xterm-256color", rows, cols, modes); err != nil {
 		conn.Close(websocket.StatusInternalError, err.Error())
 		return
 	}

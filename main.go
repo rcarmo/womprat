@@ -5,7 +5,6 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"net"
 	"net/http"
@@ -36,19 +35,29 @@ type Tab struct {
 	SSHUser string `json:"sshUser,omitempty"` // for terminal tabs
 }
 
+type pendingSSH struct {
+	host string
+	user string
+	port int
+	cols int
+	rows int
+}
+
 type App struct {
-	mu       sync.Mutex
-	config   *AppConfig
-	tsServer *tsnet.Server
-	tabs     []Tab
-	sshConns map[string]*ssh.Client
+	mu          sync.Mutex
+	config      *AppConfig
+	tsServer    *tsnet.Server
+	tabs        []Tab
+	sshConns    map[string]*ssh.Client
+	pendingAuth map[string]*pendingSSH
 }
 
 func main() {
 	cfg, _ := LoadConfig()
 	app := &App{
-		config:   cfg,
-		sshConns: make(map[string]*ssh.Client),
+		config:      cfg,
+		sshConns:    make(map[string]*ssh.Client),
+		pendingAuth: make(map[string]*pendingSSH),
 	}
 
 	// Start local HTTP server for the UI
@@ -139,6 +148,7 @@ func (a *App) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/ssh/resize", a.handleSSHResize)
 	// WebSocket for terminal I/O
 	mux.HandleFunc("/api/ssh/ws", a.handleSSHWebSocketFull)
+	mux.HandleFunc("/api/ssh/auth-password", a.handleSSHAuthPassword)
 }
 
 func (a *App) handleAuthStatus(w http.ResponseWriter, r *http.Request) {
@@ -226,6 +236,8 @@ func (a *App) handleSSHConnect(w http.ResponseWriter, r *http.Request) {
 		Host string `json:"host"`
 		User string `json:"user"`
 		Port int    `json:"port"`
+		Cols int    `json:"cols"`
+		Rows int    `json:"rows"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, err.Error(), 400)
@@ -243,23 +255,50 @@ func (a *App) handleSSHConnect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// SSH connection (agent auth or key-based)
+	// Try key-based auth first
+	authMethods := a.getSSHAuthMethods(body.Host)
+	
 	config := &ssh.ClientConfig{
 		User:            body.User,
-		Auth:            a.getSSHAuthMethods(body.Host),
+		Auth:            authMethods,
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 		Timeout:         10 * time.Second,
 	}
 
 	sshConn, chans, reqs, err := ssh.NewClientConn(conn, addr, config)
 	if err != nil {
+		// If key auth failed, check if we should try password
 		conn.Close()
-		http.Error(w, fmt.Sprintf("ssh handshake failed: %v", err), 500)
+		// Try reconnecting to check if password auth is available
+		conn2, err2 := a.tsServer.Dial(context.Background(), "tcp", addr)
+		if err2 != nil {
+			httpError(w, 500, "Connection failed", err2.Error())
+			return
+		}
+		// Check if server supports password auth by attempting with none
+		noneConfig := &ssh.ClientConfig{
+			User:            body.User,
+			Auth:            []ssh.AuthMethod{ssh.Password("")},
+			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+			Timeout:         5 * time.Second,
+		}
+		_, _, _, noneErr := ssh.NewClientConn(conn2, addr, noneConfig)
+		conn2.Close()
+		if noneErr != nil {
+			// Server likely supports keyboard-interactive or password
+			tabID := fmt.Sprintf("term-%s-%d", body.Host, time.Now().UnixMilli())
+			a.mu.Lock()
+			a.pendingAuth[tabID] = &pendingSSH{host: body.Host, user: body.User, port: body.Port, cols: body.Cols, rows: body.Rows}
+			a.mu.Unlock()
+			json.NewEncoder(w).Encode(map[string]interface{}{"tabId": tabID, "needsPassword": true})
+			return
+		}
+		httpError(w, 500, "SSH authentication failed", err.Error())
 		return
 	}
 
 	client := ssh.NewClient(sshConn, chans, reqs)
-	tabID := fmt.Sprintf("term-%s-%d", body.Host, len(a.sshConns))
+	tabID := fmt.Sprintf("term-%s-%d", body.Host, time.Now().UnixMilli())
 
 	a.mu.Lock()
 	a.sshConns[tabID] = client
@@ -278,26 +317,62 @@ func (a *App) handleSSHWebSocket(w http.ResponseWriter, r *http.Request) {
 	http.Error(w, "websocket handler - TODO", 501)
 }
 
-func sshAgentAuth() ([]ssh.Signer, error) {
-	// Try to use SSH agent
-	socket := os.Getenv("SSH_AUTH_SOCK")
-	if socket == "" {
-		return nil, fmt.Errorf("no SSH agent")
-	}
-	conn, err := net.Dial("unix", socket)
-	if err != nil {
-		return nil, err
-	}
-	_ = conn // TODO: implement agent protocol
-	return nil, fmt.Errorf("agent not implemented yet")
-}
 
 // Placeholder for reading SSH keys from ~/.ssh/
-func readSSHKeys() []ssh.Signer {
-	return nil
-}
 
 // Utility to copy between reader/writer (for terminal I/O)
-func ioCopy(dst io.Writer, src io.Reader) {
-	io.Copy(dst, src)
+
+func (a *App) handleSSHAuthPassword(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		TabId    string `json:"tabId"`
+		Password string `json:"password"`
+	}
+	json.NewDecoder(r.Body).Decode(&body)
+
+	a.mu.Lock()
+	pending := a.pendingAuth[body.TabId]
+	delete(a.pendingAuth, body.TabId)
+	a.mu.Unlock()
+
+	if pending == nil {
+		httpError(w, 404, "No pending auth", "")
+		return
+	}
+
+	addr := fmt.Sprintf("%s:%d", pending.host, pending.port)
+	conn, err := a.tsServer.Dial(context.Background(), "tcp", addr)
+	if err != nil {
+		httpError(w, 500, "Connection failed", err.Error())
+		return
+	}
+
+	config := &ssh.ClientConfig{
+		User: pending.user,
+		Auth: []ssh.AuthMethod{
+			ssh.Password(body.Password),
+			ssh.KeyboardInteractive(func(user, instruction string, questions []string, echos []bool) ([]string, error) {
+				answers := make([]string, len(questions))
+				for i := range answers {
+					answers[i] = body.Password
+				}
+				return answers, nil
+			}),
+		},
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		Timeout:         10 * time.Second,
+	}
+
+	sshConn, chans, reqs, err := ssh.NewClientConn(conn, addr, config)
+	if err != nil {
+		conn.Close()
+		httpError(w, 401, "Authentication failed", err.Error())
+		return
+	}
+
+	client := ssh.NewClient(sshConn, chans, reqs)
+	a.mu.Lock()
+	a.sshConns[body.TabId] = client
+	a.mu.Unlock()
+
+	json.NewEncoder(w).Encode(map[string]string{"status": "connected", "tabId": body.TabId})
 }

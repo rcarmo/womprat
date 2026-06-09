@@ -222,41 +222,167 @@ window.togglePeerMenu = function() {
 window.openTerminal = async function(host, name, user, port) {
   document.getElementById('peer-menu').classList.remove('show');
   const tabId = `term-${Date.now()}`;
-  const tab = { id: tabId, type: 'terminal', title: name, host, user: user || 'root', port: port || 22 };
+  const sshUser = user || 'root';
+  const sshPort = port || 22;
+  const tab = { id: tabId, type: 'terminal', title: name, host, user: sshUser, port: sshPort };
   state.tabs.push(tab);
   renderTabs();
   activateTab(tabId);
+  saveOpenTabs(); updateHomeVisibility();
+
+  const panel = document.getElementById(`panel-${tabId}`);
+  const container = panel.querySelector('.term-container');
+
+  // Create terminal immediately with "Connecting..." message
+  const term = new Terminal({ cursorBlink: true, fontSize: 14,
+    fontFamily: 'FiraCode Nerd Font Mono, monospace',
+    fontWeight: '400', fontWeightBold: '700',
+    theme: { background: '#202020', foreground: '#fff', cursor: '#60cdff',
+             selectionBackground: 'rgba(96,205,255,.3)' }
+  });
+  const fit = new FitAddon();
+  term.loadAddon(fit);
+  term.loadAddon(new WebLinksAddon());
+  term.loadAddon(new ClipboardAddon());
+  term.loadAddon(new SearchAddon());
+  term.loadAddon(new Unicode11Addon());
+  term.loadAddon(new UnicodeGraphemesAddon());
+  try { term.loadAddon(new WebglAddon()); } catch(e) {}
+  term.unicode.activeVersion = '11';
+  term.open(container);
+  fit.fit();
+  window.addEventListener('resize', () => { if (state.activeTab === tabId) fit.fit(); });
+
+  term.write(`\x1b[2m Connecting to ${sshUser}@${host}:${sshPort}...\x1b[0m\r\n`);
+
+  // Get initial dimensions
+  const cols = term.cols;
+  const rows = term.rows;
 
   // Connect SSH
-  const res = await fetch('/api/ssh/connect', {
-    method: 'POST', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ host, user: user || 'root', port: port || 22 })
-  });
-  const data = await res.json();
-  if (data.tabId) {
-    // Open WebSocket for terminal I/O
-    const ws = new WebSocket(`ws://${location.host}/api/ssh/ws?tab=${data.tabId}`);
-    const panel = document.getElementById(`panel-${tabId}`);
-    const term = new Terminal({ cursorBlink: true, fontSize: 14, fontFamily: 'FiraCode Nerd Font Mono, monospace', fontWeight: '400', fontWeightBold: '700', theme: {
-      background: '#0d1117', foreground: '#e6edf3', cursor: '#58a6ff'
-    }});
-    const fit = new FitAddon();
-    term.loadAddon(fit);
-    term.loadAddon(new WebLinksAddon());
-    term.loadAddon(new ClipboardAddon());
-    term.loadAddon(new SearchAddon());
-    term.loadAddon(new Unicode11Addon());
-    term.loadAddon(new UnicodeGraphemesAddon());
-    try { term.loadAddon(new WebglAddon()); } catch(e) { /* fallback to canvas */ }
-    term.unicode.activeVersion = '11';
-    term.open(panel.querySelector('.term-container'));
-    fit.fit();
-    window.addEventListener('resize', () => fit.fit());
-
-    ws.onopen = () => { term.loadAddon(new AttachAddon(ws)); };
-    ws.onclose = () => { term.write('\r\n[Connection closed]'); };
+  let res;
+  try {
+    res = await fetch('/api/ssh/connect', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ host, user: sshUser, port: sshPort, cols, rows })
+    });
+  } catch(err) {
+    term.write(`\x1b[31m Connection failed: ${err.message}\x1b[0m\r\n`);
+    showReconnect(term, tabId, host, name, sshUser, sshPort);
+    return;
   }
+
+  if (!res.ok) {
+    const errText = await res.text();
+    term.write(`\x1b[31m SSH error: ${errText}\x1b[0m\r\n`);
+    showReconnect(term, tabId, host, name, sshUser, sshPort);
+    return;
+  }
+
+  const data = await res.json();
+  if (!data.tabId) {
+    term.write(`\x1b[31m No session returned\x1b[0m\r\n`);
+    showReconnect(term, tabId, host, name, sshUser, sshPort);
+    return;
+  }
+
+  // Check if password is needed
+  if (data.needsPassword) {
+    term.write(`\x1b[33m Password required for ${sshUser}@${host}:\x1b[0m `);
+    let password = '';
+    const pwHandler = term.onData(ch => {
+      if (ch === '\r' || ch === '\n') {
+        pwHandler.dispose();
+        term.write('\r\n');
+        submitPassword(data.tabId, password, term, tabId, host, name, sshUser, sshPort, cols, rows);
+      } else if (ch === '\x7f') {
+        password = password.slice(0,-1);
+      } else {
+        password += ch;
+        term.write('*');
+      }
+    });
+    return;
+  }
+
+  // Open WebSocket for terminal I/O
+  connectWebSocket(data.tabId, term, tabId, host, name, sshUser, sshPort, cols, rows);
 };
+
+async function submitPassword(sshTabId, password, term, tabId, host, name, user, port, cols, rows) {
+  const res = await fetch('/api/ssh/auth-password', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ tabId: sshTabId, password })
+  });
+  if (!res.ok) {
+    term.write(`\x1b[31m Authentication failed\x1b[0m\r\n`);
+    showReconnect(term, tabId, host, name, user, port);
+    return;
+  }
+  connectWebSocket(sshTabId, term, tabId, host, name, user, port, cols, rows);
+}
+
+function connectWebSocket(sshTabId, term, tabId, host, name, user, port, cols, rows) {
+  term.write(`\x1b[2m Connected.\x1b[0m\r\n\r\n`);
+  const ws = new WebSocket(`ws://${location.host}/api/ssh/ws?tab=${sshTabId}&cols=${cols}&rows=${rows}`);
+
+  ws.onopen = () => {
+    term.loadAddon(new AttachAddon(ws));
+    // Send initial resize
+    ws.send(JSON.stringify({type:'resize', cols, rows}));
+  };
+
+  ws.onclose = () => {
+    term.write('\r\n\x1b[2m[Connection closed]\x1b[0m\r\n');
+    showReconnect(term, tabId, host, name, user, port);
+  };
+
+  ws.onerror = () => {
+    term.write('\r\n\x1b[31m[WebSocket error]\x1b[0m\r\n');
+  };
+
+  // Handle terminal resize → send to server
+  term.onResize(({cols, rows}) => {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({type:'resize', cols, rows}));
+    }
+  });
+}
+
+function showReconnect(term, tabId, host, name, user, port) {
+  term.write('\r\n\x1b[2m Press Enter to reconnect...\x1b[0m');
+  const handler = term.onData(ch => {
+    if (ch === '\r' || ch === '\n') {
+      handler.dispose();
+      term.clear();
+      // Reconnect
+      reconnectTerminal(tabId, host, name, user, port, term);
+    }
+  });
+}
+
+async function reconnectTerminal(tabId, host, name, user, port, term) {
+  term.write(`\x1b[2m Reconnecting to ${user}@${host}:${port}...\x1b[0m\r\n`);
+  const cols = term.cols, rows = term.rows;
+  let res;
+  try {
+    res = await fetch('/api/ssh/connect', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ host, user, port, cols, rows })
+    });
+  } catch(err) {
+    term.write(`\x1b[31m ${err.message}\x1b[0m\r\n`);
+    showReconnect(term, tabId, host, name, user, port);
+    return;
+  }
+  if (!res.ok) {
+    term.write(`\x1b[31m ${await res.text()}\x1b[0m\r\n`);
+    showReconnect(term, tabId, host, name, user, port);
+    return;
+  }
+  const data = await res.json();
+  if (data.tabId) connectWebSocket(data.tabId, term, tabId, host, name, user, port, cols, rows);
+}
 
 window.openBrowser = function(url, name) {
   document.getElementById('peer-menu').classList.remove('show');
