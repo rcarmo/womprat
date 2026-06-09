@@ -4,7 +4,6 @@ package main
 
 import (
 	"fmt"
-	"sync"
 	"time"
 	"unsafe"
 
@@ -28,118 +27,17 @@ type winRect struct {
 	Left, Top, Right, Bottom int32
 }
 
-type nativeContentManager struct {
-	mu       sync.Mutex
-	parent   uintptr
-	dataPath string
-	views    map[string]*nativeContentView
-}
-
-func newNativeContentManager(parent unsafe.Pointer, dataPath string) (*nativeContentManager, error) {
-	parentHWND := uintptr(parent)
-	if parentHWND == 0 {
-		return nil, fmt.Errorf("missing parent HWND")
-	}
-	m := &nativeContentManager{parent: parentHWND, dataPath: dataPath, views: map[string]*nativeContentView{}}
-	go m.resizeLoop()
-	return m, nil
-}
-
-func (m *nativeContentManager) Ensure(tabID string) browserContentView {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if v := m.views[tabID]; v != nil {
-		return v
-	}
-	v, err := newNativeContentView(m.parent, m.dataPath)
-	if err != nil {
-		return nilContentView{err: err}
-	}
-	v.Hide()
-	m.views[tabID] = v
-	return v
-}
-
-func (m *nativeContentManager) Get(tabID string) browserContentView {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if v := m.views[tabID]; v != nil {
-		return v
-	}
-	return nil
-}
-
-func (m *nativeContentManager) Show(tabID string) {
-	m.mu.Lock()
-	views := make(map[string]*nativeContentView, len(m.views))
-	for id, v := range m.views {
-		views[id] = v
-	}
-	m.mu.Unlock()
-	for id, v := range views {
-		if id == tabID {
-			v.Show()
-		} else {
-			v.Hide()
-		}
-	}
-}
-
-func (m *nativeContentManager) HideAll() {
-	m.mu.Lock()
-	views := make([]*nativeContentView, 0, len(m.views))
-	for _, v := range m.views {
-		views = append(views, v)
-	}
-	m.mu.Unlock()
-	for _, v := range views {
-		v.Hide()
-	}
-}
-
-func (m *nativeContentManager) Destroy(tabID string) {
-	m.mu.Lock()
-	v := m.views[tabID]
-	delete(m.views, tabID)
-	m.mu.Unlock()
-	if v != nil {
-		v.Destroy()
-	}
-}
-
-func (m *nativeContentManager) resizeLoop() {
-	ticker := time.NewTicker(250 * time.Millisecond)
-	defer ticker.Stop()
-	for range ticker.C {
-		m.mu.Lock()
-		views := make([]*nativeContentView, 0, len(m.views))
-		for _, v := range m.views {
-			views = append(views, v)
-		}
-		m.mu.Unlock()
-		for _, v := range views {
-			v.resize()
-		}
-	}
-}
-
-type nilContentView struct{ err error }
-
-func (nilContentView) Navigate(string) {}
-func (nilContentView) GoBack()         {}
-func (nilContentView) GoForward()      {}
-func (nilContentView) Reload()         {}
-func (nilContentView) Show()           {}
-func (nilContentView) Hide()           {}
-func (nilContentView) Destroy()        {}
-
 type nativeContentView struct {
 	parent uintptr
 	hwnd   uintptr
 	edge   *webview2edge.Chromium
 }
 
-func newNativeContentView(parent uintptr, dataPath string) (*nativeContentView, error) {
+func newNativeContentView(parent unsafe.Pointer, dataPath string) (*nativeContentView, error) {
+	parentHWND := uintptr(parent)
+	if parentHWND == 0 {
+		return nil, fmt.Errorf("missing parent HWND")
+	}
 	className, _ := windows.UTF16PtrFromString("STATIC")
 	hwnd, _, err := procCreateWindowExW.Call(
 		0,
@@ -147,7 +45,7 @@ func newNativeContentView(parent uintptr, dataPath string) (*nativeContentView, 
 		0,
 		0x40000000|0x10000000, // WS_CHILD | WS_VISIBLE
 		0, browserChromeHeight, 100, 100,
-		parent,
+		parentHWND,
 		0,
 		0,
 		0,
@@ -155,7 +53,7 @@ func newNativeContentView(parent uintptr, dataPath string) (*nativeContentView, 
 	if hwnd == 0 {
 		return nil, fmt.Errorf("create content child window: %w", err)
 	}
-	cv := &nativeContentView{parent: parent, hwnd: hwnd}
+	cv := &nativeContentView{parent: parentHWND, hwnd: hwnd}
 	edge := webview2edge.NewChromium()
 	edge.DataPath = dataPath
 	if !edge.Embed(hwnd) {
@@ -164,15 +62,27 @@ func newNativeContentView(parent uintptr, dataPath string) (*nativeContentView, 
 	}
 	cv.edge = edge
 	cv.resize()
+	go cv.resizeLoop()
 	return cv, nil
+}
+
+func (v *nativeContentView) resizeLoop() {
+	ticker := time.NewTicker(250 * time.Millisecond)
+	defer ticker.Stop()
+	for range ticker.C {
+		if v == nil || v.hwnd == 0 {
+			return
+		}
+		ok, _, _ := procIsWindow.Call(v.hwnd)
+		if ok == 0 {
+			return
+		}
+		v.resize()
+	}
 }
 
 func (v *nativeContentView) resize() {
 	if v == nil || v.parent == 0 || v.hwnd == 0 {
-		return
-	}
-	ok, _, _ := procIsWindow.Call(v.hwnd)
-	if ok == 0 {
 		return
 	}
 	var r winRect
@@ -229,13 +139,4 @@ func (v *nativeContentView) Hide() {
 		return
 	}
 	procShowWindow.Call(v.hwnd, 0) // SW_HIDE
-}
-
-func (v *nativeContentView) Destroy() {
-	if v == nil || v.hwnd == 0 {
-		return
-	}
-	procDestroyWindow.Call(v.hwnd)
-	v.hwnd = 0
-	v.edge = nil
 }
