@@ -222,7 +222,7 @@ window.togglePeerMenu = function() {
 window.openTerminal = async function(host, name, user, port) {
   document.getElementById('peer-menu').classList.remove('show');
   const tabId = `term-${Date.now()}`;
-  const tab = { id: tabId, type: 'terminal', title: name, host };
+  const tab = { id: tabId, type: 'terminal', title: name, host, user: user || 'root', port: port || 22 };
   state.tabs.push(tab);
   renderTabs();
   activateTab(tabId);
@@ -375,11 +375,11 @@ async function loadRecentTabs() {
     }
     list.innerHTML = tabs.map(t => `
       <div class="recent-item" onclick="${t.type==='terminal'
-        ? `openTerminal('${t.host}','${t.title}','${t.user||'root'}',22)`
+        ? `openTerminal('${t.host}','${t.title}','${t.user||'root'}',${t.port||22})`
         : `openBrowser('${t.url}','${t.title}')`}">
         <span>${t.type==='terminal' ? '⬛' : '🌐'}</span>
         <span style="font-weight:600">${t.title}</span>
-        <span style="color:var(--dim);font-size:.8em;margin-left:auto">${t.type==='terminal' ? t.host : t.url}</span>
+        <span style="color:var(--dim);font-size:.8em;margin-left:auto">${t.type==='terminal' ? (t.user||'root') + '@' + t.host + ':' + (t.port||22) : t.url}</span>
       </div>
     `).join('');
   } catch {}
