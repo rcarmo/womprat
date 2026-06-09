@@ -2,8 +2,8 @@ package main
 
 import (
 	"context"
-	"embed"
 	"crypto/rand"
+	"embed"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -14,7 +14,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-	
 
 	webview2 "github.com/jchv/go-webview2"
 	"golang.org/x/crypto/ssh"
@@ -38,7 +37,7 @@ type pendingSSH struct {
 
 type Tab struct {
 	ID    string `json:"id"`
-	Type  string `json:"type"`  // "terminal", "browser", "settings"
+	Type  string `json:"type"` // "terminal", "browser", "settings"
 	Title string `json:"title"`
 	URL   string `json:"url,omitempty"`
 	Host  string `json:"host,omitempty"`
@@ -346,7 +345,9 @@ func (a *App) handleAuthStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleSaveKey(w http.ResponseWriter, r *http.Request) {
-	var body struct{ Key string `json:"key"` }
+	var body struct {
+		Key string `json:"key"`
+	}
 	json.NewDecoder(r.Body).Decode(&body)
 	SaveCredential("tailscale-key", body.Key)
 	if err := a.startTailscale(); err != nil {
@@ -416,7 +417,9 @@ func (a *App) handleSSHConnect(w http.ResponseWriter, r *http.Request) {
 		Rows int    `json:"rows"`
 	}
 	json.NewDecoder(r.Body).Decode(&body)
-	if body.Port == 0 { body.Port = 22 }
+	if body.Port == 0 {
+		body.Port = 22
+	}
 
 	addr := fmt.Sprintf("%s:%d", body.Host, body.Port)
 	conn, err := a.tsServer.Dial(context.Background(), "tcp", addr)
@@ -491,7 +494,9 @@ func (a *App) handleSSHAuthPassword(w http.ResponseWriter, r *http.Request) {
 			ssh.Password(body.Password),
 			ssh.KeyboardInteractive(func(user, instruction string, questions []string, echos []bool) ([]string, error) {
 				answers := make([]string, len(questions))
-				for i := range answers { answers[i] = body.Password }
+				for i := range answers {
+					answers[i] = body.Password
+				}
 				return answers, nil
 			}),
 		},
@@ -510,48 +515,105 @@ func (a *App) handleSSHAuthPassword(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"status": "connected", "tabId": body.TabId})
 }
 
-// chromeOverlayJS returns JS that injects a floating tab bar into every page
+// chromeOverlayJS returns JS that injects native-sized browser chrome into external pages.
 func chromeOverlayJS(port int, token string) string {
 	return fmt.Sprintf(`
 (function() {
-  // Don't inject into our own shell pages
+  // Don't inject into our own shell pages.
   if (location.hostname === '127.0.0.1' && location.port === '%d') return;
-  
-  const STYLE = document.createElement('style');
-  STYLE.textContent = %s;
-  document.head.appendChild(STYLE);
-  
-  const BAR = document.createElement('div');
-  BAR.id = 'womprat-chrome';
-  BAR.innerHTML = '<div id="womprat-tabs"></div><button id="womprat-home" title="Home">⌂</button>';
-  document.body.appendChild(BAR);
-  
-  async function refresh() {
-    const state = JSON.parse(await womprat_getTabs());
-    const tabs = document.getElementById('womprat-tabs');
-    tabs.innerHTML = state.tabs.map(t => 
-      '<span class="wt ' + (t.id===state.activeTab?'active':'') + '" onclick="womprat_switchTab(\'' + t.id + '\')">' +
-      t.title.slice(0,20) + '</span>'
-    ).join('');
+  if (window.__wompratChromeInstalled) return;
+  window.__wompratChromeInstalled = true;
+
+  function install() {
+    if (!document.documentElement || !document.body) {
+      requestAnimationFrame(install);
+      return;
+    }
+
+    const style = document.createElement('style');
+    style.textContent = %s;
+    (document.head || document.documentElement).appendChild(style);
+
+    const bar = document.createElement('div');
+    bar.id = 'womprat-chrome';
+    bar.innerHTML = `+"`"+`
+      <div id="womprat-tab-row">
+        <div id="womprat-tabs"></div>
+        <button id="womprat-home" title="Home">⌂</button>
+      </div>
+      <div id="womprat-url-row">
+        <button id="womprat-back" title="Back">‹</button>
+        <button id="womprat-forward" title="Forward">›</button>
+        <button id="womprat-reload" title="Reload">↻</button>
+        <input id="womprat-url" spellcheck="false">
+        <button id="womprat-go">Go</button>
+      </div>`+"`"+`;
+    document.body.appendChild(bar);
+
+    const input = document.getElementById('womprat-url');
+    input.value = location.href;
+
+    function navigateFromInput() {
+      let u = input.value.trim();
+      if (!u) return;
+      if (!/^https?:\/\//i.test(u)) u = 'http://' + u;
+      womprat_navigate(u);
+    }
+
+    document.getElementById('womprat-back').addEventListener('click', () => history.back());
+    document.getElementById('womprat-forward').addEventListener('click', () => history.forward());
+    document.getElementById('womprat-reload').addEventListener('click', () => location.reload());
+    document.getElementById('womprat-go').addEventListener('click', navigateFromInput);
+    document.getElementById('womprat-home').addEventListener('click', () => womprat_goHome());
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') navigateFromInput(); });
+
+    async function refresh() {
+      try {
+        const state = JSON.parse(await womprat_getTabs());
+        const tabs = document.getElementById('womprat-tabs');
+        tabs.textContent = '';
+        state.tabs.forEach((t) => {
+          const item = document.createElement('button');
+          item.className = 'wt' + (t.id === state.activeTab ? ' active' : '');
+          item.textContent = (t.title || t.url || t.host || 'tab').slice(0, 24);
+          item.addEventListener('click', () => womprat_switchTab(t.id));
+          tabs.appendChild(item);
+        });
+        if (document.activeElement !== input) input.value = location.href;
+      } catch (e) {}
+    }
+
+    refresh();
+    setInterval(refresh, 1500);
   }
-  
-  document.getElementById('womprat-home').onclick = () => womprat_goHome();
-  refresh();
-  setInterval(refresh, 2000);
+  install();
 })();
 `, port, chromeOverlayCSS)
 }
 
 var chromeOverlayCSS = "`" + `
-#womprat-chrome{position:fixed;top:0;left:0;right:0;height:28px;background:rgba(32,32,32,.95);
-  backdrop-filter:blur(8px);display:flex;align-items:center;padding:0 8px;gap:4px;z-index:999999;
-  font:12px/1 'Segoe UI Variable',system-ui,sans-serif;color:#fff;border-bottom:1px solid rgba(255,255,255,.08)}
-#womprat-chrome .wt{padding:4px 10px;border-radius:4px;cursor:pointer;opacity:.6;font-size:11px}
-#womprat-chrome .wt:hover{opacity:.8;background:rgba(255,255,255,.06)}
-#womprat-chrome .wt.active{opacity:1;background:rgba(255,255,255,.1);font-weight:600}
-#womprat-chrome #womprat-home{background:none;border:none;color:#fff;cursor:pointer;margin-left:auto;
-  font-size:14px;opacity:.6;padding:4px 8px;border-radius:4px}
-#womprat-chrome #womprat-home:hover{opacity:1;background:rgba(255,255,255,.06)}
-body{margin-top:28px !important}
+#womprat-chrome{position:fixed!important;top:0!important;left:0!important;right:0!important;height:84px!important;
+  background:rgba(32,32,32,.97)!important;backdrop-filter:blur(10px)!important;display:flex!important;
+  flex-direction:column!important;z-index:2147483647!important;font:14px/1.2 'Segoe UI Variable','Segoe UI',system-ui,sans-serif!important;
+  color:#f3f3f3!important;border-bottom:1px solid rgba(255,255,255,.10)!important;box-sizing:border-box!important}
+#womprat-chrome *,#womprat-chrome *::before,#womprat-chrome *::after{box-sizing:border-box!important;font-family:'Segoe UI Variable','Segoe UI',system-ui,sans-serif!important}
+#womprat-tab-row{height:40px!important;display:flex!important;align-items:center!important;gap:6px!important;padding:4px 8px!important;min-width:0!important}
+#womprat-tabs{display:flex!important;align-items:center!important;gap:4px!important;min-width:0!important;overflow:hidden!important;flex:1!important}
+#womprat-chrome .wt{height:32px!important;max-width:220px!important;padding:0 12px!important;border:1px solid transparent!important;border-radius:4px!important;
+  background:transparent!important;color:#cfcfcf!important;cursor:pointer!important;opacity:.85!important;font-size:14px!important;line-height:30px!important;
+  white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;flex:0 1 auto!important}
+#womprat-chrome .wt:hover{background:rgba(255,255,255,.08)!important;color:#fff!important}
+#womprat-chrome .wt.active{background:rgba(255,255,255,.12)!important;color:#fff!important;font-weight:600!important}
+#womprat-url-row{height:44px!important;display:flex!important;align-items:center!important;gap:6px!important;padding:6px 8px!important;min-width:0!important}
+#womprat-chrome button{height:32px!important;min-width:32px!important;border:1px solid transparent!important;border-radius:4px!important;background:transparent!important;
+  color:#d6d6d6!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;cursor:pointer!important;font-size:14px!important;padding:0 10px!important}
+#womprat-chrome button:hover{background:rgba(255,255,255,.08)!important;color:#fff!important}
+#womprat-chrome #womprat-back,#womprat-chrome #womprat-forward,#womprat-chrome #womprat-reload{font-size:22px!important;padding:0!important;line-height:32px!important}
+#womprat-chrome #womprat-home{margin-left:auto!important;font-size:18px!important;flex:0 0 auto!important}
+#womprat-chrome #womprat-url{height:32px!important;min-width:0!important;flex:1 1 auto!important;border:1px solid rgba(255,255,255,.16)!important;
+  border-radius:4px!important;background:rgba(255,255,255,.06)!important;color:#f3f3f3!important;padding:0 10px!important;font-size:14px!important;
+  line-height:32px!important;outline:none!important;color-scheme:dark!important}
+#womprat-chrome #womprat-url:focus{border-color:#60cdff!important;background:rgba(0,0,0,.28)!important}
+html{scroll-padding-top:84px!important}
+body{padding-top:84px!important;margin-top:0!important}
 ` + "`"
-
