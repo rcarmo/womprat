@@ -10,7 +10,6 @@ import (
 )
 
 var socksAddr = "127.0.0.1:1080"
-var useExitNode = false  // when true, proxy ALL traffic (internet via exit node)
 
 func startSOCKS5(ts *tsnet.Server) error {
 	ln, err := net.Listen("tcp", socksAddr)
@@ -20,10 +19,7 @@ func startSOCKS5(ts *tsnet.Server) error {
 	go func() {
 		for {
 			conn, err := ln.Accept()
-			if err != nil {
-				return
-			}
-			// Only allow localhost
+			if err != nil { return }
 			host, _, _ := net.SplitHostPort(conn.RemoteAddr().String())
 			if host != "127.0.0.1" && host != "::1" {
 				conn.Close()
@@ -38,13 +34,10 @@ func startSOCKS5(ts *tsnet.Server) error {
 
 func handleSOCKS5(conn net.Conn, ts *tsnet.Server) {
 	defer conn.Close()
-
 	buf := make([]byte, 256)
 	n, err := conn.Read(buf)
-	if err != nil || n < 2 || buf[0] != 0x05 {
-		return
-	}
-	conn.Write([]byte{0x05, 0x00}) // no auth
+	if err != nil || n < 2 || buf[0] != 0x05 { return }
+	conn.Write([]byte{0x05, 0x00})
 
 	n, err = conn.Read(buf)
 	if err != nil || n < 7 || buf[1] != 0x01 {
@@ -73,21 +66,19 @@ func handleSOCKS5(conn net.Conn, ts *tsnet.Server) {
 		return
 	}
 
-	addr := fmt.Sprintf("%s:%d", host, port)
-
-	// If no exit node, only allow tailnet destinations
+	// Filter: only tailnet or all (if exit node active)
 	if !useExitNode && !isTailnetDest(host) {
-		conn.Write([]byte{0x05, 0x02, 0x00, 0x01, 0, 0, 0, 0, 0, 0}) // not allowed
+		conn.Write([]byte{0x05, 0x02, 0x00, 0x01, 0, 0, 0, 0, 0, 0})
 		return
 	}
 
+	addr := fmt.Sprintf("%s:%d", host, port)
 	remote, err := ts.Dial(context.Background(), "tcp", addr)
 	if err != nil {
 		conn.Write([]byte{0x05, 0x05, 0x00, 0x01, 0, 0, 0, 0, 0, 0})
 		return
 	}
 	defer remote.Close()
-
 	conn.Write([]byte{0x05, 0x00, 0x00, 0x01, 0, 0, 0, 0, 0, 0})
 
 	done := make(chan struct{}, 2)
@@ -96,23 +87,21 @@ func handleSOCKS5(conn net.Conn, ts *tsnet.Server) {
 	<-done
 }
 
+func isTailnetDest(host string) bool {
+	ip := net.ParseIP(host)
+	if ip != nil {
+		ip4 := ip.To4()
+		if ip4 != nil { return ip4[0] == 100 && (ip4[1]&0xC0) == 64 }
+		return len(ip) == 16 && ip[0] == 0xfd && ip[1] == 0x7a
+	}
+	return true // DNS names resolve via MagicDNS
+}
+
 func relay(dst, src net.Conn) {
-	buf := make([]byte, 32 * 1024)
+	buf := make([]byte, 32*1024)
 	for {
 		n, err := src.Read(buf)
 		if n > 0 { dst.Write(buf[:n]) }
 		if err != nil { return }
 	}
-}
-
-func isTailnetDest(host string) bool {
-	ip := net.ParseIP(host)
-	if ip != nil {
-		ip4 := ip.To4()
-		if ip4 != nil {
-			return ip4[0] == 100 && (ip4[1]&0xC0) == 64 // 100.64.0.0/10
-		}
-		return len(ip) == 16 && ip[0] == 0xfd && ip[1] == 0x7a // fd7a::/16
-	}
-	return true // DNS names go through MagicDNS
 }

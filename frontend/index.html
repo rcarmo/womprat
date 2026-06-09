@@ -518,7 +518,7 @@ window.navigateTab = function(id) {
 window.openSettings = function() {
   const tabId = 'settings';
   if (!state.tabs.find(t => t.id === tabId)) {
-    state.tabs.push({ id: tabId, type: 'browser', title: 'Settings', url: '/frontend/settings.html' });
+    state.tabs.push({ id: tabId, type: 'settings', title: 'Settings', url: '/settings.html' });
     renderTabs();
   }
   activateTab(tabId);
