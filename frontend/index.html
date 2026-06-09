@@ -493,7 +493,7 @@ window.openTerminal = async function(host, name, user, port, options = {}) {
   const container = panel.querySelector('.term-container');
 
   // Create terminal immediately with "Connecting..." message
-  const term = new Terminal({ allowProposedApi: true, cursorBlink: true, fontSize: TERMINAL_FONT_SIZE, bellStyle: 'sound', copyOnSelect: true, rightClickSelectsWord: true, scrollback: 5000,
+  const term = new Terminal({ allowProposedApi: true, cursorBlink: true, fontSize: TERMINAL_FONT_SIZE, bellStyle: 'sound', copyOnSelect: true, rightClickSelectsWord: true, scrollback: 10000,
     fontFamily: 'FiraCode Nerd Font Mono, monospace',
     fontWeight: '400', fontWeightBold: '700',
     theme: { background: '#202020', foreground: '#fff', cursor: '#60cdff',
@@ -540,16 +540,19 @@ window.openTerminal = async function(host, name, user, port, options = {}) {
   fit.fit();
   terminalSessions.set(tabId, { term, fit, fontSize: TERMINAL_FONT_SIZE, ws: null });
   window.addEventListener('resize', () => { if (state.activeTab === tabId) fit.fit(); });
-  // Overlay scrollbar: reveal while scrolling, fade out on idle.
+  // Overlay scrollbar: reveal while scrolling or on terminal output, fade on idle.
+  // The native thumb is automatically proportional to the scrollback buffer.
   const termViewport = container.querySelector('.xterm-viewport');
+  let scrollbarFadeTimer = null;
+  const revealScrollbar = () => {
+    panel.classList.add('scrolling');
+    clearTimeout(scrollbarFadeTimer);
+    scrollbarFadeTimer = setTimeout(() => panel.classList.remove('scrolling'), 900);
+  };
   if (termViewport) {
-    let fadeTimer = null;
-    termViewport.addEventListener('scroll', () => {
-      panel.classList.add('scrolling');
-      clearTimeout(fadeTimer);
-      fadeTimer = setTimeout(() => panel.classList.remove('scrolling'), 900);
-    }, { passive: true });
+    termViewport.addEventListener('scroll', revealScrollbar, { passive: true });
   }
+  term.onScroll(revealScrollbar);
 
   term.write(`\x1b[2m Connecting to ${sshUser}@${host}:${sshPort}...\x1b[0m\r\n`);
 
