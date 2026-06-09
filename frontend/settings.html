@@ -268,11 +268,32 @@ tr:hover td{background:rgba(255,255,255,.02)}
   <div class="section">
     <h3>womprat</h3>
     <table>
-      <tr><td style="color:var(--dim)">Version</td><td class="mono">0.1.0</td></tr>
-      <tr><td style="color:var(--dim)">Go</td><td class="mono" id="about-go">—</td></tr>
-      <tr><td style="color:var(--dim)">Tailscale</td><td class="mono" id="about-ts">—</td></tr>
-      <tr><td style="color:var(--dim)">WebView2</td><td class="mono">System-provided</td></tr>
+      <tr><td style="color:var(--dim)">Version</td><td class="mono" id="about-version">—</td></tr>
+      <tr><td style="color:var(--dim)">Commit</td><td class="mono" id="about-commit">—</td></tr>
       <tr><td style="color:var(--dim)">Platform</td><td class="mono" id="about-platform">—</td></tr>
+      <tr><td style="color:var(--dim)">Go Runtime</td><td class="mono" id="about-go">—</td></tr>
+      <tr><td style="color:var(--dim)">Tailscale</td><td class="mono" id="about-ts">—</td></tr>
+      <tr><td style="color:var(--dim)">tsnet</td><td class="mono" id="about-tsnet">—</td></tr>
+      <tr><td style="color:var(--dim)">WebView2</td><td class="mono" id="about-webview">—</td></tr>
+    </table>
+  </div>
+  <div class="section">
+    <h3>Runtime</h3>
+    <table>
+      <tr><td style="color:var(--dim)">Tailscale</td><td class="mono" id="about-ts-connected">—</td></tr>
+      <tr><td style="color:var(--dim)">Exit Node</td><td class="mono" id="about-exit-node">—</td></tr>
+      <tr><td style="color:var(--dim)">SOCKS Proxy</td><td class="mono" id="about-socks">—</td></tr>
+      <tr><td style="color:var(--dim)">Local API</td><td class="mono" id="about-api">—</td></tr>
+      <tr><td style="color:var(--dim)">Open Tabs</td><td class="mono" id="about-tabs">—</td></tr>
+    </table>
+  </div>
+  <div class="section">
+    <h3>Storage</h3>
+    <table>
+      <tr><td style="color:var(--dim)">Config</td><td class="mono" id="about-config-dir" style="word-break:break-all">—</td></tr>
+      <tr><td style="color:var(--dim)">WebView Data</td><td class="mono" id="about-webview-data" style="word-break:break-all">—</td></tr>
+      <tr><td style="color:var(--dim)">Restore Tabs</td><td class="mono" id="about-restore-tabs">—</td></tr>
+      <tr><td style="color:var(--dim)">Auto-connect</td><td class="mono" id="about-auto-connect">—</td></tr>
     </table>
   </div>
   <div class="section">
@@ -546,6 +567,32 @@ async function saveAppearance() {
   })});
 }
 
+function setText(id, value) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = value ?? '—';
+}
+async function loadAbout() {
+  try {
+    const about = await fetch('/api/about').then(r=>r.json());
+    setText('about-version', about.version);
+    setText('about-commit', about.commit);
+    setText('about-platform', about.platform);
+    setText('about-go', about.go);
+    setText('about-ts', about.tailscale);
+    setText('about-tsnet', about.tsnet);
+    setText('about-webview', about.webview2);
+    setText('about-ts-connected', about.tsConnected ? 'connected' : 'disconnected');
+    setText('about-exit-node', about.exitNode || 'none');
+    setText('about-socks', about.socks);
+    setText('about-api', about.localAPI);
+    setText('about-tabs', String(about.tabCount ?? 0));
+    setText('about-config-dir', about.configDir);
+    setText('about-webview-data', about.webviewData);
+    setText('about-restore-tabs', about.restoreTabs ? 'enabled' : 'disabled');
+    setText('about-auto-connect', about.autoConnect ? 'enabled' : 'disabled');
+  } catch {}
+}
+
 async function initSettings() {
   document.getElementById('save-passwords')?.addEventListener('change', (e) => {
     fetch('/api/settings/browser/save-passwords', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({enabled: e.target.checked})});
@@ -554,6 +601,7 @@ async function initSettings() {
   await loadExitNodes();
   await loadBrowserSettings();
   await loadKeys();
+  await loadAbout();
 }
 initSettings();
 </script>

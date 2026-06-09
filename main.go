@@ -11,6 +11,8 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"runtime"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"time"
@@ -26,6 +28,11 @@ var frontendFS embed.FS
 var useExitNode = false
 
 const appName = "womprat"
+
+var (
+	version = "0.1.0"
+	commit  = "dev"
+)
 
 type pendingSSH struct {
 	host string
@@ -337,6 +344,7 @@ func (a *App) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/auth/save-key", a.authMiddleware(a.handleSaveKey))
 	mux.HandleFunc("/api/tailscale/status", a.authMiddleware(a.handleTSStatus))
 	mux.HandleFunc("/api/tailscale/peers", a.authMiddleware(a.handleTSPeers))
+	mux.HandleFunc("/api/about", a.authMiddleware(a.handleAbout))
 	mux.HandleFunc("/api/ssh/connect", a.authMiddleware(a.handleSSHConnect))
 	mux.HandleFunc("/api/ssh/resize", a.authMiddleware(a.handleSSHResize))
 	mux.HandleFunc("/api/ssh/ws", a.authMiddleware(a.handleSSHWebSocketFull))
@@ -480,6 +488,56 @@ func (a *App) handleTSPeers(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	json.NewEncoder(w).Encode(peers)
+}
+
+func (a *App) handleAbout(w http.ResponseWriter, r *http.Request) {
+	a.mu.Lock()
+	tsConnected := a.tsServer != nil
+	tabCount := len(a.tabs)
+	exitNode := a.config.ExitNode
+	restoreTabs := a.config.RestoreTabs
+	autoConnect := a.config.AutoConnect
+	a.mu.Unlock()
+
+	info := map[string]interface{}{
+		"name":        appName,
+		"version":     version,
+		"commit":      commit,
+		"go":          runtime.Version(),
+		"platform":    runtime.GOOS + "/" + runtime.GOARCH,
+		"webview2":    "System WebView2 runtime",
+		"tailscale":   moduleVersion("tailscale.com"),
+		"tsnet":       moduleVersion("tailscale.com/tsnet"),
+		"configDir":   configDir(),
+		"webviewData": webviewDataPath(),
+		"socks":       socksAddr,
+		"localAPI":    fmt.Sprintf("127.0.0.1:%d", a.serverPort),
+		"tsConnected": tsConnected,
+		"exitNode":    exitNode,
+		"tabCount":    tabCount,
+		"restoreTabs": restoreTabs,
+		"autoConnect": autoConnect,
+	}
+	json.NewEncoder(w).Encode(info)
+}
+
+func moduleVersion(path string) string {
+	bi, ok := debug.ReadBuildInfo()
+	if !ok {
+		return "unknown"
+	}
+	if bi.Main.Path == path {
+		return bi.Main.Version
+	}
+	for _, dep := range bi.Deps {
+		if dep.Path == path {
+			if dep.Replace != nil {
+				return dep.Replace.Version
+			}
+			return dep.Version
+		}
+	}
+	return "bundled"
 }
 
 func (a *App) handleSSHConnect(w http.ResponseWriter, r *http.Request) {
