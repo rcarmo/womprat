@@ -168,7 +168,7 @@ func runGUI(app *App, shellURL string) {
 	}
 	log.Printf("gui: shell child hwnd=0x%x", shellChild)
 	resizeChildToClient(host, shellChild, 0, 0)
-	w := webview2.NewWithOptions(webview2.WebViewOptions{Debug: true, AutoFocus: true, Window: unsafe.Pointer(shellChild), DataPath: webviewDataPath()})
+	w := webview2.NewWithOptions(webview2.WebViewOptions{Debug: app.config.DebugLog, AutoFocus: true, Window: unsafe.Pointer(shellChild), DataPath: webviewDataPath()})
 	if w == nil {
 		log.Fatal("Failed to create shell WebView2")
 	}

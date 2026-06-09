@@ -102,11 +102,13 @@ type App struct {
 }
 
 func main() {
-	setupLogging()
 	cfg, err := LoadConfig()
 	if err != nil {
-		log.Printf("config load failed, using defaults: %v", err)
 		cfg = defaultConfig()
+	}
+	setupLogging(cfg.DebugLog)
+	if err != nil {
+		log.Printf("config load failed, using defaults: %v", err)
 	}
 	token := generateSessionToken()
 	app := &App{
@@ -575,6 +577,7 @@ func (a *App) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/tailscale/peers", a.authMiddleware(a.handleTSPeers))
 	mux.HandleFunc("/api/about", a.authMiddleware(a.handleAbout))
 	mux.HandleFunc("/api/logs", a.authMiddleware(a.handleLogs))
+	mux.HandleFunc("/api/settings/debug-log", a.authMiddleware(a.handleDebugLog))
 	mux.HandleFunc("/api/ssh/connect", a.authMiddleware(a.handleSSHConnect))
 	mux.HandleFunc("/api/ssh/resize", a.authMiddleware(a.handleSSHResize))
 	mux.HandleFunc("/api/ssh/ws", a.authMiddleware(a.handleSSHWebSocketFull))

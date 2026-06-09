@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -32,9 +33,14 @@ func runtimeDir() string {
 	return configDir()
 }
 
-// setupLogging routes the standard logger to a log file (and stderr when one is
-// attached) so runtime diagnostics are visible on Windows GUI builds.
-func setupLogging() {
+// setupLogging routes the standard logger to a log file when debug logging is
+// enabled. When disabled (default), runtime logs are discarded so release builds
+// stay quiet and write nothing to disk.
+func setupLogging(enabled bool) {
+	if !enabled {
+		log.SetOutput(io.Discard)
+		return
+	}
 	path := logFilePath()
 	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 		return
@@ -77,7 +83,41 @@ func (a *App) handleLogs(w http.ResponseWriter, r *http.Request) {
 	w.Write(data)
 }
 
+func (a *App) handleDebugLog(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case "GET":
+		a.mu.Lock()
+		enabled := a.config.DebugLog
+		a.mu.Unlock()
+		json.NewEncoder(w).Encode(map[string]any{"enabled": enabled, "logPath": logFilePath()})
+	case "POST":
+		var body struct {
+			Enabled bool `json:"enabled"`
+		}
+		json.NewDecoder(r.Body).Decode(&body)
+		a.mu.Lock()
+		a.config.DebugLog = body.Enabled
+		cfg := a.config
+		a.mu.Unlock()
+		setupLogging(body.Enabled)
+		if body.Enabled {
+			a.logStartupBannerSafe()
+		}
+		if err := SaveConfig(cfg); err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]any{"status": "ok", "enabled": body.Enabled, "logPath": logFilePath()})
+	default:
+		http.Error(w, "method not allowed", 405)
+	}
+}
+
 // logStartupBanner records key runtime locations once logging is set up.
+func (a *App) logStartupBannerSafe() {
+	log.Printf("debug logging enabled at runtime; log: %s", logFilePath())
+}
+
 func logStartupBanner(app *App) {
 	log.Printf("config dir: %s", configDir())
 	log.Printf("webview data: %s", webviewDataPath())
