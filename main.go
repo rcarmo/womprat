@@ -450,6 +450,15 @@ func (a *App) registerLocalTab(tabJSON string) {
 func upsertTab(tabs []Tab, tab Tab) []Tab {
 	for i := range tabs {
 		if tabs[i].ID == tab.ID {
+			if tab.Favicon == "" {
+				tab.Favicon = tabs[i].Favicon
+			}
+			if tab.URL == "" {
+				tab.URL = tabs[i].URL
+			}
+			if tab.Title == "" {
+				tab.Title = tabs[i].Title
+			}
 			tabs[i] = tab
 			return tabs
 		}
@@ -953,7 +962,7 @@ func chromeOverlayJS(port int, token string) string {
       reload: '<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M15.65 6.35A6.5 6.5 0 1 0 16.5 10a.75.75 0 0 1 1.5 0 8 8 0 1 1-2.34-5.66V3.25a.75.75 0 0 1 1.5 0v3.5c0 .41-.34.75-.75.75h-3.5a.75.75 0 0 1 0-1.5h2.74Z"/></svg>',
       close: '<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M4.22 4.22a.75.75 0 0 1 1.06 0L10 8.94l4.72-4.72a.75.75 0 1 1 1.06 1.06L11.06 10l4.72 4.72a.75.75 0 1 1-1.06 1.06L10 11.06l-4.72 4.72a.75.75 0 0 1-1.06-1.06L8.94 10 4.22 5.28a.75.75 0 0 1 0-1.06Z"/></svg>',
       add: '<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M10 3.5a.75.75 0 0 1 .75.75v5h5a.75.75 0 0 1 0 1.5h-5v5a.75.75 0 0 1-1.5 0v-5h-5a.75.75 0 0 1 0-1.5h5v-5A.75.75 0 0 1 10 3.5Z"/></svg>',
-      home: '<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M9.28 2.78a1 1 0 0 1 1.44 0l6.5 6.78a.75.75 0 0 1-1.08 1.04l-.64-.67V16a2 2 0 0 1-2 2h-2.25a.75.75 0 0 1-.75-.75V13h-1v4.25a.75.75 0 0 1-.75.75H6.5a2 2 0 0 1-2-2V9.93l-.64.67a.75.75 0 1 1-1.08-1.04l6.5-6.78Z"/></svg>'
+      globe: '<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M10 2a8 8 0 1 0 0 16 8 8 0 0 0 0-16ZM4.08 9.25a6.5 6.5 0 0 1 2.1-4.2c-.4.94-.66 2.4-.72 4.2H4.08Zm0 1.5h1.38c.06 1.8.32 3.26.72 4.2a6.5 6.5 0 0 1-2.1-4.2Zm5.17 5.67c-.7-.55-1.2-2.73-1.3-5.67h2.6c-.1 2.94-.6 5.12-1.3 5.67Zm1.3-7.17h-2.6c.1-2.94.6-5.12 1.3-5.67.7.55 1.2 2.73 1.3 5.67Zm3.27 5.7c.4-.94.66-2.4.72-4.2h1.38a6.5 6.5 0 0 1-2.1 4.2Zm.72-5.7c-.06-1.8-.32-3.26-.72-4.2a6.5 6.5 0 0 1 2.1 4.2h-1.38Z"/></svg>'
     };
     const i = (name) => '<span class="womprat-icon">' + icons[name] + '</span>';
     const bar = document.createElement('div');
@@ -1188,17 +1197,21 @@ func chromeOverlayJS(port int, token string) string {
             if (fromId && fromId !== t.id && window.womprat_reorderTab) womprat_reorderTab(fromId, toIndex);
             refresh();
           });
-          const title = document.createElement('button');
-          title.className = 'wt-title';
-          if (t.favicon && !failedFavicons.has(t.favicon) && (/^https?:\/\//i.test(t.favicon) || /^data:image\//i.test(t.favicon) || /^blob:/i.test(t.favicon))) {
+          const iconSlot = document.createElement('span');
+          iconSlot.className = 'wt-icon-slot';
+          if (t.type === 'browser' && t.favicon && !failedFavicons.has(t.favicon) && (/^https?:\/\//i.test(t.favicon) || /^data:image\//i.test(t.favicon) || /^blob:/i.test(t.favicon))) {
             const fav = document.createElement('img');
             fav.className = 'wt-favicon';
             fav.src = t.favicon;
             fav.alt = '';
             fav.referrerPolicy = 'no-referrer';
-            fav.addEventListener('error', () => { failedFavicons.add(fav.src); fav.remove(); }, { once: true });
-            title.appendChild(fav);
+            fav.addEventListener('error', () => { failedFavicons.add(fav.src); iconSlot.innerHTML = i('globe'); }, { once: true });
+            iconSlot.appendChild(fav);
+          } else {
+            iconSlot.innerHTML = i('globe');
           }
+          const title = document.createElement('button');
+          title.className = 'wt-title';
           const label = document.createElement('span');
           label.textContent = (t.title || t.url || t.host || 'tab').slice(0, 24);
           title.appendChild(label);
@@ -1213,6 +1226,7 @@ func chromeOverlayJS(port int, token string) string {
           close.addEventListener('pointerdown', stopCloseEvent, true);
           close.addEventListener('mousedown', stopCloseEvent, true);
           close.addEventListener('click', (e) => { stopCloseEvent(e); womprat_closeTab(t.id); }, true);
+          item.appendChild(iconSlot);
           item.appendChild(title);
           item.appendChild(close);
           tabs.appendChild(item);
@@ -1256,6 +1270,7 @@ var chromeOverlayCSS = "`" + `
 #womprat-chrome .wt-title{height:30px!important;min-width:0!important;max-width:none!important;flex:1 1 auto!important;padding:0!important;border:0!important;background:transparent!important;color:inherit!important;justify-content:flex-start!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important;font-weight:inherit!important;gap:6px!important}
 #womprat-chrome .wt-title:hover{background:transparent!important;color:inherit!important}
 #womprat-chrome .wt-title span{overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important}
+#womprat-chrome .wt-icon-slot{width:20px!important;height:20px!important;min-width:20px!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;flex:0 0 20px!important}
 #womprat-chrome .wt-favicon{width:16px!important;height:16px!important;min-width:16px!important;object-fit:contain!important;border-radius:2px!important}
 #womprat-chrome .wt-close{width:24px!important;height:24px!important;min-width:24px!important;padding:0!important;border:0!important;border-radius:4px!important;background:transparent!important;color:#cfcfcf!important;opacity:.65!important;flex:0 0 24px!important}
 #womprat-chrome .wt-close:hover{background:rgba(255,255,255,.10)!important;color:#fff!important;opacity:1!important}

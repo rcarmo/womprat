@@ -52,6 +52,7 @@ button,a,.tab,.recent-item,.option{
   transition:background .1s,border-color .15s,color .1s}
 .fluent-icon{width:20px;height:20px;display:inline-block;flex:0 0 20px;color:currentColor;vertical-align:middle}
 .fluent-icon svg{width:100%;height:100%;display:block}
+.tab-icon-slot{width:20px;height:20px;flex:0 0 20px;display:inline-flex;align-items:center;justify-content:center}
 .tab-favicon{width:16px;height:16px;flex:0 0 16px;object-fit:contain;border-radius:2px;vertical-align:middle}
 .icon-button{width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;
   border:1px solid transparent;border-radius:var(--radius);background:transparent;color:var(--text-secondary);
@@ -382,8 +383,9 @@ window.openTerminal = async function(host, name, user, port, options = {}) {
   const sshUser = user || 'root';
   const sshPort = port || 22;
   const tab = { id: tabId, type: 'terminal', title: name || host, host, user: sshUser, port: sshPort };
-  state.tabs = state.tabs.filter(t => t.id !== tabId);
-  state.tabs.push(tab);
+  const existingIndex = state.tabs.findIndex(t => t.id === tabId);
+  if (existingIndex >= 0) state.tabs[existingIndex] = tab;
+  else state.tabs.push(tab);
   renderTabs();
   activateTab(tabId);
   if (!options.skipRegister) registerLocalTab(tab);
@@ -618,10 +620,13 @@ function isUsableFavicon(value) {
 }
 
 function tabIconHTML(tab) {
-  if (tab.type === 'browser' && isUsableFavicon(tab.favicon)) {
-    return `<img class="tab-favicon" src="${escapeHTML(tab.favicon)}" alt="" referrerpolicy="no-referrer" onerror="failedFavicons.add(this.src);this.remove()">`;
+  if (tab.type === 'browser') {
+    if (isUsableFavicon(tab.favicon)) {
+      return `<span class="tab-icon-slot"><img class="tab-favicon" src="${escapeHTML(tab.favicon)}" alt="" referrerpolicy="no-referrer" onerror="failedFavicons.add(this.src);this.closest('.tab-icon-slot').innerHTML=icon('globe')"></span>`;
+    }
+    return `<span class="tab-icon-slot">${icon('globe')}</span>`;
   }
-  return icon(tab.type === 'terminal' ? 'terminal' : tab.type === 'settings' ? 'settings' : 'globe');
+  return `<span class="tab-icon-slot">${icon(tab.type === 'terminal' ? 'terminal' : tab.type === 'settings' ? 'settings' : 'globe')}</span>`;
 }
 
 function renderTabs() {
@@ -936,7 +941,7 @@ async function hydrateNativeTabs() {
     const localTabs = (native.tabs || []).filter(t => t.type === 'terminal' || t.type === 'settings' || t.type === 'browser');
     const requested = new URLSearchParams(location.search).get('tab') || '';
     const target = localTabs.find(t => t.id === requested && (t.type === 'terminal' || t.type === 'settings'));
-    state.tabs = localTabs.filter(t => !target || t.id !== target.id);
+    state.tabs = localTabs;
     state.activeTab = target ? target.id : null;
     renderTabs();
     updateHomeVisibility();
