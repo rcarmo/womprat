@@ -1256,7 +1256,7 @@ var chromeOverlayCSS = "`" + `
   border:1px solid rgba(255,255,255,.10)!important;background:rgba(255,255,255,.05)!important;color:rgba(255,255,255,.55)!important;
   font-size:11px!important;font-weight:600!important;letter-spacing:0!important;text-transform:none!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;flex:0 1 auto!important}
 #womprat-chrome #womprat-route.active{display:inline-flex!important}
-html{height:100%!important;overflow:hidden!important;scroll-padding-top:var(--womprat-chrome-offset)!important}
-body{height:calc(100vh - var(--womprat-chrome-offset))!important;overflow:auto!important;margin-top:var(--womprat-chrome-offset)!important;padding-top:0!important;box-sizing:border-box!important}
+html{scroll-padding-top:var(--womprat-chrome-offset)!important}
+body{min-height:calc(100vh + var(--womprat-chrome-offset))!important;padding-top:var(--womprat-chrome-offset)!important;box-sizing:border-box!important}
 body > :not(#womprat-chrome){zoom:var(--womprat-content-zoom)!important}
 ` + "`"
