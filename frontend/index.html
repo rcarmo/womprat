@@ -359,7 +359,7 @@ async function submitPassword(sshTabId, password, term, tabId, host, name, user,
 
 function connectWebSocket(sshTabId, term, tabId, host, name, user, port, cols, rows) {
   term.write(`\x1b[2m Connected.\x1b[0m\r\n\r\n`);
-  const ws = new WebSocket(`ws://${location.host}/api/ssh/ws?tab=${sshTabId}&cols=${cols}&rows=${rows}`);
+  const ws = new WebSocket(`ws://${location.host}/api/ssh/ws?tab=${sshTabId}&cols=${cols}&rows=${rows}&token=${TOKEN}`);
 
   ws.onopen = () => {
     term.loadAddon(new AttachAddon(ws));
