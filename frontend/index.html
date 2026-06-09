@@ -112,6 +112,15 @@ button,a,.tab,.recent-item,.peer-item,.option{
 .peer-actions button{background:none;border:1px solid var(--border);border-radius:4px;
   padding:.15rem .4rem;font-size:.72rem;color:var(--dim);cursor:pointer}
 .peer-actions button:hover{color:var(--accent);border-color:var(--accent)}
+
+#download-bar{position:fixed;bottom:0;left:0;right:0;height:2.5em;
+  background:var(--surface-solid);border-top:1px solid var(--border);
+  display:none;align-items:center;padding:0 1rem;gap:.8rem;font-size:.82em;z-index:60}
+#download-bar.active{display:flex}
+#download-bar .filename{font-weight:600;color:var(--text)}
+#download-bar .progress{flex:1;height:4px;background:var(--layer);border-radius:2px;overflow:hidden}
+#download-bar .progress-fill{height:100%;background:var(--accent);transition:width .2s}
+#download-bar .status{color:var(--dim)}
 </style>
 </head>
 <body>
@@ -563,8 +572,57 @@ function updateHomeVisibility() {
 const origRenderTabs = renderTabs;
 // Actually just call saveOpenTabs + updateHome after every tab change
 
+
+// Download handling — intercept download links in iframes
+window.triggerDownload = async function(url) {
+  const bar = document.getElementById('download-bar');
+  const fname = document.getElementById('dl-filename');
+  const prog = document.getElementById('dl-progress');
+  const status = document.getElementById('dl-status');
+  
+  bar.classList.add('active');
+  fname.textContent = url.split('/').pop() || 'download';
+  status.textContent = 'Starting...';
+  prog.style.width = '0%';
+  
+  await fetch('/api/download?url=' + encodeURIComponent(url));
+  
+  // Poll progress
+  const poll = setInterval(async () => {
+    const res = await fetch('/api/download/status');
+    const d = await res.json();
+    if (d.status === 'downloading') {
+      const pct = d.size > 0 ? Math.round(d.done / d.size * 100) : 0;
+      prog.style.width = pct + '%';
+      fname.textContent = d.filename;
+      status.textContent = d.size > 0 ? Math.round(d.done/1024) + ' / ' + Math.round(d.size/1024) + ' KB' : Math.round(d.done/1024) + ' KB';
+    } else if (d.status === 'complete') {
+      clearInterval(poll);
+      prog.style.width = '100%';
+      status.textContent = 'Saved to Downloads';
+      setTimeout(() => bar.classList.remove('active'), 4000);
+    } else if (d.status === 'error') {
+      clearInterval(poll);
+      status.textContent = 'Error: ' + d.error;
+      setTimeout(() => bar.classList.remove('active'), 5000);
+    }
+  }, 500);
+};
+
+// Listen for messages from iframes requesting downloads
+window.addEventListener('message', (e) => {
+  if (e.data?.type === 'download' && e.data.url) {
+    triggerDownload(e.data.url);
+  }
+});
 checkAuth();
 loadRecentTabs();
 </script>
+
+<div id="download-bar">
+  <span class="filename" id="dl-filename"></span>
+  <div class="progress"><div class="progress-fill" id="dl-progress" style="width:0%"></div></div>
+  <span class="status" id="dl-status"></span>
+</div>
 </body>
 </html>

@@ -166,6 +166,9 @@ func (a *App) registerRoutes(mux *http.ServeMux) {
 	// Browser settings
 	a.registerBrowserRoutes(mux)
 
+	// Downloads
+	a.registerDownloadRoutes(mux)
+
 	// Reverse proxy for browser tabs (routes through tsnet)
 
 
