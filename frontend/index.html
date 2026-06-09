@@ -90,9 +90,13 @@ button,a,.tab,.recent-item,.option{
 .term-panel .xterm{flex:1;width:100%;height:100%;padding:0}
 .term-panel .xterm .xterm-viewport,
 .term-panel .xterm .xterm-screen{background:transparent!important}
-/* xterm uses the VS Code scrollable-element overlay scrollbar (auto fade). Its
-   width comes from the overviewRuler.width terminal option (set to 2px); style
-   the slider color here. */
+/* xterm uses the VS Code scrollable-element overlay scrollbar. Its width comes
+   from the overviewRuler.width terminal option (2px). Take deterministic control
+   of fade: hidden on idle, shown while scrolling (panel .scrolling class) or on
+   hover. The slider height stays proportional to the viewport vs scrollback. */
+.term-panel .xterm .xterm-scrollable-element>.scrollbar{opacity:0!important;transition:opacity .4s ease!important}
+.term-panel.scrolling .xterm .xterm-scrollable-element>.scrollbar,
+.term-panel .xterm .xterm-scrollable-element>.scrollbar:hover{opacity:1!important;transition:opacity .1s ease!important}
 .term-panel .xterm .xterm-scrollable-element>.scrollbar>.slider{background:rgba(255,255,255,.32)!important;border-radius:2px!important}
 .term-panel .xterm .xterm-scrollable-element>.scrollbar:hover>.slider{background:rgba(255,255,255,.5)!important}
 
@@ -553,6 +557,17 @@ window.openTerminal = async function(host, name, user, port, options = {}) {
   fit.fit();
   terminalSessions.set(tabId, { term, fit, fontSize: TERMINAL_FONT_SIZE, ws: null });
   window.addEventListener('resize', () => { if (state.activeTab === tabId) fit.fit(); });
+  // Fade the scrollbar on idle: reveal on scroll/output (and hover via CSS),
+  // hide after a short idle delay.
+  let scrollbarFadeTimer = null;
+  const revealScrollbar = () => {
+    panel.classList.add('scrolling');
+    clearTimeout(scrollbarFadeTimer);
+    scrollbarFadeTimer = setTimeout(() => panel.classList.remove('scrolling'), 1200);
+  };
+  term.onScroll(revealScrollbar);
+  const termViewport = container.querySelector('.xterm-viewport');
+  if (termViewport) termViewport.addEventListener('scroll', revealScrollbar, { passive: true });
 
   term.write(`\x1b[2m Connecting to ${sshUser}@${host}:${sshPort}...\x1b[0m\r\n`);
 
