@@ -232,23 +232,24 @@ func runGUI(app *App, shellURL string) {
 		}
 	})
 
-	// Defer showing the host window until the shell DOM is ready so WebView2's
-	// default white surface never flashes before the dark shell paints.
+	// Show the host window, then lay out the shell WebView so it paints. Showing
+	// must happen while we can still issue a layout pass, otherwise WebView2 can
+	// come up blank. The dark window-class brush prevents a white flash.
 	var showOnce sync.Once
 	showShell := func() {
 		showOnce.Do(func() {
+			showHostWindow(host)
 			resizeChildToClient(host, shellChild, 0, 0)
 			w.Resize()
 			if contentViews != nil {
 				contentViews.HideAll()
 			}
-			showHostWindow(host)
 		})
 	}
 	w.Bind("womprat_shellReady", func() { showShell() })
 	w.Init(`document.addEventListener('DOMContentLoaded',function(){try{window.womprat_shellReady&&window.womprat_shellReady();}catch(e){}});window.addEventListener('load',function(){try{window.womprat_shellReady&&window.womprat_shellReady();}catch(e){}});`)
-	// Fallback: show anyway shortly after launch if the ready signal never fires.
-	time.AfterFunc(2500*time.Millisecond, func() { w.Dispatch(showShell) })
+	// Fallback: show shortly after launch even if the ready signal never fires.
+	time.AfterFunc(1200*time.Millisecond, func() { w.Dispatch(showShell) })
 
 	log.Printf("gui: navigating shell to %s", shellURL)
 	w.Navigate(fmt.Sprintf("%s?v=%d", shellURL, time.Now().UnixMilli()))
