@@ -105,9 +105,10 @@ func (a *App) startTailscale() error {
 	}
 
 	a.tsServer = &tsnet.Server{
-		Hostname: appName,
-		AuthKey:  authKey,
-		Dir:      tsnetStateDir(),
+		Hostname:  appName,
+		AuthKey:   authKey,
+		Dir:       tsnetStateDir(),
+		Ephemeral: false, // persist node identity for stable MagicDNS name
 	}
 
 	_, err = a.tsServer.Up(context.Background())
