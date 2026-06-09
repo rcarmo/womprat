@@ -85,9 +85,14 @@ button,a,.tab,.recent-item,.option{
 .panel.active{display:flex;flex-direction:column}
 
 /* Terminal panel */
-.term-panel{min-height:0}
-.term-panel .term-container{flex:1;min-height:0;width:100%;height:100%;display:flex;overflow:hidden}
+.term-panel{min-height:0;background:#202020}
+.term-panel .term-container{flex:1;min-height:0;width:100%;height:100%;display:flex;overflow:hidden;background:#202020;padding:4px 6px}
 .term-panel .xterm{flex:1;width:100%;height:100%}
+.term-panel .xterm .xterm-viewport{background:transparent!important;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.28) transparent}
+.term-panel .xterm .xterm-viewport::-webkit-scrollbar{width:2px;height:2px}
+.term-panel .xterm .xterm-viewport::-webkit-scrollbar-track{background:transparent}
+.term-panel .xterm .xterm-viewport::-webkit-scrollbar-thumb{background:rgba(255,255,255,.28);border-radius:2px}
+.term-panel .xterm .xterm-viewport::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.45)}
 
 /* Local panels */
 .browser-panel{flex-direction:column}
@@ -486,7 +491,7 @@ window.openTerminal = async function(host, name, user, port, options = {}) {
   const container = panel.querySelector('.term-container');
 
   // Create terminal immediately with "Connecting..." message
-  const term = new Terminal({ allowProposedApi: true, cursorBlink: true, fontSize: TERMINAL_FONT_SIZE, bellStyle: 'sound', copyOnSelect: true, rightClickSelectsWord: true,
+  const term = new Terminal({ allowProposedApi: true, cursorBlink: true, fontSize: TERMINAL_FONT_SIZE, bellStyle: 'sound', copyOnSelect: true, rightClickSelectsWord: true, scrollback: 5000,
     fontFamily: 'FiraCode Nerd Font Mono, monospace',
     fontWeight: '400', fontWeightBold: '700',
     theme: { background: '#202020', foreground: '#fff', cursor: '#60cdff',
