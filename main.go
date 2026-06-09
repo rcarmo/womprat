@@ -837,21 +837,37 @@ func chromeOverlayJS(port int, token string) string {
     const input = document.getElementById('womprat-url');
     input.value = location.href;
 
-    function installChromeZoomCompensation() {
-      const baseDPR = window.devicePixelRatio || 1;
+    function installContentZoomControls() {
+      let contentZoom = Number(sessionStorage.getItem('wompratContentZoom') || '1') || 1;
       function apply() {
-        const dprRatio = (window.devicePixelRatio || baseDPR) / baseDPR;
-        const viewportScale = window.visualViewport?.scale || 1;
-        const zoom = Math.max(0.25, dprRatio * viewportScale);
-        const inv = 1 / zoom;
-        document.documentElement.style.setProperty('--womprat-chrome-scale', String(inv));
-        document.documentElement.style.setProperty('--womprat-chrome-width', (100 * zoom) + 'vw');
-        document.documentElement.style.setProperty('--womprat-chrome-offset', (84 * inv) + 'px');
+        contentZoom = Math.max(0.5, Math.min(3, contentZoom));
+        sessionStorage.setItem('wompratContentZoom', String(contentZoom));
+        document.documentElement.style.setProperty('--womprat-content-zoom', String(contentZoom));
+      }
+      function change(delta) {
+        contentZoom = Math.round((contentZoom + delta) * 100) / 100;
+        apply();
       }
       apply();
-      window.addEventListener('resize', apply, { passive: true });
-      window.visualViewport?.addEventListener('resize', apply, { passive: true });
-      setInterval(apply, 500);
+
+      // In Chromium/WebView2, trackpad pinch is delivered to pages as Ctrl+wheel.
+      // Prevent WebView page zoom so the app chrome remains native-sized, then
+      // apply zoom only to page content children outside #womprat-chrome.
+      window.addEventListener('wheel', (e) => {
+        if (!e.ctrlKey) return;
+        e.preventDefault();
+        e.stopPropagation();
+        change(e.deltaY < 0 ? 0.1 : -0.1);
+      }, { capture: true, passive: false });
+
+      document.addEventListener('keydown', (e) => {
+        const key = e.key;
+        const ctrl = e.ctrlKey || e.metaKey;
+        if (!ctrl) return;
+        if (key === '+' || key === '=') { e.preventDefault(); change(0.1); }
+        else if (key === '-' || key === '_') { e.preventDefault(); change(-0.1); }
+        else if (key === '0') { e.preventDefault(); contentZoom = 1; apply(); }
+      }, true);
     }
 
     function navigateFromInput() {
@@ -990,7 +1006,7 @@ func chromeOverlayJS(port int, token string) string {
       } catch (e) {}
     }
 
-    installChromeZoomCompensation();
+    installContentZoomControls();
     installTitleReporter();
     installDownloadInterceptor();
     updateRoutePill(true);
@@ -1006,9 +1022,9 @@ func chromeOverlayJS(port int, token string) string {
 }
 
 var chromeOverlayCSS = "`" + `
-:root{--womprat-chrome-scale:1;--womprat-chrome-width:100vw;--womprat-chrome-offset:84px}
-#womprat-chrome{position:fixed!important;top:0!important;left:0!important;right:auto!important;width:var(--womprat-chrome-width)!important;height:84px!important;
-  transform:scale(var(--womprat-chrome-scale))!important;transform-origin:top left!important;
+:root{--womprat-chrome-offset:84px;--womprat-content-zoom:1}
+#womprat-chrome{position:fixed!important;top:0!important;left:0!important;right:0!important;width:auto!important;height:84px!important;
+  transform:none!important;transform-origin:top left!important;
   background:rgba(32,32,32,.97)!important;backdrop-filter:blur(10px)!important;display:flex!important;
   flex-direction:column!important;z-index:2147483647!important;font:14px/1.2 'Segoe UI Variable','Segoe UI',system-ui,sans-serif!important;
   color:#f3f3f3!important;border-bottom:1px solid rgba(255,255,255,.10)!important;box-sizing:border-box!important}
@@ -1045,4 +1061,5 @@ var chromeOverlayCSS = "`" + `
 @keyframes wompratPulse{0%,100%{opacity:.35;transform:scale(.85)}50%{opacity:1;transform:scale(1.15)}}
 html{height:100%!important;overflow:hidden!important;scroll-padding-top:var(--womprat-chrome-offset)!important}
 body{height:calc(100vh - var(--womprat-chrome-offset))!important;overflow:auto!important;margin-top:var(--womprat-chrome-offset)!important;padding-top:0!important;box-sizing:border-box!important}
+body > :not(#womprat-chrome){zoom:var(--womprat-content-zoom)!important}
 ` + "`"

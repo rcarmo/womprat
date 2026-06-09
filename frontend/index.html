@@ -19,6 +19,7 @@
 }
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
+  --shell-content-zoom:1;
   --bg:#202020;
   --surface:rgba(32,32,32,.7);
   --surface-solid:#2d2d2d;
@@ -73,6 +74,8 @@ button,a,.tab,.recent-item,.option{
 
 /* Panels */
 #panels{position:absolute;inset:calc(var(--tab-h) + var(--url-h)) 0 0 0}
+#panels > .panel{zoom:var(--shell-content-zoom)}
+#panels > .term-panel{zoom:1}
 .panel{position:absolute;inset:0;display:none}
 .panel.active{display:flex;flex-direction:column}
 
@@ -226,6 +229,14 @@ function applyStaticIcons(root = document) {
 }
 
 const state = { tabs: [], activeTab: null };
+const terminalSessions = new Map();
+let shellContentZoom = Number(sessionStorage.getItem('wompratShellContentZoom') || '1') || 1;
+function applyShellContentZoom() {
+  shellContentZoom = Math.max(0.5, Math.min(3, shellContentZoom));
+  sessionStorage.setItem('wompratShellContentZoom', String(shellContentZoom));
+  document.documentElement.style.setProperty('--shell-content-zoom', String(shellContentZoom));
+}
+applyShellContentZoom();
 function escapeHTML(value) {
   return String(value ?? '').replace(/[&<>'"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch]));
 }
@@ -394,6 +405,7 @@ window.openTerminal = async function(host, name, user, port, options = {}) {
     });
   term.open(container);
   fit.fit();
+  terminalSessions.set(tabId, { term, fit, fontSize: 14 });
   window.addEventListener('resize', () => { if (state.activeTab === tabId) fit.fit(); });
 
   term.write(`\x1b[2m Connecting to ${sshUser}@${host}:${sshPort}...\x1b[0m\r\n`);
@@ -544,6 +556,7 @@ window.openBrowser = function(url, name) {
 window.closeTab = function(id, e) {
   e?.stopPropagation?.();
   state.tabs = state.tabs.filter(t => t.id !== id);
+  terminalSessions.delete(id);
   if (window.womprat_closeTab) womprat_closeTab(id);
   saveOpenTabs(); updateHomeVisibility();
   document.getElementById(`panel-${id}`)?.remove();
@@ -632,13 +645,46 @@ function closeActiveShellTab() {
   if (state.activeTab) closeTab(state.activeTab);
   else if (window.womprat_goHome) womprat_goHome();
 }
+function adjustActiveContentZoom(delta) {
+  const session = terminalSessions.get(state.activeTab);
+  if (session) {
+    session.fontSize = Math.max(8, Math.min(30, Math.round((session.fontSize + delta * 10) * 10) / 10));
+    session.term.options.fontSize = session.fontSize;
+    session.fit.fit();
+    return;
+  }
+  shellContentZoom = Math.round((shellContentZoom + delta) * 100) / 100;
+  applyShellContentZoom();
+}
+function resetActiveContentZoom() {
+  const session = terminalSessions.get(state.activeTab);
+  if (session) {
+    session.fontSize = 14;
+    session.term.options.fontSize = 14;
+    session.fit.fit();
+    return;
+  }
+  shellContentZoom = 1;
+  applyShellContentZoom();
+}
+
 function installBrowserHotkeys() {
+  document.addEventListener('wheel', (e) => {
+    if (!e.ctrlKey) return;
+    e.preventDefault();
+    e.stopPropagation();
+    adjustActiveContentZoom(e.deltaY < 0 ? 0.1 : -0.1);
+  }, { capture: true, passive: false });
+
   document.addEventListener('keydown', (e) => {
     const key = e.key.toLowerCase();
     const ctrl = e.ctrlKey || e.metaKey;
     if (e.altKey && !ctrl && key === 'arrowleft') { e.preventDefault(); history.back(); return; }
     if (e.altKey && !ctrl && key === 'arrowright') { e.preventDefault(); history.forward(); return; }
     if (key === 'f5' || (ctrl && key === 'r')) { e.preventDefault(); location.reload(); return; }
+    if (ctrl && (key === '+' || key === '=')) { e.preventDefault(); adjustActiveContentZoom(0.1); return; }
+    if (ctrl && (key === '-' || key === '_')) { e.preventDefault(); adjustActiveContentZoom(-0.1); return; }
+    if (ctrl && key === '0') { e.preventDefault(); resetActiveContentZoom(); return; }
     if ((ctrl && key === 'l') || (e.altKey && !ctrl && key === 'd')) { e.preventDefault(); focusAddress(true); return; }
     if (ctrl && key === 't') { e.preventDefault(); newBlankTab(); return; }
     if (ctrl && key === 'w') { e.preventDefault(); closeActiveShellTab(); return; }
