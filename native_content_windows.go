@@ -3,9 +3,11 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"sync"
 	"time"
 	"unsafe"
@@ -216,6 +218,14 @@ func newNativeContentView(parent uintptr, dataPath, tabID string, shell shellWeb
 	}
 	cv := &nativeContentView{parent: parent, hwnd: hwnd, tabID: tabID, shell: shell}
 	edge := webview2edge.NewChromium()
+	edge.MessageCallback = func(raw string) {
+		// Browser content reports its document title via postMessage so the shell
+		// tab can display the page title instead of the raw URL.
+		title := strings.TrimSpace(parseTitleMessage(raw))
+		if title != "" && cv.shell != nil {
+			cv.shell.Eval(fmt.Sprintf("window.wompratSetTabTitle(%s,%s)", jsString(cv.tabID), jsString(title)))
+		}
+	}
 	// All browser tabs share the same WebView2 user-data folder as the shell so
 	// they share one browser process and one proxy/network configuration. Using a
 	// separate environment/folder per tab spawned multiple browser processes and
@@ -235,9 +245,29 @@ func newNativeContentView(parent uintptr, dataPath, tabID string, shell shellWeb
 		return nil, fmt.Errorf("embed content WebView2")
 	}
 	cv.edge = edge
+	edge.Init(browserTitleReporterJS)
 	cv.resize()
 	log.Printf("content: created browser WebView for tab %s hwnd=0x%x", tabID, hwnd)
 	return cv, nil
+}
+
+const browserTitleReporterJS = `(function(){
+  function send(){ try{ window.chrome.webview.postMessage(JSON.stringify({wompratTitle: document.title || location.hostname || location.href})); }catch(e){} }
+  document.addEventListener('DOMContentLoaded', send);
+  window.addEventListener('load', send);
+  try { var t=document.querySelector('title'); if(t){ new MutationObserver(send).observe(t,{childList:true}); } } catch(e){}
+  try { new MutationObserver(function(){ var t=document.querySelector('title'); if(t){ send(); } }).observe(document.documentElement,{subtree:true,childList:true}); } catch(e){}
+  send();
+})();`
+
+func parseTitleMessage(raw string) string {
+	var m struct {
+		WompratTitle string `json:"wompratTitle"`
+	}
+	if err := json.Unmarshal([]byte(raw), &m); err != nil {
+		return ""
+	}
+	return m.WompratTitle
 }
 
 func (v *nativeContentView) resize() {

@@ -255,6 +255,14 @@ window.wompratContentError = function(tabId, message) {
   setBrowserStatus(tabId, `Browser WebView failed: ${message || 'unknown error'}`);
   renderTabs();
 };
+window.wompratSetTabTitle = function(tabId, title) {
+  const tab = state.tabs.find(t => t.id === tabId);
+  if (!tab || !title) return;
+  tab.title = String(title).slice(0, 80);
+  renderTabs();
+  registerLocalTab(tab);
+  saveOpenTabs();
+};
 window.wompratNavigationDone = function(tabId, url) {
   const tab = state.tabs.find(t => t.id === tabId);
   if (tab && url && /^https?:\/\//i.test(url)) {
