@@ -27,6 +27,7 @@ MANIFEST  := womprat.manifest
 RC        := womprat.rc
 RC_NOINC  := $(TMP_DIR)/womprat-noinclude.rc
 RSRC_ARM64:= rsrc_windows_arm64.syso
+RSRC_AMD64:= rsrc_windows_amd64.syso
 
 EXE_ARM64 := $(APP).exe
 EXE_AMD64 := $(APP)-amd64.exe
@@ -34,8 +35,9 @@ BIN_LINUX := $(APP)-linux-amd64
 BIN_DARWIN:= $(APP)-darwin-arm64
 
 .PHONY: help all setup doctor deps tidy download patch verify test vet frontend-check \
-        resources resources-arm64 icon icon-check windows windows-arm64 windows-amd64 \
-        linux darwin release dist clean clean-generated clean-dist dev run status
+        resources resources-arm64 resources-amd64 icon icon-check windows windows-arm64 \
+        windows-amd64 windows-intel intel linux darwin release release-intel dist \
+        clean clean-generated clean-dist dev run status
 
 .DEFAULT_GOAL := help
 
@@ -119,7 +121,10 @@ $(TMP_DIR):
 resources-arm64: icon $(RC_NOINC) ## Generate Windows ARM64 resource object (.syso)
 	$(WINDRES) --target=aarch64-w64-windows-gnu -I $(CURDIR) -O coff $(RC_NOINC) -o $(RSRC_ARM64)
 
-resources: resources-arm64 ## Generate all checked-in Windows resource objects
+resources-amd64: icon $(RC_NOINC) ## Generate Windows Intel/x64 resource object (.syso)
+	$(WINDRES) --target=x86_64-w64-windows-gnu -I $(CURDIR) -O coff $(RC_NOINC) -o $(RSRC_AMD64)
+
+resources: resources-arm64 resources-amd64 ## Generate all checked-in Windows resource objects
 
 # Builds ---------------------------------------------------------------------
 
@@ -129,9 +134,13 @@ windows-arm64: resources ## Build Windows ARM64 GUI executable
 
 windows: windows-arm64 ## Alias for Windows ARM64 build
 
-windows-amd64: ## Build Windows AMD64 GUI executable (resource object not generated here)
+windows-amd64: resources-amd64 ## Build Windows AMD64/Intel x64 GUI executable
 	GOOS=windows GOARCH=amd64 $(GO) build $(GOFLAGS) -ldflags="$(GUIFLAGS)" -o $(EXE_AMD64) .
 	@ls -lh $(EXE_AMD64)
+
+windows-intel: windows-amd64 ## Alias for Windows Intel/x64 build
+
+intel: windows-intel ## Short alias for Windows Intel/x64 build
 
 linux: ## Build Linux AMD64 binary (for compile sanity only; app runtime is Windows-focused)
 	GOOS=linux GOARCH=amd64 $(GO) build $(GOFLAGS) -ldflags="$(LDFLAGS)" -o $(BIN_LINUX) .
@@ -141,7 +150,9 @@ darwin: ## Build Darwin ARM64 binary (for compile sanity only; app runtime is Wi
 	GOOS=darwin GOARCH=arm64 $(GO) build $(GOFLAGS) -ldflags="$(LDFLAGS)" -o $(BIN_DARWIN) .
 	@ls -lh $(BIN_DARWIN)
 
-release: clean setup patch verify windows-arm64 ## Full clean setup/patch/check/build pipeline
+release: clean setup patch verify windows-arm64 ## Full clean setup/patch/check/build pipeline for Windows ARM64
+
+release-intel: clean setup patch verify windows-intel ## Full clean setup/patch/check/build pipeline for Windows Intel/x64
 
 # Local dev ------------------------------------------------------------------
 
