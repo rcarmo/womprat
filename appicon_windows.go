@@ -32,8 +32,7 @@ const (
 	gclpHIconSm = ^uintptr(33) // -34
 )
 
-func applyAppIcon(w webview2.WebView) {
-	hwnd := uintptr(w.Window())
+func applyAppIconToHWND(hwnd uintptr) {
 	if hwnd == 0 {
 		return
 	}
@@ -53,6 +52,10 @@ func applyAppIcon(w webview2.WebView) {
 		procSendMessageW.Call(hwnd, wmSetIcon, iconSmall, small)
 		procSetClassLongPtrW.Call(hwnd, gclpHIconSm, small)
 	}
+}
+
+func applyAppIcon(w webview2.WebView) {
+	applyAppIconToHWND(uintptr(w.Window()))
 }
 
 func loadAppIcon(hinst uintptr, cx, cy int) uintptr {

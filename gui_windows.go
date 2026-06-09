@@ -91,6 +91,17 @@ func createHostWindow(title string, width, height int) (uintptr, error) {
 	return hwnd, nil
 }
 
+func resizeChildToClient(parent, child uintptr, top, bottomInset int32) {
+	var r winRect
+	procGetClientRect.Call(parent, uintptr(unsafe.Pointer(&r)))
+	width := r.Right - r.Left
+	height := r.Bottom - r.Top - top - bottomInset
+	if height < 0 {
+		height = 0
+	}
+	procSetWindowPos.Call(child, hwndTop, 0, uintptr(top), uintptr(width), uintptr(height), swpNoActivate)
+}
+
 func createHostChild(parent uintptr) (uintptr, error) {
 	className, _ := windows.UTF16PtrFromString("STATIC")
 	hwnd, _, err := procCreateWindowExWHost.Call(0, uintptr(unsafe.Pointer(className)), 0,
@@ -118,16 +129,21 @@ func runGUI(app *App, shellURL string) {
 	if err != nil {
 		log.Fatal(err)
 	}
+	applyDarkModeToHWND(host)
+	applyAppIconToHWND(host)
 	shellChild, err := createHostChild(host)
 	if err != nil {
 		log.Fatal(err)
 	}
+	resizeChildToClient(host, shellChild, 0, 0)
 	w := webview2.NewWithOptions(webview2.WebViewOptions{Debug: true, AutoFocus: true, Window: unsafe.Pointer(shellChild), DataPath: webviewDataPath()})
 	if w == nil {
 		log.Fatal("Failed to create shell WebView2")
 	}
 	defer w.Destroy()
 	app.webview = w
+	applyDarkMode(w)
+	applyAppIcon(w)
 	contentViews, err := newNativeContentManager(host, shellChild, webviewDataPath(), w)
 	if err != nil {
 		log.Printf("content WebView manager unavailable: %v", err)
