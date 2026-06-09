@@ -165,6 +165,10 @@ func main() {
 		app.closeTab(tabID)
 	})
 
+	w.Bind("womprat_forgetTab", func(tabID string) {
+		app.forgetTab(tabID)
+	})
+
 	w.Bind("womprat_newBrowser", func(url string) {
 		app.newBrowserTab(url)
 	})
@@ -275,6 +279,22 @@ func (a *App) switchTab(tabID string) {
 		shellURL := fmt.Sprintf("http://127.0.0.1:%d/?tab=%s&v=%d", a.serverPort, tabID, time.Now().UnixMilli())
 		a.webview.Navigate(shellURL)
 	}
+}
+
+func (a *App) forgetTab(tabID string) {
+	a.mu.Lock()
+	newTabs := []Tab{}
+	for _, t := range a.tabs {
+		if t.ID != tabID {
+			newTabs = append(newTabs, t)
+		}
+	}
+	a.tabs = newTabs
+	if a.activeTab == tabID {
+		a.activeTab = ""
+	}
+	a.mu.Unlock()
+	a.persistOpenTabs()
 }
 
 func (a *App) closeTab(tabID string) {

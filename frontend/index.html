@@ -555,13 +555,24 @@ window.openBrowser = function(url, name) {
 
 window.closeTab = function(id, e) {
   e?.stopPropagation?.();
+  const closingActive = state.activeTab === id;
+  const closing = state.tabs.find(t => t.id === id);
   state.tabs = state.tabs.filter(t => t.id !== id);
   terminalSessions.delete(id);
-  if (window.womprat_closeTab) womprat_closeTab(id);
-  saveOpenTabs(); updateHomeVisibility();
   document.getElementById(`panel-${id}`)?.remove();
+
+  if (closing?.type === 'settings') {
+    if (window.womprat_forgetTab) womprat_forgetTab(id);
+  } else if (window.womprat_closeTab) {
+    womprat_closeTab(id);
+    return;
+  }
+
+  saveOpenTabs();
+  if (closingActive) state.activeTab = state.tabs[0]?.id || null;
   renderTabs();
-  if (state.activeTab === id && state.tabs.length) activateTab(state.tabs[0].id);
+  if (state.activeTab) activateTab(state.activeTab);
+  else updateHomeVisibility();
 };
 
 function renderTabs() {
