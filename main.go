@@ -101,6 +101,7 @@ type App struct {
 }
 
 func main() {
+	setupLogging()
 	cfg, err := LoadConfig()
 	if err != nil {
 		log.Printf("config load failed, using defaults: %v", err)
@@ -128,6 +129,7 @@ func main() {
 		log.Fatal(err)
 	}
 	app.serverPort = listener.Addr().(*net.TCPAddr).Port
+	logStartupBanner(app)
 	go http.Serve(listener, mux)
 
 	// Start SOCKS5 proxy (port must be open before WebView2 starts)
@@ -542,6 +544,7 @@ func (a *App) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/tailscale/status", a.authMiddleware(a.handleTSStatus))
 	mux.HandleFunc("/api/tailscale/peers", a.authMiddleware(a.handleTSPeers))
 	mux.HandleFunc("/api/about", a.authMiddleware(a.handleAbout))
+	mux.HandleFunc("/api/logs", a.authMiddleware(a.handleLogs))
 	mux.HandleFunc("/api/ssh/connect", a.authMiddleware(a.handleSSHConnect))
 	mux.HandleFunc("/api/ssh/resize", a.authMiddleware(a.handleSSHResize))
 	mux.HandleFunc("/api/ssh/ws", a.authMiddleware(a.handleSSHWebSocketFull))
@@ -772,6 +775,7 @@ func (a *App) handleAbout(w http.ResponseWriter, r *http.Request) {
 		"webviewProxyMode":     "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
 		"downloadInterception": "explicit <a download> links plus in-app API",
 		"cookieBackend":        "WebView2 SQLite cookie store",
+		"logPath":              logFilePath(),
 	}
 	json.NewEncoder(w).Encode(info)
 }
