@@ -21,17 +21,17 @@ type SSHKeyEntry struct {
 }
 
 func (a *App) registerSettingsRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("/api/settings/unlock-method", a.handleSetUnlockMethod)
-	mux.HandleFunc("/api/settings/master-password", a.handleSetMasterPassword)
-	mux.HandleFunc("/api/settings/tailscale-key", a.handleSetTailscaleKey)
-	mux.HandleFunc("/api/settings/tailscale-disconnect", a.handleTailscaleDisconnect)
-	mux.HandleFunc("/api/settings/ssh-keys", a.handleSSHKeys)
-	mux.HandleFunc("/api/settings/ssh-keys/generate", a.handleGenerateSSHKey)
-	mux.HandleFunc("/api/settings/hosts", a.handleHosts)
-	mux.HandleFunc("/api/settings/appearance", a.handleAppearance)
-	mux.HandleFunc("/api/settings/exit-node", a.handleExitNode)
-	mux.HandleFunc("/api/settings/save-tabs", a.handleSaveTabs)
-	mux.HandleFunc("/api/settings/config", a.handleGetConfig)
+	mux.HandleFunc("/api/settings/unlock-method", a.authMiddleware(a.handleSetUnlockMethod))
+	mux.HandleFunc("/api/settings/master-password", a.authMiddleware(a.handleSetMasterPassword))
+	mux.HandleFunc("/api/settings/tailscale-key", a.authMiddleware(a.handleSetTailscaleKey))
+	mux.HandleFunc("/api/settings/tailscale-disconnect", a.authMiddleware(a.handleTailscaleDisconnect))
+	mux.HandleFunc("/api/settings/ssh-keys", a.authMiddleware(a.handleSSHKeys))
+	mux.HandleFunc("/api/settings/ssh-keys/generate", a.authMiddleware(a.handleGenerateSSHKey))
+	mux.HandleFunc("/api/settings/hosts", a.authMiddleware(a.handleHosts))
+	mux.HandleFunc("/api/settings/appearance", a.authMiddleware(a.handleAppearance))
+	mux.HandleFunc("/api/settings/exit-node", a.authMiddleware(a.handleExitNode))
+	mux.HandleFunc("/api/settings/save-tabs", a.authMiddleware(a.handleSaveTabs))
+	mux.HandleFunc("/api/settings/config", a.authMiddleware(a.handleGetConfig))
 }
 
 func (a *App) handleSetUnlockMethod(w http.ResponseWriter, r *http.Request) {

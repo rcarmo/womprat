@@ -26,12 +26,12 @@ type SavedPassword struct {
 }
 
 func (a *App) registerBrowserRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("/api/settings/browser", a.handleBrowserData)
-	mux.HandleFunc("/api/settings/browser/clear-cache", a.handleClearCache)
-	mux.HandleFunc("/api/settings/browser/clear-cookies", a.handleClearCookies)
-	mux.HandleFunc("/api/settings/browser/clear-passwords", a.handleClearPasswords)
-	mux.HandleFunc("/api/settings/browser/clear-all", a.handleClearAll)
-	mux.HandleFunc("/api/settings/browser/save-passwords", a.handleSavePasswordsToggle)
+	mux.HandleFunc("/api/settings/browser", a.authMiddleware(a.handleBrowserData))
+	mux.HandleFunc("/api/settings/browser/clear-cache", a.authMiddleware(a.handleClearCache))
+	mux.HandleFunc("/api/settings/browser/clear-cookies", a.authMiddleware(a.handleClearCookies))
+	mux.HandleFunc("/api/settings/browser/clear-passwords", a.authMiddleware(a.handleClearPasswords))
+	mux.HandleFunc("/api/settings/browser/clear-all", a.authMiddleware(a.handleClearAll))
+	mux.HandleFunc("/api/settings/browser/save-passwords", a.authMiddleware(a.handleSavePasswordsToggle))
 }
 
 func (a *App) handleBrowserData(w http.ResponseWriter, r *http.Request) {

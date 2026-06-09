@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"embed"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -44,20 +46,23 @@ type pendingSSH struct {
 }
 
 type App struct {
-	mu          sync.Mutex
-	config      *AppConfig
-	tsServer    *tsnet.Server
-	tabs        []Tab
-	sshConns    map[string]*ssh.Client
-	pendingAuth map[string]*pendingSSH
+	mu           sync.Mutex
+	config       *AppConfig
+	tsServer     *tsnet.Server
+	tabs         []Tab
+	sshConns     map[string]*ssh.Client
+	pendingAuth  map[string]*pendingSSH
+	sessionToken string // random token, required on all API requests
 }
 
 func main() {
 	cfg, _ := LoadConfig()
+	token := generateSessionToken()
 	app := &App{
-		config:      cfg,
-		sshConns:    make(map[string]*ssh.Client),
-		pendingAuth: make(map[string]*pendingSSH),
+		config:       cfg,
+		sshConns:     make(map[string]*ssh.Client),
+		pendingAuth:  make(map[string]*pendingSSH),
+		sessionToken: token,
 	}
 
 	// Start local HTTP server for the UI
@@ -130,9 +135,30 @@ func tsnetStateDir() string {
 	return fmt.Sprintf("%s/%s/tsnet", dir, appName)
 }
 
+func generateSessionToken() string {
+	b := make([]byte, 32)
+	rand.Read(b)
+	return hex.EncodeToString(b)
+}
+
+func (a *App) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Check X-Session-Token header or ?token= query param
+		token := r.Header.Get("X-Session-Token")
+		if token == "" {
+			token = r.URL.Query().Get("token")
+		}
+		if token != a.sessionToken {
+			httpError(w, 403, "Forbidden", "Invalid or missing session token")
+			return
+		}
+		next(w, r)
+	}
+}
+
 func (a *App) registerRoutes(mux *http.ServeMux) {
-	// Serve frontend
-	mux.Handle("/", http.FileServer(http.FS(frontendFS)))
+	// Serve frontend (injects token)
+	mux.HandleFunc("/", a.serveFrontend)
 
 	// Settings API
 	a.registerSettingsRoutes(mux)
@@ -144,15 +170,15 @@ func (a *App) registerRoutes(mux *http.ServeMux) {
 
 
 	// API endpoints
-	mux.HandleFunc("/api/auth/status", a.handleAuthStatus)
-	mux.HandleFunc("/api/auth/save-key", a.handleSaveKey)
-	mux.HandleFunc("/api/tailscale/status", a.handleTSStatus)
-	mux.HandleFunc("/api/tailscale/peers", a.handleTSPeers)
-	mux.HandleFunc("/api/ssh/connect", a.handleSSHConnect)
-	mux.HandleFunc("/api/ssh/resize", a.handleSSHResize)
+	mux.HandleFunc("/api/auth/status", a.authMiddleware(a.handleAuthStatus))
+	mux.HandleFunc("/api/auth/save-key", a.authMiddleware(a.handleSaveKey))
+	mux.HandleFunc("/api/tailscale/status", a.authMiddleware(a.handleTSStatus))
+	mux.HandleFunc("/api/tailscale/peers", a.authMiddleware(a.handleTSPeers))
+	mux.HandleFunc("/api/ssh/connect", a.authMiddleware(a.handleSSHConnect))
+	mux.HandleFunc("/api/ssh/resize", a.authMiddleware(a.handleSSHResize))
 	// WebSocket for terminal I/O
-	mux.HandleFunc("/api/ssh/ws", a.handleSSHWebSocketFull)
-	mux.HandleFunc("/api/ssh/auth-password", a.handleSSHAuthPassword)
+	mux.HandleFunc("/api/ssh/ws", a.authMiddleware(a.handleSSHWebSocketFull))
+	mux.HandleFunc("/api/ssh/auth-password", a.authMiddleware(a.handleSSHAuthPassword))
 }
 
 func (a *App) handleAuthStatus(w http.ResponseWriter, r *http.Request) {
@@ -371,4 +397,38 @@ func (a *App) handleSSHAuthPassword(w http.ResponseWriter, r *http.Request) {
 	a.mu.Unlock()
 
 	json.NewEncoder(w).Encode(map[string]string{"status": "connected", "tabId": body.TabId})
+}
+
+func (a *App) serveFrontend(w http.ResponseWriter, r *http.Request) {
+	path := r.URL.Path
+	if path == "/" || path == "" {
+		path = "frontend/index.html"
+	} else {
+		path = "frontend" + path
+	}
+
+	data, err := frontendFS.ReadFile(path)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	// Inject session token into HTML pages
+	if strings.HasSuffix(path, ".html") {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		content := strings.Replace(string(data), "</head>",
+			fmt.Sprintf(`<script>window.__SESSION_TOKEN="%s";</script></head>`, a.sessionToken), 1)
+		w.Write([]byte(content))
+		return
+	}
+
+	// Serve other files normally
+	if strings.HasSuffix(path, ".js") || strings.HasSuffix(path, ".mjs") {
+		w.Header().Set("Content-Type", "application/javascript")
+	} else if strings.HasSuffix(path, ".css") {
+		w.Header().Set("Content-Type", "text/css")
+	} else if strings.HasSuffix(path, ".ttf") {
+		w.Header().Set("Content-Type", "font/ttf")
+	}
+	w.Write(data)
 }
