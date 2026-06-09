@@ -107,9 +107,6 @@ func main() {
 		cfg = defaultConfig()
 	}
 	setupLogging(cfg.DebugLog)
-	// TEMP diagnostic: force logging on so issues can be captured without the
-	// settings toggle. Remove once the split-view build is stable.
-	setupLogging(true)
 	if err != nil {
 		log.Printf("config load failed, using defaults: %v", err)
 	}
