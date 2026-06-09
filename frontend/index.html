@@ -433,8 +433,8 @@ window.openTerminal = async function(host, name, user, port, options = {}) {
   if (existingIndex >= 0) state.tabs[existingIndex] = tab;
   else state.tabs.push(tab);
   renderTabs();
-  await activateTab(tabId);
-  if (!options.skipRegister) await registerLocalTab(tab);
+  activateTab(tabId);
+  if (!options.skipRegister) registerLocalTab(tab);
   saveOpenTabs(); updateHomeVisibility();
 
   const existingSession = terminalSessions.get(tabId);
@@ -754,11 +754,11 @@ function reorderTab(fromId, beforeId) {
   if (window.womprat_reorderTab) womprat_reorderTab(fromId, beforeIndex);
 }
 
-async function activateTab(id, options = {}) {
+function activateTab(id, options = {}) {
   const tab = state.tabs.find(t => t.id === id);
   if (!tab) return;
   state.activeTab = id;
-  if (!options.skipNative && window.womprat_switchTab) await womprat_switchTab(id);
+  if (!options.skipNative && window.womprat_switchTab) { try { womprat_switchTab(id); } catch {} }
 
   // Update URL bar with active tab's address
   const urlInput = document.getElementById('url-input');
@@ -804,7 +804,7 @@ async function activateTab(id, options = {}) {
   }
 }
 
-window.showBrowserTab = async function(id, url, options = {}) {
+window.showBrowserTab = function(id, url, options = {}) {
   let navUrl = url || 'about:blank';
   if (!/^https?:\/\//i.test(navUrl) && navUrl !== 'about:blank') navUrl = 'http://' + navUrl;
   let tab = state.tabs.find(t => t.id === id);
@@ -817,9 +817,8 @@ window.showBrowserTab = async function(id, url, options = {}) {
     tab.title = tab.title || navUrl;
   }
   renderTabs();
-  await activateTab(id, { skipNative: !!options.skipNative });
+  activateTab(id, { skipNative: !!options.skipNative });
   setBrowserStatus(id, `Loading ${navUrl}…`);
-  setURLProgress(true);
   saveURLHistory(navUrl);
   registerLocalTab(tab);
   saveOpenTabs();
@@ -969,17 +968,16 @@ window.navigateTab = function(id) {
   navigateFromBar();
 };
 
-window.openSettings = async function() {
+window.openSettings = function() {
   const tabId = 'settings';
-  let tab = state.tabs.find(t => t.id === tabId);
-  if (!tab) {
-    tab = { id: tabId, type: 'settings', title: 'Settings', url: 'settings:' };
-    state.tabs.push(tab);
-    await registerLocalTab(tab);
-    renderTabs();
+  if (!state.tabs.find(t => t.id === tabId)) {
+    state.tabs.push({ id: tabId, type: 'settings', title: 'Settings', url: 'settings:' });
   }
-  if (window.womprat_openSettings) await womprat_openSettings();
-  await activateTab(tabId, { skipNative: true });
+  renderTabs();
+  // Tell the native host to hide browser views and restore the full-height shell.
+  if (window.womprat_openSettings) { try { womprat_openSettings(); } catch {} }
+  // Render the settings panel locally regardless of native timing.
+  activateTab(tabId, { skipNative: true });
 };
 
 function activateRecentTab(tab) {

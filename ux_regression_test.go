@@ -68,18 +68,21 @@ func TestNativeHostResizesEmbeddedShellWebView(t *testing.T) {
 	}
 }
 
-func TestSettingsAndBrowserActivationAreAwaited(t *testing.T) {
+func TestSettingsActivationIsResilient(t *testing.T) {
 	s := readFileForRegression(t, "frontend/index.html")
 	for _, want := range []string{
-		"window.openSettings = async function()",
-		"if (window.womprat_openSettings) await womprat_openSettings();",
-		"await activateTab(tabId, { skipNative: true });",
-		"window.showBrowserTab = async function",
+		"window.openSettings = function()",
+		"if (window.womprat_openSettings) { try { womprat_openSettings(); } catch {} }",
+		"activateTab(tabId, { skipNative: true });",
+		"window.showBrowserTab = function",
 		"setBrowserStatus(id, `Loading ${navUrl}…`)",
 	} {
 		if !strings.Contains(s, want) {
-			t.Fatalf("frontend missing async activation/status fragment %q", want)
+			t.Fatalf("frontend missing resilient activation/status fragment %q", want)
 		}
+	}
+	if strings.Contains(s, "await womprat_switchTab") || strings.Contains(s, "await womprat_openSettings") {
+		t.Fatal("activation must not await native bound calls; that can hang or abort the flow")
 	}
 }
 
