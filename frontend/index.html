@@ -61,9 +61,10 @@ button,a,.tab,.recent-item,.option{
 /* Tab bar — Fluent */
 #tab-bar{display:flex;height:var(--tab-h);background:var(--surface-solid);
   border-bottom:1px solid var(--border);
-  -webkit-app-region:drag;user-select:none;align-items:center;padding:0 8px;gap:2px}
+  -webkit-app-region:drag;user-select:none;align-items:center;padding:0 8px;gap:6px;min-width:0}
+#tab-list{display:flex;align-items:center;gap:2px;min-width:0;overflow:hidden;flex:1 1 auto}
 .tab{display:flex;align-items:center;gap:6px;padding:0 12px;height:32px;border-radius:var(--radius);
-  cursor:pointer;color:var(--dim);font-weight:400;-webkit-app-region:no-drag;line-height:32px;font-size:14px;min-width:0}
+  cursor:pointer;color:var(--dim);font-weight:400;-webkit-app-region:no-drag;line-height:32px;font-size:14px;min-width:0;flex:0 1 220px;max-width:240px}
 .tab:hover{background:var(--subtle-hover);color:var(--text)}
 .tab.active{background:var(--layer);color:var(--text);font-weight:600}
 .tab-title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -153,7 +154,8 @@ button,a,.tab,.recent-item,.option{
 
 <div id="tab-bar">
   <button id="new-tab" class="icon-button" onclick="newBlankTab()" title="New tab" aria-label="New tab" data-icon="add"></button>
-  <div style="margin-left:auto;display:flex;gap:4px">
+  <div id="tab-list" aria-label="Open tabs"></div>
+  <div id="tab-trailing-controls" style="display:flex;gap:4px;flex:0 0 auto">
     <button id="settings-btn" class="icon-button" onclick="openSettings()" title="Settings" aria-label="Settings" data-icon="settings"></button>
   </div>
 </div>
@@ -613,10 +615,9 @@ function tabIconHTML(tab) {
 }
 
 function renderTabs() {
-  const bar = document.getElementById('tab-bar');
-  const existing = bar.querySelectorAll('.tab');
-  existing.forEach(el => el.remove());
-  const trailingControls = bar.querySelector('div[style*="margin-left:auto"]');
+  const list = document.getElementById('tab-list');
+  if (!list) return;
+  list.textContent = '';
   state.tabs.forEach(tab => {
     const el = document.createElement('div');
     el.className = `tab${tab.id === state.activeTab ? ' active' : ''}`;
@@ -633,7 +634,7 @@ function renderTabs() {
     close.addEventListener('mousedown', stopCloseEvent, true);
     close.addEventListener('click', (e) => { stopCloseEvent(e); closeTab(tab.id, e); }, true);
     el.appendChild(close);
-    bar.insertBefore(el, trailingControls);
+    list.appendChild(el);
   });
 }
 
