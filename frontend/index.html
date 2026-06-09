@@ -711,7 +711,9 @@ window.navigateFromBar = function() {
   if (!/^https?:\/\//.test(navUrl)) navUrl = 'http://' + navUrl;
   updateNetworkIndicator(true);
   // External browsing is direct WebView2 navigation, never a shell iframe.
-  if (!state.activeTab && window.womprat_newBrowser) womprat_newBrowser(navUrl);
+  const active = state.tabs.find(t => t.id === state.activeTab);
+  const shouldCreateBrowserTab = !active || active.type !== 'browser';
+  if (shouldCreateBrowserTab && window.womprat_newBrowser) womprat_newBrowser(navUrl);
   else if (window.womprat_navigate) womprat_navigate(navUrl);
   else location.href = navUrl;
 };
