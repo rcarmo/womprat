@@ -105,7 +105,7 @@ You need:
 * `llvm-windres`, used to generate the Windows ARM64 resource object.
 * Python 3, currently used as a general project scripting dependency.
 
-The `Makefile` checks these with `make doctor` and regenerates the ARM64 `.syso` resource from the checked-in icon and manifest.
+The `Makefile` checks these with `make doctor` and regenerates Windows `.syso` resource objects from the checked-in icon and manifest.
 
 ## Repository layout
 

@@ -1,4 +1,5 @@
 # Build outputs
+/rsrc_windows_*.syso
 /womprat.exe
 /womprat-*.exe
 /*.exe
