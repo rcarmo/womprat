@@ -126,6 +126,16 @@ func main() {
 		return string(data)
 	})
 
+	w.Bind("womprat_getNetworkState", func() string {
+		app.mu.Lock()
+		defer app.mu.Unlock()
+		data, _ := json.Marshal(map[string]interface{}{
+			"exitNode":   app.config.ExitNode,
+			"exitActive": useExitNode,
+		})
+		return string(data)
+	})
+
 	w.Bind("womprat_navigate", func(url string) {
 		app.navigateBrowser(url)
 	})
@@ -609,8 +619,8 @@ func chromeOverlayJS(port int, token string) string {
     (document.head || document.documentElement).appendChild(style);
 
     const icons = {
-      back: '<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M12.73 4.22a.75.75 0 0 1 .05 1.06L8.56 10l4.22 4.72a.75.75 0 1 1-1.12 1L7 10.53a.75.75 0 0 1 0-1.06l4.66-5.2a.75.75 0 0 1 1.07-.05Z"/></svg>',
-      forward: '<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M7.27 4.22a.75.75 0 0 0-.05 1.06L11.44 10l-4.22 4.72a.75.75 0 1 0 1.12 1L13 10.53a.75.75 0 0 0 0-1.06l-4.66-5.2a.75.75 0 0 0-1.07-.05Z"/></svg>',
+      back: '<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M9.78 4.22a.75.75 0 0 1 0 1.06L5.56 9.5h10.69a.75.75 0 0 1 0 1.5H5.56l4.22 4.22a.75.75 0 1 1-1.06 1.06l-5.5-5.5a.75.75 0 0 1 0-1.06l5.5-5.5a.75.75 0 0 1 1.06 0Z"/></svg>',
+      forward: '<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M10.22 4.22a.75.75 0 0 1 1.06 0l5.5 5.5a.75.75 0 0 1 0 1.06l-5.5 5.5a.75.75 0 1 1-1.06-1.06L14.44 11H3.75a.75.75 0 0 1 0-1.5h10.69l-4.22-4.22a.75.75 0 0 1 0-1.06Z"/></svg>',
       reload: '<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M15.65 6.35A6.5 6.5 0 1 0 16.5 10a.75.75 0 0 1 1.5 0 8 8 0 1 1-2.34-5.66V3.25a.75.75 0 0 1 1.5 0v3.5c0 .41-.34.75-.75.75h-3.5a.75.75 0 0 1 0-1.5h2.74Z"/></svg>',
       home: '<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M9.28 2.78a1 1 0 0 1 1.44 0l6.5 6.78a.75.75 0 0 1-1.08 1.04l-.64-.67V16a2 2 0 0 1-2 2h-2.25a.75.75 0 0 1-.75-.75V13h-1v4.25a.75.75 0 0 1-.75.75H6.5a2 2 0 0 1-2-2V9.93l-.64.67a.75.75 0 1 1-1.08-1.04l6.5-6.78Z"/></svg>'
     };
@@ -627,6 +637,7 @@ func chromeOverlayJS(port int, token string) string {
         <button id="womprat-forward" title="Forward" aria-label="Forward">${i('forward')}</button>
         <button id="womprat-reload" title="Reload" aria-label="Reload">${i('reload')}</button>
         <input id="womprat-url" spellcheck="false">
+        <span id="womprat-route" title="Exit node route status"></span>
         <button id="womprat-go">Go</button>
       </div>`+"`"+`;
     root.appendChild(bar);
@@ -638,7 +649,28 @@ func chromeOverlayJS(port int, token string) string {
       let u = input.value.trim();
       if (!u) return;
       if (!/^https?:\/\//i.test(u)) u = 'http://' + u;
+      updateRoutePill(true);
       womprat_navigate(u);
+    }
+
+    async function updateRoutePill(loading) {
+      const pill = document.getElementById('womprat-route');
+      if (!pill) return;
+      try {
+        const ns = window.womprat_getNetworkState ? JSON.parse(await womprat_getNetworkState()) : {};
+        const isLoading = loading || document.readyState !== 'complete';
+        if (ns.exitActive && ns.exitNode) {
+          pill.textContent = 'EXIT ' + ns.exitNode;
+          pill.title = isLoading ? 'Loading via exit node ' + ns.exitNode : 'Traffic is routed via exit node ' + ns.exitNode;
+          pill.className = 'active' + (isLoading ? ' loading' : '');
+        } else {
+          pill.textContent = '';
+          pill.className = '';
+        }
+      } catch(e) {
+        pill.textContent = '';
+        pill.className = '';
+      }
     }
 
     document.getElementById('womprat-back').addEventListener('click', () => history.back());
@@ -664,8 +696,12 @@ func chromeOverlayJS(port int, token string) string {
       } catch (e) {}
     }
 
+    updateRoutePill(true);
+    document.addEventListener('readystatechange', () => updateRoutePill(false));
+    window.addEventListener('load', () => updateRoutePill(false));
     refresh();
     setInterval(refresh, 1500);
+    setInterval(() => updateRoutePill(false), 1500);
   }
   install();
 })();
@@ -697,6 +733,12 @@ var chromeOverlayCSS = "`" + `
   border-radius:4px!important;background:rgba(255,255,255,.06)!important;color:#f3f3f3!important;padding:0 10px!important;font-size:14px!important;
   line-height:32px!important;outline:none!important;color-scheme:dark!important}
 #womprat-chrome #womprat-url:focus{border-color:#60cdff!important;background:rgba(0,0,0,.28)!important}
+#womprat-chrome #womprat-route{display:none!important;align-items:center!important;height:24px!important;max-width:180px!important;padding:0 8px!important;border-radius:999px!important;
+  border:1px solid rgba(96,205,255,.35)!important;background:rgba(96,205,255,.10)!important;color:#60cdff!important;
+  font-size:11px!important;font-weight:700!important;letter-spacing:.04em!important;text-transform:uppercase!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;flex:0 1 auto!important}
+#womprat-chrome #womprat-route.active{display:inline-flex!important}
+#womprat-chrome #womprat-route.loading::after{content:""!important;width:6px!important;height:6px!important;border-radius:50%!important;background:currentColor!important;margin-left:6px!important;animation:wompratPulse 1s infinite ease-in-out!important}
+@keyframes wompratPulse{0%,100%{opacity:.35;transform:scale(.85)}50%{opacity:1;transform:scale(1.15)}}
 html{scroll-padding-top:84px!important}
 body{padding-top:84px!important;margin-top:0!important}
 ` + "`"

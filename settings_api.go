@@ -272,20 +272,23 @@ func fingerprintFromPEM(pemData string) string {
 func (a *App) handleExitNode(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "GET":
-		json.NewEncoder(w).Encode(map[string]string{"exitNode": a.config.ExitNode})
+		a.mu.Lock()
+		exitNode := a.config.ExitNode
+		a.mu.Unlock()
+		json.NewEncoder(w).Encode(map[string]string{"exitNode": exitNode})
 	case "POST":
 		var body struct {
 			ExitNode string `json:"exitNode"`
 		}
 		json.NewDecoder(r.Body).Decode(&body)
-		a.config.ExitNode = body.ExitNode
-		SaveConfig(a.config)
 		// Toggle proxy routing mode. Actual Tailscale exit-node selection is still
 		// handled by tsnet/control state; this flag only decides whether the local
 		// SOCKS proxy sends public destinations to tsnet or direct.
 		a.mu.Lock()
+		a.config.ExitNode = body.ExitNode
 		useExitNode = body.ExitNode != ""
 		a.mu.Unlock()
+		SaveConfig(a.config)
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok", "exitNode": body.ExitNode})
 	}
 }
