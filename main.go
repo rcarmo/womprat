@@ -743,6 +743,6 @@ var chromeOverlayCSS = "`" + `
 #womprat-chrome #womprat-route.active{display:inline-flex!important}
 #womprat-chrome #womprat-route.loading::after{content:""!important;width:6px!important;height:6px!important;border-radius:50%!important;background:currentColor!important;margin-left:6px!important;animation:wompratPulse 1s infinite ease-in-out!important}
 @keyframes wompratPulse{0%,100%{opacity:.35;transform:scale(.85)}50%{opacity:1;transform:scale(1.15)}}
-html{scroll-padding-top:84px!important}
-body{padding-top:84px!important;margin-top:0!important}
+html{height:100%!important;overflow:hidden!important;scroll-padding-top:84px!important}
+body{height:calc(100vh - 84px)!important;overflow:auto!important;margin-top:84px!important;padding-top:0!important;box-sizing:border-box!important}
 ` + "`"
