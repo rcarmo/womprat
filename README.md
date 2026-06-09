@@ -16,6 +16,8 @@ That makes it useful for portable operations work, especially when SSH and inter
 
 > **Note:** Right now, configuration is encrypted but stored in %APPDATA%. Future passes will tackle running this straight off a USB stick, once the UX is a bit more stable.
 
+Oh, and the name was, weirdly, the first Star Wars/Death Star trench-related thing that came to me. It was late.
+
 ## How networking works
 
 The app starts an embedded Tailscale node through `tailscale.com/tsnet` and uses it for application traffic:
