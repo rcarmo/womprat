@@ -857,6 +857,14 @@ func chromeOverlayJS(port int, token string) string {
     function navigateFromInput() {
       let u = input.value.trim();
       if (!u) return;
+      const sshMatch = u.match(/^ssh:\/\/(?:([^@]+)@)?([^:\/]+)(?::(\d+))?/i);
+      if (sshMatch) {
+        const user = sshMatch[1] || 'root';
+        const host = sshMatch[2];
+        const port = sshMatch[3] ? parseInt(sshMatch[3], 10) : 22;
+        if (window.womprat_newTerminal) womprat_newTerminal(host, user, port);
+        return;
+      }
       if (!/^https?:\/\//i.test(u)) u = 'http://' + u;
       updateRoutePill(true);
       womprat_navigate(u);
