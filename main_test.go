@@ -19,6 +19,7 @@ type fakeWebView struct {
 
 func (f *fakeWebView) Navigate(url string) { f.urls = append(f.urls, url) }
 func (f *fakeWebView) Eval(js string)      { f.evals = append(f.evals, js) }
+func (f *fakeWebView) Resize()             {}
 
 func newTestApp(t *testing.T) *App {
 	t.Helper()

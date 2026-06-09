@@ -62,6 +62,7 @@ type Tab struct {
 type shellWebView interface {
 	Navigate(string)
 	Eval(string)
+	Resize()
 }
 
 type browserContentView interface {
@@ -717,10 +718,11 @@ func (a *App) handleTSPeers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	type Peer struct {
-		Name   string   `json:"name"`
-		IPs    []string `json:"ips"`
-		Online bool     `json:"online"`
-		OS     string   `json:"os"`
+		Name           string   `json:"name"`
+		IPs            []string `json:"ips"`
+		Online         bool     `json:"online"`
+		OS             string   `json:"os"`
+		ExitNodeOption bool     `json:"exitNodeOption"`
 	}
 	peers := []Peer{}
 	for _, p := range status.Peer {
@@ -729,10 +731,11 @@ func (a *App) handleTSPeers(w http.ResponseWriter, r *http.Request) {
 			ips = append(ips, ip.String())
 		}
 		peers = append(peers, Peer{
-			Name:   strings.TrimSuffix(p.HostName, "."),
-			IPs:    ips,
-			Online: p.Online,
-			OS:     p.OS,
+			Name:           strings.TrimSuffix(p.HostName, "."),
+			IPs:            ips,
+			Online:         p.Online,
+			OS:             p.OS,
+			ExitNodeOption: p.ExitNodeOption,
 		})
 	}
 	json.NewEncoder(w).Encode(peers)

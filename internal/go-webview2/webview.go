@@ -409,6 +409,10 @@ func (w *webview) SetTitle(title string) {
 	_, _, _ = w32.User32SetWindowTextW.Call(w.hwnd, uintptr(unsafe.Pointer(&_title[0])))
 }
 
+func (w *webview) Resize() {
+	w.browser.Resize()
+}
+
 func (w *webview) SetSize(width int, height int, hints Hint) {
 	index := w32.GWLStyle
 	style := w32.GetWindowLong(w.hwnd, index)

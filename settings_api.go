@@ -421,6 +421,9 @@ func (a *App) applyExitNodePreference(ctx context.Context, exitNode string) erro
 		for _, p := range status.Peer {
 			name := strings.TrimSuffix(p.HostName, ".")
 			if name == exitNode || p.DNSName == exitNode || strings.TrimSuffix(p.DNSName, ".") == exitNode {
+				if !p.ExitNodeOption {
+					return fmt.Errorf("%s is not advertised as an exit node", exitNode)
+				}
 				if len(p.TailscaleIPs) == 0 {
 					return fmt.Errorf("exit node %s has no tailscale IP", exitNode)
 				}

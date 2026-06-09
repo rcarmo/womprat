@@ -150,6 +150,9 @@ func (m *nativeContentManager) resizeAll() {
 	} else {
 		procSetWindowPos.Call(m.shellHWND, hwndTop, 0, 0, uintptr(width), uintptr(browserChromeHeight), swpNoActivate)
 	}
+	if m.shell != nil {
+		m.shell.Resize()
+	}
 	for _, v := range views {
 		v.resize()
 	}
