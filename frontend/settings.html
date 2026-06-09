@@ -6,15 +6,19 @@
 <title>Settings — womprat</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-:root{--bg:#0d1117;--surface:#161b22;--border:#30363d;--text:#e6edf3;--dim:#8b949e;
-  --accent:#58a6ff;--danger:#f85149;--success:#3fb950;--radius:8px}
+:root{--bg:#202020;--surface:#2d2d2d;--card:#2d2d2d;--border:rgba(255,255,255,.08);
+  --border-strong:rgba(255,255,255,.14);--text:#fff;--dim:rgba(255,255,255,.55);
+  --accent:#60cdff;--danger:#ff6b6b;--success:#6ccb5f;
+  --subtle-hover:rgba(255,255,255,.06);--layer:rgba(255,255,255,.05);
+  --radius:4px;--radius-lg:8px;
+  --font:'Segoe UI Variable','Segoe UI',system-ui,sans-serif}
 body{background:var(--bg);color:var(--text);font-family:system-ui,sans-serif;font-size:small;padding:1.5rem;max-width:640px;margin:0 auto}
 h2{font-size:1rem;margin-bottom:1rem;display:flex;align-items:center;gap:.5rem}
 h3{font-size:.85rem;color:var(--dim);margin:1.2rem 0 .5rem;text-transform:uppercase;letter-spacing:.05em}
 
 /* Tabs */
 .tabs{display:flex;gap:2px;border-bottom:1px solid var(--border);margin-bottom:1.5rem}
-.tab-btn{padding:.5rem 1rem;background:none;border:none;color:var(--dim);font-size:.82rem;
+.tab-btn{padding:.5rem 1rem;background:none;border:none;color:var(--dim);font-size:.82em;
   font-weight:600;cursor:pointer;border-bottom:2px solid transparent;transition:.1s}
 .tab-btn:hover{color:var(--text)}
 .tab-btn.active{color:var(--accent);border-bottom-color:var(--accent)}
@@ -25,7 +29,7 @@ h3{font-size:.85rem;color:var(--dim);margin:1.2rem 0 .5rem;text-transform:upperc
 label{display:block;font-size:.78rem;font-weight:600;color:var(--dim);margin-bottom:.3rem;
   text-transform:uppercase;letter-spacing:.04em}
 input[type="text"],input[type="password"],input[type="number"],select{
-  width:100%;padding:.5rem .7rem;background:var(--bg);border:1px solid var(--border);
+  width:100%;padding:.5rem .7rem;background:var(--layer);border:1px solid var(--border);
   border-radius:var(--radius);color:var(--text);font-size:.85rem;margin-bottom:.8rem}
 input:focus,select:focus{outline:none;border-color:var(--accent)}
 .row{display:flex;gap:.5rem;align-items:flex-end}
@@ -33,10 +37,10 @@ input:focus,select:focus{outline:none;border-color:var(--accent)}
 
 button{padding:.45rem .9rem;border:none;border-radius:var(--radius);font-size:.8rem;
   font-weight:600;cursor:pointer;transition:.1s}
-.btn-primary{background:var(--accent);color:#fff}
+.btn-primary{background:var(--accent);color:#000;font-weight:600}
 .btn-primary:hover{filter:brightness(1.15)}
-.btn-secondary{background:var(--surface);color:var(--dim);border:1px solid var(--border)}
-.btn-secondary:hover{color:var(--text);border-color:var(--text)}
+.btn-secondary{background:var(--layer);color:var(--text);border:1px solid var(--border-strong)}
+.btn-secondary:hover{background:var(--subtle-hover);border-color:var(--border-strong)}
 .btn-danger{background:rgba(248,81,73,.12);color:var(--danger);border:1px solid rgba(248,81,73,.3)}
 .btn-danger:hover{background:rgba(248,81,73,.2)}
 .btn-row{display:flex;gap:.5rem;margin-top:.5rem}
@@ -44,7 +48,7 @@ button{padding:.45rem .9rem;border:none;border-radius:var(--radius);font-size:.8
 /* Status */
 .status{display:inline-flex;align-items:center;gap:.4rem;font-size:.8rem;padding:.3rem .6rem;
   border-radius:var(--radius);margin:.5rem 0}
-.status.ok{background:rgba(63,185,80,.1);color:var(--success)}
+.status.ok{background:rgba(108,203,95,.1);color:var(--success)}
 .status.err{background:rgba(248,81,73,.1);color:var(--danger)}
 .status.warn{background:rgba(210,153,34,.1);color:#d2992a}
 
@@ -58,8 +62,8 @@ tr:hover td{background:rgba(255,255,255,.02)}
 /* Radio/check */
 .option{display:flex;align-items:center;gap:.6rem;padding:.6rem .8rem;margin:.3rem 0;
   border:1px solid var(--border);border-radius:var(--radius);cursor:pointer}
-.option:hover{border-color:var(--accent);background:rgba(88,166,255,.04)}
-.option.selected{border-color:var(--accent);background:rgba(88,166,255,.08)}
+.option:hover{border-color:var(--border-strong);background:var(--subtle-hover)}
+.option.selected{border-color:var(--accent);background:rgba(96,205,255,.08)}
 .option input{accent-color:var(--accent)}
 .option-label{font-weight:600;font-size:.85rem}
 .option-desc{font-size:.78rem;color:var(--dim)}
