@@ -62,7 +62,7 @@ button,a,.tab,.recent-item,.option{
 #tab-bar{display:flex;height:var(--tab-h);background:var(--surface-solid);
   border-bottom:1px solid var(--border);
   -webkit-app-region:drag;user-select:none;align-items:center;padding:0 8px;gap:6px;min-width:0}
-#tab-list{display:flex;align-items:center;gap:2px;min-width:0;overflow:hidden;flex:1 1 auto}
+#tab-list{display:flex;align-items:center;gap:2px;min-width:0;overflow:hidden;flex:0 1 auto}
 .tab{display:flex;align-items:center;gap:6px;padding:0 12px;height:32px;border-radius:var(--radius);
   cursor:pointer;color:var(--dim);font-weight:400;-webkit-app-region:no-drag;line-height:32px;font-size:14px;min-width:0;flex:0 1 220px;max-width:240px}
 .tab:hover{background:var(--subtle-hover);color:var(--text)}
@@ -153,9 +153,9 @@ button,a,.tab,.recent-item,.option{
 </div>
 
 <div id="tab-bar">
-  <button id="new-tab" class="icon-button" onclick="newBlankTab()" title="New tab" aria-label="New tab" data-icon="add"></button>
   <div id="tab-list" aria-label="Open tabs"></div>
-  <div id="tab-trailing-controls" style="display:flex;gap:4px;flex:0 0 auto">
+  <button id="new-tab" class="icon-button" onclick="newBlankTab()" title="New tab" aria-label="New tab" data-icon="add"></button>
+  <div id="tab-trailing-controls" style="display:flex;gap:4px;flex:0 0 auto;margin-left:auto">
     <button id="settings-btn" class="icon-button" onclick="openSettings()" title="Settings" aria-label="Settings" data-icon="settings"></button>
   </div>
 </div>
@@ -238,6 +238,7 @@ function applyStaticIcons(root = document) {
 
 const state = { tabs: [], activeTab: null };
 const terminalSessions = new Map();
+const failedFavicons = new Set();
 let shellContentZoom = Number(sessionStorage.getItem('wompratShellContentZoom') || '1') || 1;
 let urlProgressTimer = null;
 function setURLProgress(active, done = false) {
@@ -607,9 +608,16 @@ window.closeTab = function(id, e) {
   else updateHomeVisibility();
 };
 
+function isUsableFavicon(value) {
+  if (!value) return false;
+  const v = String(value);
+  if (failedFavicons.has(v)) return false;
+  return /^https?:\/\//i.test(v) || /^data:image\//i.test(v) || /^blob:/i.test(v);
+}
+
 function tabIconHTML(tab) {
-  if (tab.type === 'browser' && tab.favicon) {
-    return `<img class="tab-favicon" src="${escapeHTML(tab.favicon)}" alt="" referrerpolicy="no-referrer">`;
+  if (tab.type === 'browser' && isUsableFavicon(tab.favicon)) {
+    return `<img class="tab-favicon" src="${escapeHTML(tab.favicon)}" alt="" referrerpolicy="no-referrer" onerror="failedFavicons.add(this.src);this.remove()">`;
   }
   return icon(tab.type === 'terminal' ? 'terminal' : tab.type === 'settings' ? 'settings' : 'globe');
 }
@@ -871,8 +879,8 @@ async function loadRecentTabs() {
       });
 
       const iconSpan = document.createElement('span');
-      iconSpan.innerHTML = t.type === 'browser' && t.favicon
-        ? `<img class="tab-favicon" src="${escapeHTML(t.favicon)}" alt="" referrerpolicy="no-referrer">`
+      iconSpan.innerHTML = t.type === 'browser' && isUsableFavicon(t.favicon)
+        ? `<img class="tab-favicon" src="${escapeHTML(t.favicon)}" alt="" referrerpolicy="no-referrer" onerror="failedFavicons.add(this.src);this.remove()">`
         : icon(t.type === 'terminal' ? 'terminal' : 'globe');
       const title = document.createElement('span');
       title.style.fontWeight = '600';

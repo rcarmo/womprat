@@ -908,8 +908,8 @@ func chromeOverlayJS(port int, token string) string {
     bar.id = 'womprat-chrome';
     bar.innerHTML = `+"`"+`
       <div id="womprat-tab-row">
-        <button id="womprat-new-tab" title="New tab" aria-label="New tab">${i('add')}</button>
         <div id="womprat-tabs"></div>
+        <button id="womprat-new-tab" title="New tab" aria-label="New tab">${i('add')}</button>
         <button id="womprat-home" title="Home" aria-label="Home">${i('home')}</button>
       </div>
       <div id="womprat-url-row">
@@ -925,6 +925,7 @@ func chromeOverlayJS(port int, token string) string {
 
     const input = document.getElementById('womprat-url');
     input.value = location.href;
+    const failedFavicons = new Set();
     let progressTimer = null;
     function setProgress(active, done) {
       const el = document.getElementById('womprat-progress');
@@ -1007,7 +1008,7 @@ func chromeOverlayJS(port int, token string) string {
         const el = document.querySelector(sel);
         if (el?.href) return new URL(el.getAttribute('href'), location.href).href;
       }
-      return new URL('/favicon.ico', location.origin).href;
+      return '';
     }
 
     function reportPageTitle() {
@@ -1118,12 +1119,13 @@ func chromeOverlayJS(port int, token string) string {
           item.className = 'wt' + (t.id === state.activeTab ? ' active' : '');
           const title = document.createElement('button');
           title.className = 'wt-title';
-          if (t.favicon) {
+          if (t.favicon && !failedFavicons.has(t.favicon) && (/^https?:\/\//i.test(t.favicon) || /^data:image\//i.test(t.favicon) || /^blob:/i.test(t.favicon))) {
             const fav = document.createElement('img');
             fav.className = 'wt-favicon';
             fav.src = t.favicon;
             fav.alt = '';
             fav.referrerPolicy = 'no-referrer';
+            fav.addEventListener('error', () => { failedFavicons.add(fav.src); fav.remove(); }, { once: true });
             title.appendChild(fav);
           }
           const label = document.createElement('span');
@@ -1172,7 +1174,7 @@ var chromeOverlayCSS = "`" + `
   color:#f3f3f3!important;border-bottom:1px solid rgba(255,255,255,.10)!important;box-sizing:border-box!important}
 #womprat-chrome *,#womprat-chrome *::before,#womprat-chrome *::after{box-sizing:border-box!important;font-family:'Segoe UI Variable','Segoe UI',system-ui,sans-serif!important}
 #womprat-tab-row{height:40px!important;display:flex!important;align-items:center!important;gap:6px!important;padding:4px 8px!important;min-width:0!important}
-#womprat-tabs{display:flex!important;align-items:center!important;gap:4px!important;min-width:0!important;overflow:hidden!important;flex:1!important}
+#womprat-tabs{display:flex!important;align-items:center!important;gap:4px!important;min-width:0!important;overflow:hidden!important;flex:0 1 auto!important}
 #womprat-chrome .wt{height:32px!important;max-width:240px!important;padding:0 4px 0 10px!important;border:1px solid transparent!important;border-radius:4px!important;
   background:transparent!important;color:#cfcfcf!important;cursor:pointer!important;opacity:.85!important;font-size:14px!important;line-height:30px!important;
   white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;flex:0 1 auto!important;display:inline-flex!important;align-items:center!important;gap:4px!important;min-width:0!important}
