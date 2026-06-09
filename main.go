@@ -170,6 +170,10 @@ func main() {
 		app.closeTab(tabID)
 	})
 
+	w.Bind("womprat_reorderTab", func(tabID string, toIndex int) {
+		app.reorderTab(tabID, toIndex)
+	})
+
 	w.Bind("womprat_forgetTab", func(tabID string) {
 		app.forgetTab(tabID)
 	})
@@ -299,6 +303,46 @@ func (a *App) switchTab(tabID string) {
 		shellURL := fmt.Sprintf("http://127.0.0.1:%d/?tab=%s&v=%d", a.serverPort, tabID, time.Now().UnixMilli())
 		a.webview.Navigate(shellURL)
 	}
+}
+
+func (a *App) reorderTab(tabID string, toIndex int) {
+	a.mu.Lock()
+	from := -1
+	for i, t := range a.tabs {
+		if t.ID == tabID {
+			from = i
+			break
+		}
+	}
+	if from < 0 {
+		a.mu.Unlock()
+		return
+	}
+	if toIndex < 0 {
+		toIndex = 0
+	}
+	if toIndex >= len(a.tabs) {
+		toIndex = len(a.tabs) - 1
+	}
+	if from == toIndex {
+		a.mu.Unlock()
+		return
+	}
+	tab := a.tabs[from]
+	a.tabs = append(a.tabs[:from], a.tabs[from+1:]...)
+	if toIndex > from {
+		toIndex--
+	}
+	if toIndex < 0 {
+		toIndex = 0
+	}
+	if toIndex >= len(a.tabs) {
+		a.tabs = append(a.tabs, tab)
+	} else {
+		a.tabs = append(a.tabs[:toIndex], append([]Tab{tab}, a.tabs[toIndex:]...)...)
+	}
+	a.mu.Unlock()
+	a.persistOpenTabs()
 }
 
 func (a *App) forgetTab(tabID string) {
@@ -1123,6 +1167,27 @@ func chromeOverlayJS(port int, token string) string {
         state.tabs.forEach((t) => {
           const item = document.createElement('div');
           item.className = 'wt' + (t.id === state.activeTab ? ' active' : '');
+          item.draggable = true;
+          item.dataset.tabId = t.id;
+          item.addEventListener('dragstart', (e) => {
+            item.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', t.id);
+          });
+          item.addEventListener('dragend', () => {
+            item.classList.remove('dragging');
+            document.querySelectorAll('#womprat-chrome .wt.drag-over').forEach(el => el.classList.remove('drag-over'));
+          });
+          item.addEventListener('dragover', (e) => { e.preventDefault(); item.classList.add('drag-over'); e.dataTransfer.dropEffect = 'move'; });
+          item.addEventListener('dragleave', () => item.classList.remove('drag-over'));
+          item.addEventListener('drop', (e) => {
+            e.preventDefault();
+            item.classList.remove('drag-over');
+            const fromId = e.dataTransfer.getData('text/plain');
+            const toIndex = Array.from(tabs.children).indexOf(item);
+            if (fromId && fromId !== t.id && window.womprat_reorderTab) womprat_reorderTab(fromId, toIndex);
+            refresh();
+          });
           const title = document.createElement('button');
           title.className = 'wt-title';
           if (t.favicon && !failedFavicons.has(t.favicon) && (/^https?:\/\//i.test(t.favicon) || /^data:image\//i.test(t.favicon) || /^blob:/i.test(t.favicon))) {
@@ -1183,10 +1248,12 @@ var chromeOverlayCSS = "`" + `
 #womprat-tabs{display:flex!important;align-items:center!important;gap:4px!important;min-width:0!important;overflow:hidden!important;flex:0 1 auto!important}
 #womprat-chrome .wt{height:32px!important;max-width:240px!important;padding:0 4px 0 10px!important;border:1px solid transparent!important;border-radius:4px!important;
   background:transparent!important;color:#cfcfcf!important;cursor:pointer!important;opacity:.85!important;font-size:14px!important;line-height:30px!important;
-  white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;flex:0 1 auto!important;display:inline-flex!important;align-items:center!important;gap:4px!important;min-width:0!important}
+  white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;flex:0 1 220px!important;display:inline-flex!important;align-items:center!important;gap:4px!important;min-width:0!important}
 #womprat-chrome .wt:hover{background:rgba(255,255,255,.08)!important;color:#fff!important}
 #womprat-chrome .wt.active{background:rgba(255,255,255,.12)!important;color:#fff!important;font-weight:600!important}
-#womprat-chrome .wt-title{height:30px!important;min-width:0!important;max-width:190px!important;flex:1 1 auto!important;padding:0!important;border:0!important;background:transparent!important;color:inherit!important;justify-content:flex-start!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important;font-weight:inherit!important;gap:6px!important}
+#womprat-chrome .wt.dragging{opacity:.45!important}
+#womprat-chrome .wt.drag-over{background:rgba(255,255,255,.08)!important;border-color:rgba(255,255,255,.18)!important}
+#womprat-chrome .wt-title{height:30px!important;min-width:0!important;max-width:none!important;flex:1 1 auto!important;padding:0!important;border:0!important;background:transparent!important;color:inherit!important;justify-content:flex-start!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important;font-weight:inherit!important;gap:6px!important}
 #womprat-chrome .wt-title:hover{background:transparent!important;color:inherit!important}
 #womprat-chrome .wt-title span{overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important}
 #womprat-chrome .wt-favicon{width:16px!important;height:16px!important;min-width:16px!important;object-fit:contain!important;border-radius:2px!important}

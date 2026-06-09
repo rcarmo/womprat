@@ -63,11 +63,13 @@ button,a,.tab,.recent-item,.option{
   border-bottom:1px solid var(--border);
   -webkit-app-region:drag;user-select:none;align-items:center;padding:0 8px;gap:6px;min-width:0}
 #tab-list{display:flex;align-items:center;gap:2px;min-width:0;overflow:hidden;flex:0 1 auto}
-.tab{display:flex;align-items:center;gap:6px;padding:0 12px;height:32px;border-radius:var(--radius);
+.tab{display:flex;align-items:center;gap:6px;padding:0 6px 0 12px;height:32px;border-radius:var(--radius);
   cursor:pointer;color:var(--dim);font-weight:400;-webkit-app-region:no-drag;line-height:32px;font-size:14px;min-width:0;flex:0 1 220px;max-width:240px}
+.tab.dragging{opacity:.45}
+.tab.drag-over{background:var(--subtle-hover);border:1px solid var(--border-strong)}
 .tab:hover{background:var(--subtle-hover);color:var(--text)}
 .tab.active{background:var(--layer);color:var(--text);font-weight:600}
-.tab-title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tab-title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1 1 auto}
 .tab-close{margin-left:4px;opacity:.55;color:var(--dim);cursor:pointer;border:0;background:transparent;padding:0;border-radius:4px;width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;flex:0 0 24px}
 .tab-close .fluent-icon{width:16px;height:16px}
 .tab-close:hover{opacity:1;color:var(--text);background:var(--subtle-hover)}
@@ -629,7 +631,26 @@ function renderTabs() {
   state.tabs.forEach(tab => {
     const el = document.createElement('div');
     el.className = `tab${tab.id === state.activeTab ? ' active' : ''}`;
+    el.draggable = true;
+    el.dataset.tabId = tab.id;
     el.onclick = () => activateTab(tab.id);
+    el.addEventListener('dragstart', (e) => {
+      el.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', tab.id);
+    });
+    el.addEventListener('dragend', () => {
+      el.classList.remove('dragging');
+      document.querySelectorAll('.tab.drag-over').forEach(t => t.classList.remove('drag-over'));
+    });
+    el.addEventListener('dragover', (e) => { e.preventDefault(); el.classList.add('drag-over'); e.dataTransfer.dropEffect = 'move'; });
+    el.addEventListener('dragleave', () => el.classList.remove('drag-over'));
+    el.addEventListener('drop', (e) => {
+      e.preventDefault();
+      el.classList.remove('drag-over');
+      const fromId = e.dataTransfer.getData('text/plain');
+      reorderTab(fromId, tab.id);
+    });
     el.innerHTML = `${tabIconHTML(tab)} <span class="tab-title">${escapeHTML(tab.title)}</span>`;
     const close = document.createElement('button');
     close.type = 'button';
@@ -644,6 +665,20 @@ function renderTabs() {
     el.appendChild(close);
     list.appendChild(el);
   });
+}
+
+function reorderTab(fromId, beforeId) {
+  if (!fromId || fromId === beforeId) return;
+  const fromIndex = state.tabs.findIndex(t => t.id === fromId);
+  const beforeIndex = state.tabs.findIndex(t => t.id === beforeId);
+  if (fromIndex < 0 || beforeIndex < 0) return;
+  const [tab] = state.tabs.splice(fromIndex, 1);
+  let insertAt = beforeIndex;
+  if (fromIndex < beforeIndex) insertAt--;
+  state.tabs.splice(insertAt, 0, tab);
+  renderTabs();
+  saveOpenTabs();
+  if (window.womprat_reorderTab) womprat_reorderTab(fromId, beforeIndex);
 }
 
 function activateTab(id) {
