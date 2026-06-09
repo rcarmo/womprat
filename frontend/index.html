@@ -686,30 +686,57 @@ window.openSettings = function() {
   activateTab(tabId);
 };
 
+function activateRecentTab(tab) {
+  if (!tab) return;
+  if (tab.type === 'terminal') {
+    openTerminal(tab.host || tab.title, tab.title || tab.host, tab.user || 'root', Number(tab.port || 22));
+    return;
+  }
+  const url = tab.url || tab.title;
+  if (url) openBrowser(url, tab.title || url);
+}
+
 async function loadRecentTabs() {
   try {
     const res = await fetch('/api/settings/config');
     const cfg = await res.json();
     const list = document.getElementById('recent-list');
     const tabs = cfg.openTabs || [];
+    list.textContent = '';
     if (!tabs.length) {
-      list.innerHTML = '<div style="color:var(--dim);font-size:.85em">No recent tabs</div>';
+      const empty = document.createElement('div');
+      empty.style.cssText = 'color:var(--dim);font-size:.85em';
+      empty.textContent = 'No recent tabs';
+      list.appendChild(empty);
       return;
     }
-    list.innerHTML = tabs.map(t => {
-      const action = t.type === 'terminal'
-        ? `openTerminal(${jsArg(t.host)},${jsArg(t.title)},${jsArg(t.user || 'root')},${Number(t.port || 22)})`
-        : `openBrowser(${jsArg(t.url)},${jsArg(t.title)})`;
+    tabs.forEach(t => {
       const detail = t.type === 'terminal'
         ? `${t.user || 'root'}@${t.host}:${t.port || 22}`
         : (t.url || '');
-      return `
-      <div class="recent-item" onclick="${action}">
-        <span>${icon(t.type === 'terminal' ? 'terminal' : 'globe')}</span>
-        <span style="font-weight:600">${escapeHTML(t.title)}</span>
-        <span style="color:var(--dim);font-size:.8em;margin-left:auto">${escapeHTML(detail)}</span>
-      </div>`;
-    }).join('');
+      const item = document.createElement('div');
+      item.className = 'recent-item';
+      item.tabIndex = 0;
+      item.setAttribute('role', 'button');
+      item.addEventListener('click', () => activateRecentTab(t));
+      item.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          activateRecentTab(t);
+        }
+      });
+
+      const iconSpan = document.createElement('span');
+      iconSpan.innerHTML = icon(t.type === 'terminal' ? 'terminal' : 'globe');
+      const title = document.createElement('span');
+      title.style.fontWeight = '600';
+      title.textContent = t.title || t.host || t.url || 'Untitled';
+      const detailSpan = document.createElement('span');
+      detailSpan.style.cssText = 'color:var(--dim);font-size:.8em;margin-left:auto';
+      detailSpan.textContent = detail;
+      item.append(iconSpan, title, detailSpan);
+      list.appendChild(item);
+    });
   } catch {}
 }
 
@@ -736,7 +763,7 @@ async function hydrateNativeTabs() {
 function saveOpenTabs() {
   const tabs = state.tabs.filter(t => t.id !== 'settings').map(t => ({
     type: t.type, title: t.title,
-    host: t.host || '', user: t.user || '', url: t.url || ''
+    host: t.host || '', user: t.user || '', port: t.port || 0, url: t.url || ''
   }));
   fetch('/api/settings/save-tabs', {
     method: 'POST', headers: {'Content-Type':'application/json'},

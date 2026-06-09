@@ -46,6 +46,7 @@ type SavedTab struct {
 	Title string `json:"title"`
 	Host  string `json:"host,omitempty"`
 	User  string `json:"user,omitempty"`
+	Port  int    `json:"port,omitempty"`
 	URL   string `json:"url,omitempty"`
 }
 

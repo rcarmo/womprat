@@ -203,6 +203,7 @@ func (a *App) navigateBrowser(url string) {
 		}
 	}
 	a.mu.Unlock()
+	a.persistOpenTabs()
 	a.webview.Navigate(url)
 }
 
@@ -215,17 +216,40 @@ func (a *App) updateActiveBrowserTitle(title, url string) {
 	if title == "" {
 		return
 	}
+	changed := false
 	a.mu.Lock()
-	defer a.mu.Unlock()
 	for i := range a.tabs {
 		if a.tabs[i].ID == a.activeTab && a.tabs[i].Type == "browser" {
-			a.tabs[i].Title = title
-			if url != "" {
-				a.tabs[i].URL = url
+			if a.tabs[i].Title != title {
+				a.tabs[i].Title = title
+				changed = true
 			}
-			return
+			if url != "" && a.tabs[i].URL != url {
+				a.tabs[i].URL = url
+				changed = true
+			}
+			break
 		}
 	}
+	a.mu.Unlock()
+	if changed {
+		a.persistOpenTabs()
+	}
+}
+
+func (a *App) persistOpenTabs() {
+	a.mu.Lock()
+	saved := make([]SavedTab, 0, len(a.tabs))
+	for _, t := range a.tabs {
+		if t.Type == "settings" {
+			continue
+		}
+		saved = append(saved, SavedTab{Type: t.Type, Title: t.Title, Host: t.Host, User: t.User, Port: t.Port, URL: t.URL})
+	}
+	a.config.OpenTabs = saved
+	cfg := a.config
+	a.mu.Unlock()
+	_ = SaveConfig(cfg)
 }
 
 func (a *App) switchTab(tabID string) {
@@ -266,6 +290,7 @@ func (a *App) closeTab(tabID string) {
 		a.activeTab = newTabs[0].ID
 	}
 	a.mu.Unlock()
+	a.persistOpenTabs()
 
 	if len(newTabs) == 0 {
 		a.goHome()
@@ -283,6 +308,7 @@ func (a *App) newBrowserTab(url string) {
 	a.tabs = append(a.tabs, Tab{ID: tabID, Type: "browser", Title: url, URL: url})
 	a.activeTab = tabID
 	a.mu.Unlock()
+	a.persistOpenTabs()
 	a.webview.Navigate(url)
 }
 
@@ -298,6 +324,7 @@ func (a *App) newTerminalTab(host, user string, port int) {
 	a.tabs = upsertTab(a.tabs, Tab{ID: tabID, Type: "terminal", Title: host, Host: host, User: user, Port: port})
 	a.activeTab = tabID
 	a.mu.Unlock()
+	a.persistOpenTabs()
 	shellURL := fmt.Sprintf("http://127.0.0.1:%d/?tab=%s&v=%d", a.serverPort, tabID, time.Now().UnixMilli())
 	a.webview.Navigate(shellURL)
 }
@@ -317,6 +344,7 @@ func (a *App) registerLocalTab(tabJSON string) {
 	a.tabs = upsertTab(a.tabs, tab)
 	a.activeTab = tab.ID
 	a.mu.Unlock()
+	a.persistOpenTabs()
 }
 
 func upsertTab(tabs []Tab, tab Tab) []Tab {
