@@ -12,7 +12,14 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-const browserChromeHeight = 84
+const (
+	browserChromeHeight = 84
+	hwndTop             = 0
+	swpNoActivate       = 0x0010
+	swpNoZOrder         = 0x0004
+	swHide              = 0
+	swShow              = 5
+)
 
 var (
 	contentUser32       = windows.NewLazySystemDLL("user32.dll")
@@ -180,7 +187,7 @@ func (v *nativeContentView) resize() {
 	if height < 0 {
 		height = 0
 	}
-	procSetWindowPos.Call(v.hwnd, 0, 0, browserChromeHeight, uintptr(width), uintptr(height), 0x0010|0x0004)
+	procSetWindowPos.Call(v.hwnd, hwndTop, 0, browserChromeHeight, uintptr(width), uintptr(height), swpNoActivate|swpNoZOrder)
 	if v.edge != nil {
 		v.edge.Resize()
 	}
@@ -210,12 +217,26 @@ func (v *nativeContentView) Reload() {
 func (v *nativeContentView) Show() {
 	if v != nil && v.hwnd != 0 {
 		v.resize()
-		procShowWindow.Call(v.hwnd, 5)
+		var r winRect
+		procGetClientRect.Call(v.parent, uintptr(unsafe.Pointer(&r)))
+		width := r.Right - r.Left
+		height := r.Bottom - r.Top - browserChromeHeight
+		if height < 0 {
+			height = 0
+		}
+		// Raise the active browser child above the shell WebView's content area.
+		// Without this, WebView2's shell controller can remain above the child HWND,
+		// making browser tabs look blank and settings/terminal visibility inconsistent.
+		procSetWindowPos.Call(v.hwnd, hwndTop, 0, browserChromeHeight, uintptr(width), uintptr(height), swpNoActivate)
+		procShowWindow.Call(v.hwnd, swShow)
+		if v.edge != nil {
+			v.edge.Resize()
+		}
 	}
 }
 func (v *nativeContentView) Hide() {
 	if v != nil && v.hwnd != 0 {
-		procShowWindow.Call(v.hwnd, 0)
+		procShowWindow.Call(v.hwnd, swHide)
 	}
 }
 func (v *nativeContentView) Destroy() {

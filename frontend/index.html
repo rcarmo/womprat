@@ -85,7 +85,9 @@ button,a,.tab,.recent-item,.option{
 .panel.active{display:flex;flex-direction:column}
 
 /* Terminal panel */
-.term-panel .xterm{flex:1}
+.term-panel{min-height:0}
+.term-panel .term-container{flex:1;min-height:0;width:100%;height:100%;display:flex;overflow:hidden}
+.term-panel .xterm{flex:1;width:100%;height:100%}
 
 /* Local panels */
 .browser-panel{flex-direction:column}
@@ -244,6 +246,7 @@ function applyStaticIcons(root = document) {
 const state = { tabs: [], activeTab: null };
 const terminalSessions = new Map();
 const failedFavicons = new Set();
+const TERMINAL_FONT_SIZE = 14;
 let shellContentZoom = Number(sessionStorage.getItem('wompratShellContentZoom') || '1') || 1;
 let urlProgressTimer = null;
 function setURLProgress(active, done = false) {
@@ -457,7 +460,7 @@ window.openTerminal = async function(host, name, user, port, options = {}) {
   const container = panel.querySelector('.term-container');
 
   // Create terminal immediately with "Connecting..." message
-  const term = new Terminal({ allowProposedApi: true, cursorBlink: true, fontSize: 14, bellStyle: 'sound', copyOnSelect: true, rightClickSelectsWord: true,
+  const term = new Terminal({ allowProposedApi: true, cursorBlink: true, fontSize: TERMINAL_FONT_SIZE, bellStyle: 'sound', copyOnSelect: true, rightClickSelectsWord: true,
     fontFamily: 'FiraCode Nerd Font Mono, monospace',
     fontWeight: '400', fontWeightBold: '700',
     theme: { background: '#202020', foreground: '#fff', cursor: '#60cdff',
@@ -502,7 +505,7 @@ window.openTerminal = async function(host, name, user, port, options = {}) {
     });
   term.open(container);
   fit.fit();
-  terminalSessions.set(tabId, { term, fit, fontSize: 14, ws: null });
+  terminalSessions.set(tabId, { term, fit, fontSize: TERMINAL_FONT_SIZE, ws: null });
   window.addEventListener('resize', () => { if (state.activeTab === tabId) fit.fit(); });
 
   term.write(`\x1b[2m Connecting to ${sshUser}@${host}:${sshPort}...\x1b[0m\r\n`);
@@ -886,8 +889,8 @@ function focusContentArea() {
 function resetActiveContentZoom() {
   const session = terminalSessions.get(state.activeTab);
   if (session) {
-    session.fontSize = 14;
-    session.term.options.fontSize = 14;
+    session.fontSize = TERMINAL_FONT_SIZE;
+    session.term.options.fontSize = TERMINAL_FONT_SIZE;
     session.fit.fit();
     return;
   }
