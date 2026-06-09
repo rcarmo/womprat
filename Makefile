@@ -35,7 +35,7 @@ EXE_AMD64 := $(DIST_DIR)/$(APP)-windows-amd64.exe
 BIN_LINUX := $(DIST_DIR)/$(APP)-linux-amd64
 BIN_DARWIN:= $(DIST_DIR)/$(APP)-darwin-arm64
 
-.PHONY: help all setup doctor deps tidy download patch verify test vet frontend-check \
+.PHONY: help all setup doctor deps tidy download patch verify test vet compile-windows frontend-check \
         resources resources-arm64 resources-amd64 icon icon-check windows windows-arm64 \
         windows-amd64 windows-intel intel linux darwin sha256 release release-intel dist \
         clean clean-generated clean-dist dev run status
@@ -98,10 +98,14 @@ frontend-check: ## Bundle-check embedded HTML/JS entry points with Bun
 vet: ## Run go vet for the Windows ARM64 target
 	GOOS=windows GOARCH=arm64 $(GO) vet ./...
 
-test: ## Run Go tests for the Windows ARM64 target
-	GOOS=windows GOARCH=arm64 $(GO) test ./...
+test: ## Run Go tests on the host toolchain
+	$(GO) test ./...
 
-verify: frontend-check test vet ## Run all non-interactive checks
+compile-windows: ## Compile-only check for Windows arm64 and amd64
+	GOOS=windows GOARCH=arm64 $(GO) build $(GOFLAGS) -o /dev/null ./$(CMD_DIR)
+	GOOS=windows GOARCH=amd64 $(GO) build $(GOFLAGS) -o /dev/null ./$(CMD_DIR)
+
+verify: frontend-check test vet compile-windows ## Run all non-interactive checks
 
 # Icons/resources ------------------------------------------------------------
 
