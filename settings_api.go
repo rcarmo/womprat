@@ -188,6 +188,9 @@ func (a *App) handleHosts(w http.ResponseWriter, r *http.Request) {
 		if v, ok := body["nickname"].(string); ok {
 			conf.Nickname = v
 		}
+		if v, ok := body["url"].(string); ok {
+			conf.URL = v
+		}
 		a.config.Hosts[host] = conf
 		SaveConfig(a.config)
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})

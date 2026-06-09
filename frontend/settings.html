@@ -176,10 +176,10 @@ tr:hover td{background:rgba(255,255,255,.02)}
 <div class="tab-panel" id="panel-hosts">
   <div class="section">
     <h3>Known Hosts</h3>
-    <p style="color:var(--dim);font-size:.82rem;margin-bottom:.6rem">Auto-discovered from your tailnet. Edit per-host defaults below.</p>
+    <p style="color:var(--dim);font-size:.82rem;margin-bottom:.6rem">Auto-discovered from your tailnet. Set the browser URL to use for each host.</p>
     <table>
-      <thead><tr><th>Host</th><th>User</th><th>Port</th><th>Key</th><th>Status</th></tr></thead>
-      <tbody id="hosts-table"><tr><td colspan="5" style="color:var(--dim)">Connect to Tailscale to discover peers</td></tr></tbody>
+      <thead><tr><th>Host</th><th>URL</th><th>Status</th><th></th></tr></thead>
+      <tbody id="hosts-table"><tr><td colspan="4" style="color:var(--dim)">Connect to Tailscale to discover peers</td></tr></tbody>
     </table>
     <div class="btn-row" style="margin-top:.8rem">
       <button class="btn-secondary" onclick="refreshHosts()">Refresh from Tailnet</button>
@@ -501,17 +501,31 @@ async function refreshHosts() {
   const peers = await fetch('/api/tailscale/peers').then(r=>r.json()).catch(()=>[]);
   const hostConf = await fetch('/api/settings/hosts').then(r=>r.json()).catch(()=>({}));
   const tbody = document.getElementById('hosts-table');
-  if (!peers.length) { tbody.innerHTML = '<tr><td colspan="5" style="color:var(--dim)">No peers</td></tr>'; return; }
-  tbody.innerHTML = peers.map(p => {
+  const rows = [...peers];
+  Object.keys(hostConf).forEach(name => {
+    if (!rows.some(p => p.name === name)) rows.push({ name, ips: [], online: false });
+  });
+  if (!rows.length) { tbody.innerHTML = '<tr><td colspan="4" style="color:var(--dim)">No hosts</td></tr>'; return; }
+  tbody.innerHTML = rows.map(p => {
     const conf = hostConf[p.name] || {};
+    const fallbackURL = defaultHostURL(p);
+    const url = conf.url || fallbackURL;
     return `<tr>
       <td class="mono">${escapeHTML(p.name)}</td>
-      <td><input value="${escapeHTML(conf.user || 'root')}" style="width:60px;padding:.2rem .4rem;font-size:.78rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text)" onchange="updateHost(${jsArg(p.name)},'user',this.value)"></td>
-      <td><input type="number" value="${Number(conf.port || 22)}" style="width:45px;padding:.2rem .3rem;font-size:.78rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text)" onchange="updateHost(${jsArg(p.name)},'port',+this.value)"></td>
-      <td><select style="padding:.2rem;font-size:.75rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text)" onchange="updateHost(${jsArg(p.name)},'keyName',this.value)"><option value="">default</option></select></td>
+      <td><input value="${escapeHTML(url)}" style="min-width:280px;width:100%;padding:.2rem .4rem;font-size:.78rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text)" onchange="updateHost(${jsArg(p.name)},'url',this.value)"></td>
       <td>${p.online ? '<span class="badge badge-green">online</span>' : '<span class="badge badge-dim">offline</span>'}</td>
+      <td><button class="btn-secondary" onclick="openHostURL(this.closest('tr').querySelector('input').value)" style="padding:.2rem .5rem;font-size:.7rem">Open</button></td>
     </tr>`;
   }).join('');
+}
+function defaultHostURL(peer) {
+  const host = peer.ips?.[0] || peer.name || '';
+  return host ? `http://${host}:8080` : '';
+}
+function openHostURL(url) {
+  if (!url) return;
+  if (window.parent?.openBrowser) window.parent.openBrowser(url, url);
+  else window.location.href = url;
 }
 async function updateHost(host, field, value) {
   await fetch('/api/settings/hosts/'+encodeURIComponent(host), {method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({[field]: value})});
@@ -519,7 +533,8 @@ async function updateHost(host, field, value) {
 function addHost() {
   const host = prompt('Hostname or IP:');
   if (!host) return;
-  updateHost(host, 'user', 'root').then(refreshHosts);
+  const url = prompt('Browser URL:', `http://${host}:8080`) || '';
+  updateHost(host, 'url', url).then(refreshHosts);
 }
 
 async function saveAppearance() {

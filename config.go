@@ -54,6 +54,7 @@ type HostConfig struct {
 	Port     int    `json:"port"`
 	KeyName  string `json:"keyName"` // credential name in Windows Credential Manager
 	Nickname string `json:"nickname"`
+	URL      string `json:"url"` // preferred browser URL for this tailnet host
 }
 
 func defaultConfig() *AppConfig {
