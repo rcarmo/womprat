@@ -614,9 +614,15 @@ window.openTerminal = async function(host, name, user, port, options = {}) {
         pwHandler.dispose();
         term.write('\r\n');
         submitPassword(data.tabId, password, term, tabId, host, name, sshUser, sshPort, cols, rows);
-      } else if (ch === '\x7f') {
-        password = password.slice(0,-1);
-      } else {
+      } else if (ch === '\x7f' || ch === '\b') {
+        if (password.length) {
+          password = password.slice(0, -1);
+          term.write('\b \b');
+        }
+      } else if (ch === '\x15') {
+        // Ctrl+U: clear the line
+        while (password.length) { password = password.slice(0, -1); term.write('\b \b'); }
+      } else if (ch >= ' ' && ch !== '\x7f') {
         password += ch;
         term.write('*');
       }
