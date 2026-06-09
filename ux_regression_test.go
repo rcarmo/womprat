@@ -67,6 +67,21 @@ func TestNativeHostResizesEmbeddedShellWebView(t *testing.T) {
 	}
 }
 
+func TestSettingsAndBrowserActivationAreAwaited(t *testing.T) {
+	s := readFileForRegression(t, "frontend/index.html")
+	for _, want := range []string{
+		"window.openSettings = async function()",
+		"if (window.womprat_openSettings) await womprat_openSettings();",
+		"await activateTab(tabId, { skipNative: true });",
+		"window.showBrowserTab = async function",
+		"setBrowserStatus(id, `Loading ${navUrl}…`)",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("frontend missing async activation/status fragment %q", want)
+		}
+	}
+}
+
 func TestNoProgressStripInShell(t *testing.T) {
 	s := readFileForRegression(t, "frontend/index.html")
 	for _, forbidden := range []string{"id=\"url-progress\"", "urlProgressIndeterminate", "#url-progress"} {

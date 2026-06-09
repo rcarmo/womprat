@@ -117,7 +117,7 @@ func TestFrontendSplitWebViewShellContracts(t *testing.T) {
 	for _, want := range []string{
 		"function activateTab(id, options = {})",
 		"womprat_switchTab(id)",
-		"window.showBrowserTab = function",
+		"window.showBrowserTab = async function",
 		"womprat_browserBack",
 		"womprat_browserReload",
 		"browser-placeholder",
