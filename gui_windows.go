@@ -172,6 +172,7 @@ func runGUI(app *App, shellURL string) {
 	log.Printf("gui: shell WebView2 created")
 	defer w.Destroy()
 	app.webview = w
+	app.dispatch = w.Dispatch
 	applyDarkMode(w)
 	applyAppIcon(w)
 	contentViews, err := newNativeContentManager(host, shellChild, webviewDataPath(), w)

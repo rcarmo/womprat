@@ -95,6 +95,7 @@ type App struct {
 	locked       bool
 	webview      shellWebView
 	contentViews browserContentManager
+	dispatch     func(func())
 	serverPort   int
 	lastCloseAt  time.Time
 	lastCloseTab string
@@ -158,6 +159,36 @@ func (a *App) evalShell(format string, args ...interface{}) {
 	a.webview.Eval(fmt.Sprintf(format, args...))
 }
 
+func (a *App) onUIThread(fn func()) {
+	// Native WebView2 creation pumps a nested message loop. Running it directly
+	// from a JS<->Go binding callback (inside a WebView2 COM event) re-enters the
+	// message loop and hangs. Dispatch defers work onto the wrapper run loop so it
+	// executes outside the re-entrant callback.
+	if a.dispatch != nil {
+		a.dispatch(fn)
+	} else {
+		fn()
+	}
+}
+
+func (a *App) hideBrowserContentOnUI() {
+	if a.contentViews == nil {
+		return
+	}
+	a.onUIThread(func() { a.contentViews.HideAll() })
+}
+
+func (a *App) showFullShellOnUI() {
+	a.hideBrowserContentOnUI()
+}
+
+func (a *App) destroyContentOnUI(tabID string) {
+	if a.contentViews == nil {
+		return
+	}
+	a.onUIThread(func() { a.contentViews.Destroy(tabID) })
+}
+
 func (a *App) navigateBrowser(url string) {
 	log.Printf("tab: navigateBrowser %s (active=%s)", url, a.activeTab)
 	if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
@@ -180,9 +211,11 @@ func (a *App) navigateBrowser(url string) {
 	}
 	a.evalShell("window.showBrowserTab(%s,%s,{skipNative:true})", jsString(tabID), jsString(url))
 	if a.contentViews != nil {
-		view := a.contentViews.Ensure(tabID)
-		a.contentViews.Show(tabID)
-		view.Navigate(url)
+		a.onUIThread(func() {
+			view := a.contentViews.Ensure(tabID)
+			a.contentViews.Show(tabID)
+			view.Navigate(url)
+		})
 	}
 }
 
@@ -276,19 +309,20 @@ func (a *App) switchTab(tabID string) {
 	case "browser":
 		a.evalShell("window.activateTab(%s,{skipNative:true})", jsString(tabID))
 		if a.contentViews != nil {
-			view := a.contentViews.Get(tabID)
-			if view == nil {
-				view = a.contentViews.Ensure(tabID)
-				if tab.URL != "" {
-					view.Navigate(tab.URL)
+			url := tab.URL
+			a.onUIThread(func() {
+				view := a.contentViews.Get(tabID)
+				if view == nil {
+					view = a.contentViews.Ensure(tabID)
+					if url != "" {
+						view.Navigate(url)
+					}
 				}
-			}
-			a.contentViews.Show(tabID)
+				a.contentViews.Show(tabID)
+			})
 		}
 	case "terminal", "settings":
-		if a.contentViews != nil {
-			a.contentViews.HideAll()
-		}
+		a.showFullShellOnUI()
 		a.evalShell("window.activateTab(%s,{skipNative:true})", jsString(tabID))
 	}
 }
@@ -346,9 +380,7 @@ func (a *App) forgetTab(tabID string) {
 		a.activeTab = ""
 	}
 	a.mu.Unlock()
-	if a.contentViews != nil {
-		a.contentViews.Destroy(tabID)
-	}
+	a.destroyContentOnUI(tabID)
 	a.persistOpenTabs()
 }
 
@@ -393,9 +425,7 @@ func (a *App) closeTab(tabID string) {
 	}
 	nextActive := a.activeTab
 	a.mu.Unlock()
-	if a.contentViews != nil {
-		a.contentViews.Destroy(tabID)
-	}
+	a.destroyContentOnUI(tabID)
 	a.persistOpenTabs()
 
 	if len(newTabs) == 0 || nextActive == "" {
@@ -418,9 +448,11 @@ func (a *App) newBrowserTab(url string) {
 	a.persistOpenTabs()
 	a.evalShell("window.showBrowserTab(%s,%s,{skipNative:true})", jsString(tabID), jsString(url))
 	if a.contentViews != nil {
-		view := a.contentViews.Ensure(tabID)
-		a.contentViews.Show(tabID)
-		view.Navigate(url)
+		a.onUIThread(func() {
+			view := a.contentViews.Ensure(tabID)
+			a.contentViews.Show(tabID)
+			view.Navigate(url)
+		})
 	}
 }
 
@@ -431,9 +463,7 @@ func (a *App) openSettingsTab() {
 	a.tabs = upsertTab(a.tabs, tab)
 	a.activeTab = tab.ID
 	a.mu.Unlock()
-	if a.contentViews != nil {
-		a.contentViews.HideAll()
-	}
+	a.hideBrowserContentOnUI()
 	a.evalShell("window.activateTab(%s,{skipNative:true})", jsString(tab.ID))
 }
 
@@ -450,9 +480,7 @@ func (a *App) newTerminalTab(host, user string, port int) {
 	a.activeTab = tabID
 	a.mu.Unlock()
 	a.persistOpenTabs()
-	if a.contentViews != nil {
-		a.contentViews.HideAll()
-	}
+	a.hideBrowserContentOnUI()
 	a.evalShell("window.activateTab(%s,{skipNative:true})", jsString(tabID))
 }
 
@@ -497,9 +525,7 @@ func (a *App) clearActiveTab() {
 	a.mu.Lock()
 	a.activeTab = ""
 	a.mu.Unlock()
-	if a.contentViews != nil {
-		a.contentViews.HideAll()
-	}
+	a.hideBrowserContentOnUI()
 }
 
 func (a *App) goHome() {
