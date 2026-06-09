@@ -79,10 +79,7 @@ jobs:
       - name: Package artifacts
         shell: bash
         run: |
-          mkdir -p dist
-          cp womprat.exe dist/womprat-windows-arm64.exe
-          cp womprat-amd64.exe dist/womprat-windows-amd64.exe
-          (cd dist && sha256sum *.exe > SHA256SUMS.txt)
+          make sha256
           ls -lh dist
 
       - name: Publish GitHub release

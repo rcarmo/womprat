@@ -30,14 +30,14 @@ RC_NOINC  := $(TMP_DIR)/womprat-noinclude.rc
 RSRC_ARM64:= $(CMD_DIR)/rsrc_windows_arm64.syso
 RSRC_AMD64:= $(CMD_DIR)/rsrc_windows_amd64.syso
 
-EXE_ARM64 := $(APP).exe
-EXE_AMD64 := $(APP)-amd64.exe
-BIN_LINUX := $(APP)-linux-amd64
-BIN_DARWIN:= $(APP)-darwin-arm64
+EXE_ARM64 := $(DIST_DIR)/$(APP)-windows-arm64.exe
+EXE_AMD64 := $(DIST_DIR)/$(APP)-windows-amd64.exe
+BIN_LINUX := $(DIST_DIR)/$(APP)-linux-amd64
+BIN_DARWIN:= $(DIST_DIR)/$(APP)-darwin-arm64
 
 .PHONY: help all setup doctor deps tidy download patch verify test vet frontend-check \
         resources resources-arm64 resources-amd64 icon icon-check windows windows-arm64 \
-        windows-amd64 windows-intel intel linux darwin release release-intel dist \
+        windows-amd64 windows-intel intel linux darwin sha256 release release-intel dist \
         clean clean-generated clean-dist dev run status
 
 .DEFAULT_GOAL := help
@@ -119,6 +119,9 @@ $(RC_NOINC): $(ICO) $(MANIFEST) | $(TMP_DIR)
 $(TMP_DIR):
 	@mkdir -p $@
 
+$(DIST_DIR):
+	@mkdir -p $@
+
 resources-arm64: icon $(RC_NOINC) ## Generate Windows ARM64 resource object (.syso)
 	$(WINDRES) --target=aarch64-w64-windows-gnu -I $(CURDIR)/$(CMD_DIR) -O coff $(RC_NOINC) -o $(RSRC_ARM64)
 
@@ -129,13 +132,13 @@ resources: resources-arm64 resources-amd64 ## Generate all checked-in Windows re
 
 # Builds ---------------------------------------------------------------------
 
-windows-arm64: resources ## Build Windows ARM64 GUI executable
+windows-arm64: resources | $(DIST_DIR) ## Build Windows ARM64 GUI executable
 	GOOS=windows GOARCH=arm64 $(GO) build $(GOFLAGS) -ldflags="$(GUIFLAGS)" -o $(EXE_ARM64) ./$(CMD_DIR)
 	@ls -lh $(EXE_ARM64)
 
 windows: windows-arm64 ## Alias for Windows ARM64 build
 
-windows-amd64: resources-amd64 ## Build Windows AMD64/Intel x64 GUI executable
+windows-amd64: resources-amd64 | $(DIST_DIR) ## Build Windows AMD64/Intel x64 GUI executable
 	GOOS=windows GOARCH=amd64 $(GO) build $(GOFLAGS) -ldflags="$(GUIFLAGS)" -o $(EXE_AMD64) ./$(CMD_DIR)
 	@ls -lh $(EXE_AMD64)
 
@@ -143,13 +146,16 @@ windows-intel: windows-amd64 ## Alias for Windows Intel/x64 build
 
 intel: windows-intel ## Short alias for Windows Intel/x64 build
 
-linux: ## Build Linux AMD64 binary (for compile sanity only; app runtime is Windows-focused)
+linux: | $(DIST_DIR) ## Build Linux AMD64 binary (for compile sanity only; app runtime is Windows-focused)
 	GOOS=linux GOARCH=amd64 $(GO) build $(GOFLAGS) -ldflags="$(LDFLAGS)" -o $(BIN_LINUX) ./$(CMD_DIR)
 	@ls -lh $(BIN_LINUX)
 
-darwin: ## Build Darwin ARM64 binary (for compile sanity only; app runtime is Windows-focused)
+darwin: | $(DIST_DIR) ## Build Darwin ARM64 binary (for compile sanity only; app runtime is Windows-focused)
 	GOOS=darwin GOARCH=arm64 $(GO) build $(GOFLAGS) -ldflags="$(LDFLAGS)" -o $(BIN_DARWIN) ./$(CMD_DIR)
 	@ls -lh $(BIN_DARWIN)
+
+sha256: ## Write SHA256SUMS.txt for the built Windows executables
+	@cd $(DIST_DIR) && sha256sum *.exe > SHA256SUMS.txt && cat SHA256SUMS.txt
 
 release: clean setup patch verify windows-arm64 ## Full clean setup/patch/check/build pipeline for Windows ARM64
 
@@ -170,5 +176,5 @@ clean-generated: ## Remove generated temporary files
 clean-dist: ## Remove dist directory
 	rm -rf $(DIST_DIR)
 
-clean: clean-generated ## Remove build products
+clean: clean-generated clean-dist ## Remove build products
 	rm -f $(EXE_ARM64) $(EXE_AMD64) $(BIN_LINUX) $(BIN_DARWIN)
