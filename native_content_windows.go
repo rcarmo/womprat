@@ -9,7 +9,6 @@ import (
 	"os"
 	"strings"
 	"sync"
-	"time"
 	"unsafe"
 
 	webview2edge "github.com/jchv/go-webview2/pkg/edge"
@@ -69,7 +68,6 @@ func newNativeContentManager(parent uintptr, shellHWND uintptr, dataPath string,
 		return nil, fmt.Errorf("missing parent/shell HWND")
 	}
 	m := &nativeContentManager{parent: parent, shellHWND: shellHWND, dataPath: dataPath, shell: shell, views: map[string]*nativeContentView{}}
-	go m.resizeLoop()
 	return m, nil
 }
 
@@ -187,14 +185,6 @@ func (m *nativeContentManager) notifyShellResize() {
 		return
 	}
 	m.shell.Eval("window.wompratOnHostResize && window.wompratOnHostResize()")
-}
-
-func (m *nativeContentManager) resizeLoop() {
-	ticker := time.NewTicker(250 * time.Millisecond)
-	defer ticker.Stop()
-	for range ticker.C {
-		m.resizeAll()
-	}
 }
 
 type nilContentView struct{}

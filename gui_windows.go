@@ -63,6 +63,7 @@ const (
 	wmDestroy          = 0x0002
 	wmSize             = 0x0005
 	wmExitSizeMove     = 0x0232
+	wmDpiChanged       = 0x02E0
 	wsOverlappedWindow = 0x00CF0000
 	cwUseDefault       = ^uintptr(0x7fffffff)
 )
@@ -95,7 +96,7 @@ var activeHost *nativeContentManager
 
 func hostWndProc(hwnd, msg, wParam, lParam uintptr) uintptr {
 	switch msg {
-	case wmSize, wmExitSizeMove:
+	case wmSize, wmExitSizeMove, wmDpiChanged:
 		if activeHost != nil {
 			activeHost.resizeAll()
 			activeHost.notifyShellResize()
