@@ -55,8 +55,14 @@ func (a *App) handleSetUnlockMethod(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unsupported unlock method", 400)
 		return
 	}
+	a.mu.Lock()
 	a.config.UnlockMethod = body.Method
-	SaveConfig(a.config)
+	cfg := a.config
+	a.mu.Unlock()
+	if err := SaveConfig(cfg); err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
 
@@ -87,9 +93,18 @@ func (a *App) handleSetMasterPassword(w http.ResponseWriter, r *http.Request) {
 		"hash":       base64.StdEncoding.EncodeToString(hash),
 	}
 	data, _ := json.Marshal(record)
-	SaveCredential("master-hash", string(data))
+	if err := SaveCredential("master-hash", string(data)); err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	a.mu.Lock()
 	a.config.UnlockMethod = "master"
-	SaveConfig(a.config)
+	cfg := a.config
+	a.mu.Unlock()
+	if err := SaveConfig(cfg); err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok", "kdf": "pbkdf2-sha256"})
 }
 
@@ -102,7 +117,11 @@ func (a *App) handleSetTailscaleKey(w http.ResponseWriter, r *http.Request) {
 		Key string `json:"key"`
 	}
 	json.NewDecoder(r.Body).Decode(&body)
-	if err := SaveCredential("tailscale-key", body.Key); err != nil {
+	if strings.TrimSpace(body.Key) == "" {
+		http.Error(w, "empty tailscale key", 400)
+		return
+	}
+	if err := SaveCredential("tailscale-key", strings.TrimSpace(body.Key)); err != nil {
 		http.Error(w, err.Error(), 500)
 		return
 	}
@@ -144,9 +163,18 @@ func (a *App) handleSSHKeys(w http.ResponseWriter, r *http.Request) {
 	case "DELETE":
 		// DELETE /api/settings/ssh-keys/<name>
 		parts := strings.Split(r.URL.Path, "/")
-		name := parts[len(parts)-1]
-		DeleteCredential("ssh-key/" + name)
+		name, err := safeSSHKeyName(parts[len(parts)-1])
+		if err != nil {
+			http.Error(w, err.Error(), 400)
+			return
+		}
+		if err := DeleteCredential("ssh-key/" + name); err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
 		json.NewEncoder(w).Encode(map[string]string{"status": "deleted"})
+	default:
+		http.Error(w, "method not allowed", 405)
 	}
 }
 
@@ -159,6 +187,11 @@ func (a *App) handleGenerateSSHKey(w http.ResponseWriter, r *http.Request) {
 		Name string `json:"name"`
 	}
 	json.NewDecoder(r.Body).Decode(&body)
+	name, err := safeSSHKeyName(body.Name)
+	if err != nil {
+		http.Error(w, err.Error(), 400)
+		return
+	}
 
 	pub, priv, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
@@ -166,7 +199,7 @@ func (a *App) handleGenerateSSHKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	privBlock, err := ssh.MarshalPrivateKey(priv, body.Name)
+	privBlock, err := ssh.MarshalPrivateKey(priv, name)
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return
@@ -179,12 +212,15 @@ func (a *App) handleGenerateSSHKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	SaveCredential("ssh-key/"+body.Name, string(privPEM))
+	if err := SaveCredential("ssh-key/"+name, string(privPEM)); err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
 	fingerprint := ssh.FingerprintSHA256(sshPub)
 
 	json.NewEncoder(w).Encode(map[string]string{
 		"status":      "ok",
-		"name":        body.Name,
+		"name":        name,
 		"fingerprint": fingerprint,
 		"publicKey":   string(ssh.MarshalAuthorizedKey(sshPub)),
 	})
@@ -193,12 +229,20 @@ func (a *App) handleGenerateSSHKey(w http.ResponseWriter, r *http.Request) {
 func (a *App) handleHosts(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "GET":
-		json.NewEncoder(w).Encode(a.config.Hosts)
+		a.mu.Lock()
+		hosts := a.config.Hosts
+		a.mu.Unlock()
+		json.NewEncoder(w).Encode(hosts)
 	case "PATCH":
 		parts := strings.Split(r.URL.Path, "/")
 		host := parts[len(parts)-1]
 		var body map[string]interface{}
 		json.NewDecoder(r.Body).Decode(&body)
+		if host == "" || strings.ContainsAny(host, "/\\") {
+			http.Error(w, "invalid host", 400)
+			return
+		}
+		a.mu.Lock()
 		conf := a.config.Hosts[host]
 		if v, ok := body["user"].(string); ok {
 			conf.User = v
@@ -216,8 +260,15 @@ func (a *App) handleHosts(w http.ResponseWriter, r *http.Request) {
 			conf.URL = v
 		}
 		a.config.Hosts[host] = conf
-		SaveConfig(a.config)
+		cfg := a.config
+		a.mu.Unlock()
+		if err := SaveConfig(cfg); err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	default:
+		http.Error(w, "method not allowed", 405)
 	}
 }
 
@@ -233,16 +284,25 @@ func (a *App) handleAppearance(w http.ResponseWriter, r *http.Request) {
 		AutoConnect bool   `json:"autoConnect"`
 	}
 	json.NewDecoder(r.Body).Decode(&body)
+	a.mu.Lock()
 	a.config.FontSize = body.FontSize
 	a.config.Theme = body.Theme
 	a.config.RestoreTabs = body.RestoreTabs
 	a.config.AutoConnect = body.AutoConnect
-	SaveConfig(a.config)
+	cfg := a.config
+	a.mu.Unlock()
+	if err := SaveConfig(cfg); err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
 
 func (a *App) handleGetConfig(w http.ResponseWriter, r *http.Request) {
-	json.NewEncoder(w).Encode(a.config)
+	a.mu.Lock()
+	cfg := a.config
+	a.mu.Unlock()
+	json.NewEncoder(w).Encode(cfg)
 }
 
 // Helper: list SSH keys from credential store
@@ -263,11 +323,13 @@ func (a *App) listSSHKeys() []SSHKeyEntry {
 			continue
 		}
 		hosts := []string{}
+		a.mu.Lock()
 		for host, hc := range a.config.Hosts {
 			if hc.KeyName == name {
 				hosts = append(hosts, host)
 			}
 		}
+		a.mu.Unlock()
 		entries = append(entries, SSHKeyEntry{Name: name, Fingerprint: fingerprintFromPEM(keyData), Hosts: hosts})
 	}
 	return entries
@@ -275,8 +337,12 @@ func (a *App) listSSHKeys() []SSHKeyEntry {
 
 // Helper: import an SSH key from PEM content
 func (a *App) importSSHKey(name, content string) error {
+	name, err := safeSSHKeyName(name)
+	if err != nil {
+		return err
+	}
 	// Validate it's a valid key
-	_, err := ssh.ParseRawPrivateKey([]byte(content))
+	_, err = ssh.ParseRawPrivateKey([]byte(content))
 	if err != nil {
 		return fmt.Errorf("invalid SSH key: %w", err)
 	}
@@ -315,9 +381,15 @@ func (a *App) handleExitNode(w http.ResponseWriter, r *http.Request) {
 		a.mu.Lock()
 		a.config.ExitNode = body.ExitNode
 		useExitNode = body.ExitNode != ""
+		cfg := a.config
 		a.mu.Unlock()
-		SaveConfig(a.config)
+		if err := SaveConfig(cfg); err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok", "exitNode": body.ExitNode})
+	default:
+		http.Error(w, "method not allowed", 405)
 	}
 }
 
@@ -373,7 +445,13 @@ func (a *App) handleSaveTabs(w http.ResponseWriter, r *http.Request) {
 		Tabs []SavedTab `json:"tabs"`
 	}
 	json.NewDecoder(r.Body).Decode(&body)
+	a.mu.Lock()
 	a.config.OpenTabs = body.Tabs
-	SaveConfig(a.config)
+	cfg := a.config
+	a.mu.Unlock()
+	if err := SaveConfig(cfg); err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }

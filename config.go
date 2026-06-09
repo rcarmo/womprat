@@ -6,13 +6,16 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
 )
 
 // AppConfig holds all non-secret settings (DPAPI-encrypted on disk)
 type AppConfig struct {
-	// Unlock method: "hello" (Windows Hello), "master" (password), "dpapi" (transparent)
+	// Unlock method: "master" (password) or "dpapi" (transparent)
 	UnlockMethod string `json:"unlockMethod"`
 
 	// Window state
@@ -134,6 +137,9 @@ const (
 
 // SaveCredential stores an encrypted secret
 func SaveCredential(name, value string) error {
+	if err := validateCredentialName(name); err != nil {
+		return err
+	}
 	encrypted, err := encryptConfig([]byte(value))
 	if err != nil {
 		return err
@@ -145,6 +151,9 @@ func SaveCredential(name, value string) error {
 
 // GetCredential retrieves and decrypts a stored secret
 func GetCredential(name string) (string, error) {
+	if err := validateCredentialName(name); err != nil {
+		return "", err
+	}
 	path := filepath.Join(configDir(), "creds", name)
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -159,6 +168,32 @@ func GetCredential(name string) (string, error) {
 
 // DeleteCredential removes a secret
 func DeleteCredential(name string) error {
+	if err := validateCredentialName(name); err != nil {
+		return err
+	}
 	path := filepath.Join(configDir(), "creds", name)
-	return os.Remove(path)
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
+}
+
+var credentialNamePattern = regexp.MustCompile(`^[A-Za-z0-9._/-]+$`)
+
+func validateCredentialName(name string) error {
+	if name == "" || strings.HasPrefix(name, "/") || strings.Contains(name, "..") || filepath.Clean(name) != name || !credentialNamePattern.MatchString(name) {
+		return fmt.Errorf("invalid credential name")
+	}
+	return nil
+}
+
+func safeSSHKeyName(name string) (string, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return "", fmt.Errorf("empty SSH key name")
+	}
+	if strings.ContainsAny(name, `/\\`) || strings.Contains(name, "..") || !credentialNamePattern.MatchString(name) {
+		return "", fmt.Errorf("invalid SSH key name")
+	}
+	return name, nil
 }

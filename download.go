@@ -43,7 +43,7 @@ func (a *App) handleDownload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	parsed, err := url.Parse(targetURL)
-	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
 		httpError(w, 400, "Invalid URL", fmt.Sprintf("%v", err))
 		return
 	}

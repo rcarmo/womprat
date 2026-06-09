@@ -69,7 +69,11 @@ type App struct {
 }
 
 func main() {
-	cfg, _ := LoadConfig()
+	cfg, err := LoadConfig()
+	if err != nil {
+		log.Printf("config load failed, using defaults: %v", err)
+		cfg = defaultConfig()
+	}
 	token := generateSessionToken()
 	app := &App{
 		config:       cfg,
@@ -461,7 +465,9 @@ func (a *App) registerRoutes(mux *http.ServeMux) {
 
 func generateSessionToken() string {
 	b := make([]byte, 32)
-	rand.Read(b)
+	if _, err := rand.Read(b); err != nil {
+		panic(err)
+	}
 	return hex.EncodeToString(b)
 }
 
@@ -536,11 +542,14 @@ func (a *App) ts() *tsnet.Server {
 
 func (a *App) handleAuthStatus(w http.ResponseWriter, r *http.Request) {
 	_, err := GetCredential("tailscale-key")
+	a.mu.Lock()
+	unlockMethod := a.config.UnlockMethod
+	a.mu.Unlock()
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"hasKey":       err == nil,
 		"connected":    a.ts() != nil,
 		"locked":       a.isLocked(),
-		"unlockMethod": a.config.UnlockMethod,
+		"unlockMethod": unlockMethod,
 	})
 }
 
@@ -568,11 +577,23 @@ func (a *App) handleUnlock(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleSaveKey(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.Error(w, "method not allowed", 405)
+		return
+	}
 	var body struct {
 		Key string `json:"key"`
 	}
 	json.NewDecoder(r.Body).Decode(&body)
-	SaveCredential("tailscale-key", body.Key)
+	body.Key = strings.TrimSpace(body.Key)
+	if body.Key == "" {
+		http.Error(w, "empty tailscale key", 400)
+		return
+	}
+	if err := SaveCredential("tailscale-key", body.Key); err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
 	if err := a.startTailscale(); err != nil {
 		json.NewEncoder(w).Encode(map[string]string{"status": "saved", "error": err.Error()})
 		return
@@ -688,6 +709,10 @@ func moduleVersion(path string) string {
 }
 
 func (a *App) handleSSHConnect(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.Error(w, "method not allowed", 405)
+		return
+	}
 	var body struct {
 		Host string `json:"host"`
 		User string `json:"user"`
@@ -696,6 +721,15 @@ func (a *App) handleSSHConnect(w http.ResponseWriter, r *http.Request) {
 		Rows int    `json:"rows"`
 	}
 	json.NewDecoder(r.Body).Decode(&body)
+	body.Host = strings.TrimSpace(body.Host)
+	body.User = strings.TrimSpace(body.User)
+	if body.Host == "" {
+		httpError(w, 400, "Missing host", "")
+		return
+	}
+	if body.User == "" {
+		body.User = "root"
+	}
 	if body.Port == 0 {
 		body.Port = 22
 	}
@@ -782,6 +816,10 @@ func (a *App) hostKeyCallback(host string) ssh.HostKeyCallback {
 }
 
 func (a *App) handleSSHAuthPassword(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.Error(w, "method not allowed", 405)
+		return
+	}
 	var body struct {
 		TabId    string `json:"tabId"`
 		Password string `json:"password"`

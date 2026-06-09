@@ -47,6 +47,12 @@ func (a *App) handleSSHWebSocketFull(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer conn.Close(websocket.StatusNormalClosure, "")
+	defer func() {
+		a.mu.Lock()
+		delete(a.sshConns, tabID)
+		a.mu.Unlock()
+		client.Close()
+	}()
 
 	ctx := r.Context()
 
@@ -157,7 +163,9 @@ func (a *App) handleSSHWebSocketFull(w http.ResponseWriter, r *http.Request) {
 					Rows int    `json:"rows"`
 				}
 				if json.Unmarshal(data, &msg) == nil && msg.Type == "resize" {
-					session.WindowChange(msg.Rows, msg.Cols)
+					if msg.Cols > 0 && msg.Rows > 0 {
+						_ = session.WindowChange(msg.Rows, msg.Cols)
+					}
 					continue
 				}
 			}
@@ -178,7 +186,9 @@ func (a *App) getSSHAuthMethods(host string) []ssh.AuthMethod {
 	var signers []ssh.Signer
 
 	// Try host-specific key first
+	a.mu.Lock()
 	hostConf := a.config.Hosts[host]
+	a.mu.Unlock()
 	if hostConf.KeyName != "" {
 		if keyData, err := GetCredential("ssh-key/" + hostConf.KeyName); err == nil {
 			if signer, err := ssh.ParsePrivateKey([]byte(keyData)); err == nil {

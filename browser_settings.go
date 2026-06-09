@@ -39,9 +39,12 @@ func (a *App) registerBrowserRoutes(mux *http.ServeMux) {
 }
 
 func (a *App) handleBrowserData(w http.ResponseWriter, r *http.Request) {
+	a.mu.Lock()
+	savePasswords := a.config.SavePasswords
+	a.mu.Unlock()
 	data := BrowserData{
 		CacheSize:     getCacheSize(),
-		SavePasswords: a.config.SavePasswords,
+		SavePasswords: savePasswords,
 		Cookies:       listCookieDomains(),
 		Passwords:     listSavedPasswords(),
 	}
@@ -49,13 +52,24 @@ func (a *App) handleBrowserData(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleClearCache(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.Error(w, "method not allowed", 405)
+		return
+	}
 	// WebView2 cache is in the DataPath directory
 	cacheDir := filepath.Join(webviewDataPath(), "EBWebView", "Default", "Cache")
-	os.RemoveAll(cacheDir)
+	if err := os.RemoveAll(cacheDir); err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
 
 func (a *App) handleClearCookies(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.Error(w, "method not allowed", 405)
+		return
+	}
 	var body struct {
 		Domain string `json:"domain"`
 	}
@@ -74,6 +88,10 @@ func (a *App) handleClearCookies(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleClearPasswords(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.Error(w, "method not allowed", 405)
+		return
+	}
 	var body struct {
 		Site string `json:"site"`
 	}
@@ -89,6 +107,10 @@ func (a *App) handleClearPasswords(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleClearAll(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.Error(w, "method not allowed", 405)
+		return
+	}
 	// Nuclear option: remove entire WebView2 user data
 	dataPath := webviewDataPath()
 	os.RemoveAll(filepath.Join(dataPath, "EBWebView", "Default", "Cache"))
@@ -98,12 +120,22 @@ func (a *App) handleClearAll(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleSavePasswordsToggle(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.Error(w, "method not allowed", 405)
+		return
+	}
 	var body struct {
 		Enabled bool `json:"enabled"`
 	}
 	json.NewDecoder(r.Body).Decode(&body)
+	a.mu.Lock()
 	a.config.SavePasswords = body.Enabled
-	SaveConfig(a.config)
+	cfg := a.config
+	a.mu.Unlock()
+	if err := SaveConfig(cfg); err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
 
