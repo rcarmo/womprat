@@ -90,11 +90,11 @@ button,a,.tab,.recent-item,.option{
 .term-panel .xterm{flex:1;width:100%;height:100%;padding:0}
 .term-panel .xterm .xterm-viewport,
 .term-panel .xterm .xterm-screen{background:transparent!important}
-/* xterm uses the VS Code scrollable-element overlay scrollbar (auto fade). Style
-   its slider rather than the native ::-webkit-scrollbar, which xterm does not use. */
-.term-panel .xterm .xterm-scrollable-element>.scrollbar.vertical{width:6px!important}
-.term-panel .xterm .xterm-scrollable-element>.scrollbar>.slider{background:rgba(255,255,255,.28)!important;border-radius:3px!important}
-.term-panel .xterm .xterm-scrollable-element>.scrollbar:hover>.slider{background:rgba(255,255,255,.45)!important}
+/* xterm uses the VS Code scrollable-element overlay scrollbar (auto fade). Its
+   width comes from the overviewRuler.width terminal option (set to 2px); style
+   the slider color here. */
+.term-panel .xterm .xterm-scrollable-element>.scrollbar>.slider{background:rgba(255,255,255,.32)!important;border-radius:2px!important}
+.term-panel .xterm .xterm-scrollable-element>.scrollbar:hover>.slider{background:rgba(255,255,255,.5)!important}
 
 /* Local panels */
 .browser-panel{flex-direction:column}
@@ -506,7 +506,7 @@ window.openTerminal = async function(host, name, user, port, options = {}) {
   const container = panel.querySelector('.term-container');
 
   // Create terminal immediately with "Connecting..." message
-  const term = new Terminal({ allowProposedApi: true, cursorBlink: true, fontSize: TERMINAL_FONT_SIZE, bellStyle: 'sound', copyOnSelect: true, rightClickSelectsWord: true, scrollback: 10000,
+  const term = new Terminal({ allowProposedApi: true, cursorBlink: true, fontSize: TERMINAL_FONT_SIZE, bellStyle: 'sound', copyOnSelect: true, rightClickSelectsWord: true, scrollback: 10000, overviewRuler: { width: 2 },
     fontFamily: 'FiraCode Nerd Font Mono, monospace',
     fontWeight: '400', fontWeightBold: '700',
     theme: { background: '#202020', foreground: '#fff', cursor: '#60cdff',
