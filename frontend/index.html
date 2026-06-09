@@ -276,8 +276,11 @@ function loadURLHistory() {
   try { return JSON.parse(localStorage.getItem('wompratURLHistory') || '[]'); }
   catch { return []; }
 }
+function isHistoryURL(url) {
+  return /^(https?:\/\/|ssh:\/\/)/i.test(String(url || ''));
+}
 function saveURLHistory(url) {
-  if (!/^https?:\/\//i.test(url)) return;
+  if (!isHistoryURL(url)) return;
   const history = loadURLHistory().filter(u => u !== url);
   history.unshift(url);
   localStorage.setItem('wompratURLHistory', JSON.stringify(history.slice(0, 100)));
@@ -287,10 +290,13 @@ function refreshURLHistoryDatalist(extra = []) {
   const list = document.getElementById('url-history');
   if (!list) return;
   const urls = new Set(loadURLHistory());
-  for (const t of state.tabs || []) if (t.type === 'browser' && t.url) urls.add(t.url);
+  for (const t of state.tabs || []) {
+    if (t.type === 'browser' && t.url) urls.add(t.url);
+    if (t.type === 'terminal' && t.host) urls.add(`ssh://${t.user || 'root'}@${t.host}:${t.port || 22}`);
+  }
   for (const u of extra || []) if (u) urls.add(u);
   list.textContent = '';
-  [...urls].filter(u => /^https?:\/\//i.test(u)).slice(0, 100).forEach(u => {
+  [...urls].filter(isHistoryURL).slice(0, 100).forEach(u => {
     const opt = document.createElement('option');
     opt.value = u;
     list.appendChild(opt);
@@ -738,7 +744,7 @@ function activateTab(id) {
   const urlInput = document.getElementById('url-input');
   if (urlInput) {
     if (tab.type === 'terminal') urlInput.value = 'ssh://' + (tab.user||'root') + '@' + (tab.host||'') + ':' + (tab.port||22);
-    else if (tab.type === 'settings') urlInput.value = '/settings.html';
+    else if (tab.type === 'settings') urlInput.value = 'settings:';
     else urlInput.value = '';
   }
 
@@ -875,11 +881,16 @@ installBrowserHotkeys();
 window.navigateFromBar = function() {
   const url = document.getElementById('url-input').value.trim();
   if (!url) return;
+  if (/^settings:?$/i.test(url)) {
+    openSettings();
+    return;
+  }
   const sshMatch = url.match(/^ssh:\/\/(?:([^@]+)@)?([^:\/]+)(?::(\d+))?/);
   if (sshMatch) {
     const user = sshMatch[1] || 'root';
     const host = sshMatch[2];
     const port = sshMatch[3] ? parseInt(sshMatch[3]) : 22;
+    saveURLHistory(`ssh://${user}@${host}:${port}`);
     openTerminal(host, host, user, port);
     return;
   }
@@ -905,7 +916,7 @@ window.navigateTab = function(id) {
 window.openSettings = function() {
   const tabId = 'settings';
   if (!state.tabs.find(t => t.id === tabId)) {
-    const tab = { id: tabId, type: 'settings', title: 'Settings', url: '/settings.html' };
+    const tab = { id: tabId, type: 'settings', title: 'Settings', url: 'settings:' };
     state.tabs.push(tab);
     registerLocalTab(tab);
     renderTabs();
@@ -916,6 +927,7 @@ window.openSettings = function() {
 function activateRecentTab(tab) {
   if (!tab) return;
   if (tab.type === 'terminal') {
+    saveURLHistory(`ssh://${tab.user || 'root'}@${tab.host || tab.title}:${Number(tab.port || 22)}`);
     openTerminal(tab.host || tab.title, tab.title || tab.host, tab.user || 'root', Number(tab.port || 22));
     return;
   }
@@ -932,7 +944,7 @@ async function loadRecentTabs() {
     const cfg = await res.json();
     const list = document.getElementById('recent-list');
     const tabs = cfg.openTabs || [];
-    refreshURLHistoryDatalist(tabs.filter(t => t.type === 'browser').map(t => t.url || t.title));
+    refreshURLHistoryDatalist(tabs.map(t => t.type === 'terminal' ? `ssh://${t.user || 'root'}@${t.host || t.title}:${t.port || 22}` : (t.url || t.title)));
     list.textContent = '';
     if (!tabs.length) {
       const empty = document.createElement('div');

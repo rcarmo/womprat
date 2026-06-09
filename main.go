@@ -184,6 +184,10 @@ func main() {
 		app.newBrowserTab(url)
 	})
 
+	w.Bind("womprat_openSettings", func() {
+		app.openSettingsTab()
+	})
+
 	w.Bind("womprat_newTerminal", func(host, user string, port int) {
 		app.newTerminalTab(host, user, port)
 	})
@@ -420,6 +424,16 @@ func (a *App) newBrowserTab(url string) {
 	a.mu.Unlock()
 	a.persistOpenTabs()
 	a.webview.Navigate(url)
+}
+
+func (a *App) openSettingsTab() {
+	tab := Tab{ID: "settings", Type: "settings", Title: "Settings", URL: "settings:"}
+	a.mu.Lock()
+	a.tabs = upsertTab(a.tabs, tab)
+	a.activeTab = tab.ID
+	a.mu.Unlock()
+	shellURL := fmt.Sprintf("http://127.0.0.1:%d/?tab=settings&v=%d", a.serverPort, time.Now().UnixMilli())
+	a.webview.Navigate(shellURL)
 }
 
 func (a *App) newTerminalTab(host, user string, port int) {
@@ -1055,7 +1069,10 @@ func chromeOverlayJS(port int, token string) string {
       if (!list) return;
       list.textContent = '';
       const urls = [];
-      (state?.tabs || []).forEach(t => { if (t.type === 'browser' && t.url && /^https?:\/\//i.test(t.url)) urls.push(t.url); });
+      (state?.tabs || []).forEach(t => {
+        if (t.type === 'browser' && t.url && /^https?:\/\//i.test(t.url)) urls.push(t.url);
+        if (t.type === 'terminal' && t.host) urls.push('ssh://' + (t.user || 'root') + '@' + t.host + ':' + (t.port || 22));
+      });
       [...new Set(urls)].slice(0, 100).forEach(u => {
         const opt = document.createElement('option');
         opt.value = u;
@@ -1066,11 +1083,17 @@ func chromeOverlayJS(port int, token string) string {
     function navigateFromInput() {
       let u = input.value.trim();
       if (!u) return;
+      if (/^settings:?$/i.test(u)) {
+        if (window.womprat_openSettings) womprat_openSettings();
+        else womprat_switchTab('settings');
+        return;
+      }
       const sshMatch = u.match(/^ssh:\/\/(?:([^@]+)@)?([^:\/]+)(?::(\d+))?/i);
       if (sshMatch) {
         const user = sshMatch[1] || 'root';
         const host = sshMatch[2];
         const port = sshMatch[3] ? parseInt(sshMatch[3], 10) : 22;
+        input.value = 'ssh://' + user + '@' + host + ':' + port;
         if (window.womprat_newTerminal) womprat_newTerminal(host, user, port);
         return;
       }
