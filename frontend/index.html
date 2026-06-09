@@ -405,6 +405,12 @@ window.openTerminal = async function(host, name, user, port, options = {}) {
     // Search: Ctrl+Shift+F
     const searchAddon = term._addonManager?._addons?.find(a => a?.instance?.findNext) || null;
     term.attachCustomKeyEventHandler((ev) => {
+      const key = ev.key.toLowerCase();
+      if (ev.ctrlKey && !ev.shiftKey && !ev.altKey && key === 'w') {
+        ev.preventDefault?.();
+        closeTab(tabId);
+        return false;
+      }
       if (ev.ctrlKey && ev.shiftKey && ev.key === 'F') {
         // TODO: show search bar UI
         return false;
