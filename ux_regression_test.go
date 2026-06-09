@@ -60,6 +60,7 @@ func TestNativeHostResizesEmbeddedShellWebView(t *testing.T) {
 		{"wrapper implementation", wrapperImpl, "func (w *webview) Resize()"},
 		{"native host shell resize", host, "m.shell.Resize()"},
 		{"native host shell hwnd", host, "shellHWND"},
+		{"native host destroy resets active", host, "wasActive := m.browserActive == tabID"},
 	} {
 		if !strings.Contains(tc.content, tc.want) {
 			t.Fatalf("%s missing %q", tc.name, tc.want)

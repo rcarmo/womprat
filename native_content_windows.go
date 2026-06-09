@@ -124,9 +124,19 @@ func (m *nativeContentManager) Destroy(tabID string) {
 	m.mu.Lock()
 	v := m.views[tabID]
 	delete(m.views, tabID)
+	wasActive := m.browserActive == tabID
+	if wasActive {
+		m.browserActive = ""
+	}
 	m.mu.Unlock()
 	if v != nil {
 		v.Destroy()
+	}
+	if wasActive {
+		// The active browser view is gone; restore the shell to full height so
+		// settings/terminal/home are not left clipped behind a stale chrome-only
+		// shell layout.
+		m.resizeAll()
 	}
 }
 
