@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"html"
 	"net/http"
 )
 
@@ -26,9 +27,9 @@ body{background:#0d1117;color:#e6edf3;font-family:system-ui,sans-serif;
 func httpError(w http.ResponseWriter, code int, msg string, detail string) {
 	detailHTML := ""
 	if detail != "" {
-		detailHTML = fmt.Sprintf(`<div class="detail">%s</div>`, detail)
+		detailHTML = fmt.Sprintf(`<div class="detail">%s</div>`, html.EscapeString(detail))
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(code)
-	fmt.Fprintf(w, errorPageTemplate, code, msg, detailHTML)
+	fmt.Fprintf(w, errorPageTemplate, code, html.EscapeString(msg), detailHTML)
 }

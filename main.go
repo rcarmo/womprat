@@ -67,6 +67,7 @@ func main() {
 		pendingAuth:  make(map[string]*pendingSSH),
 		sessionToken: token,
 	}
+	useExitNode = cfg.ExitNode != ""
 
 	// Start local HTTP server for API + shell pages
 	mux := http.NewServeMux()
@@ -261,14 +262,26 @@ func (a *App) startTailscale() error {
 	if err != nil || authKey == "" {
 		return fmt.Errorf("no tailscale auth key")
 	}
-	a.tsServer = &tsnet.Server{
+
+	ts := &tsnet.Server{
 		Hostname:  appName,
 		AuthKey:   authKey,
 		Dir:       tsnetStateDir(),
 		Ephemeral: false,
 	}
-	_, err = a.tsServer.Up(context.Background())
-	return err
+	if _, err := ts.Up(context.Background()); err != nil {
+		ts.Close()
+		return err
+	}
+
+	a.mu.Lock()
+	old := a.tsServer
+	a.tsServer = ts
+	a.mu.Unlock()
+	if old != nil {
+		old.Close()
+	}
+	return nil
 }
 
 func tsnetStateDir() string {
@@ -347,11 +360,17 @@ func (a *App) serveFrontend(w http.ResponseWriter, r *http.Request) {
 	w.Write(data)
 }
 
+func (a *App) ts() *tsnet.Server {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.tsServer
+}
+
 func (a *App) handleAuthStatus(w http.ResponseWriter, r *http.Request) {
 	_, err := GetCredential("tailscale-key")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"hasKey":    err == nil,
-		"connected": a.tsServer != nil,
+		"connected": a.ts() != nil,
 	})
 }
 
@@ -369,11 +388,12 @@ func (a *App) handleSaveKey(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleTSStatus(w http.ResponseWriter, r *http.Request) {
-	if a.tsServer == nil {
+	ts := a.ts()
+	if ts == nil {
 		json.NewEncoder(w).Encode(map[string]string{"status": "disconnected"})
 		return
 	}
-	lc, _ := a.tsServer.LocalClient()
+	lc, _ := ts.LocalClient()
 	status, err := lc.Status(r.Context())
 	if err != nil {
 		json.NewEncoder(w).Encode(map[string]string{"status": "error", "error": err.Error()})
@@ -387,11 +407,12 @@ func (a *App) handleTSStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleTSPeers(w http.ResponseWriter, r *http.Request) {
-	if a.tsServer == nil {
+	ts := a.ts()
+	if ts == nil {
 		json.NewEncoder(w).Encode([]string{})
 		return
 	}
-	lc, _ := a.tsServer.LocalClient()
+	lc, _ := ts.LocalClient()
 	status, err := lc.Status(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), 500)
@@ -432,8 +453,13 @@ func (a *App) handleSSHConnect(w http.ResponseWriter, r *http.Request) {
 		body.Port = 22
 	}
 
-	addr := fmt.Sprintf("%s:%d", body.Host, body.Port)
-	conn, err := a.tsServer.Dial(context.Background(), "tcp", addr)
+	ts := a.ts()
+	if ts == nil {
+		httpError(w, 503, "Tailscale not connected", "")
+		return
+	}
+	addr := net.JoinHostPort(body.Host, fmt.Sprintf("%d", body.Port))
+	conn, err := ts.Dial(context.Background(), "tcp", addr)
 	if err != nil {
 		httpError(w, 500, "Connection failed", err.Error())
 		return
@@ -450,7 +476,7 @@ func (a *App) handleSSHConnect(w http.ResponseWriter, r *http.Request) {
 	sshConn, chans, reqs, err := ssh.NewClientConn(conn, addr, config)
 	if err != nil {
 		conn.Close()
-		conn2, err2 := a.tsServer.Dial(context.Background(), "tcp", addr)
+		conn2, err2 := ts.Dial(context.Background(), "tcp", addr)
 		if err2 != nil {
 			httpError(w, 500, "Connection failed", err2.Error())
 			return
@@ -493,8 +519,13 @@ func (a *App) handleSSHAuthPassword(w http.ResponseWriter, r *http.Request) {
 		httpError(w, 404, "No pending auth", "")
 		return
 	}
-	addr := fmt.Sprintf("%s:%d", pending.host, pending.port)
-	conn, err := a.tsServer.Dial(context.Background(), "tcp", addr)
+	ts := a.ts()
+	if ts == nil {
+		httpError(w, 503, "Tailscale not connected", "")
+		return
+	}
+	addr := net.JoinHostPort(pending.host, fmt.Sprintf("%d", pending.port))
+	conn, err := ts.Dial(context.Background(), "tcp", addr)
 	if err != nil {
 		httpError(w, 500, "Connection failed", err.Error())
 		return

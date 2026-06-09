@@ -52,9 +52,11 @@ func (a *App) handleClearCache(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleClearCookies(w http.ResponseWriter, r *http.Request) {
-	var body struct{ Domain string `json:"domain"` }
+	var body struct {
+		Domain string `json:"domain"`
+	}
 	json.NewDecoder(r.Body).Decode(&body)
-	
+
 	if body.Domain != "" {
 		// Clear cookies for specific domain
 		deleteCookiesForDomain(body.Domain)
@@ -67,7 +69,9 @@ func (a *App) handleClearCookies(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleClearPasswords(w http.ResponseWriter, r *http.Request) {
-	var body struct{ Site string `json:"site"` }
+	var body struct {
+		Site string `json:"site"`
+	}
 	json.NewDecoder(r.Body).Decode(&body)
 
 	if body.Site != "" {
@@ -89,7 +93,9 @@ func (a *App) handleClearAll(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleSavePasswordsToggle(w http.ResponseWriter, r *http.Request) {
-	var body struct{ Enabled bool `json:"enabled"` }
+	var body struct {
+		Enabled bool `json:"enabled"`
+	}
 	json.NewDecoder(r.Body).Decode(&body)
 	a.config.SavePasswords = body.Enabled
 	SaveConfig(a.config)

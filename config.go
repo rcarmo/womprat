@@ -29,10 +29,10 @@ type AppConfig struct {
 	Hosts map[string]HostConfig `json:"hosts"`
 
 	// Browser
-	SavePasswords bool   `json:"savePasswords"`
+	SavePasswords bool `json:"savePasswords"`
 
 	// Networking
-	ExitNode    string `json:"exitNode"`    // tailnet peer to use as exit node (empty = direct)
+	ExitNode string `json:"exitNode"` // tailnet peer to use as exit node (empty = direct)
 
 	// Appearance
 	FontSize    int    `json:"fontSize"`
@@ -42,7 +42,7 @@ type AppConfig struct {
 }
 
 type SavedTab struct {
-	Type  string `json:"type"`  // "terminal" or "browser"
+	Type  string `json:"type"` // "terminal" or "browser"
 	Title string `json:"title"`
 	Host  string `json:"host,omitempty"`
 	User  string `json:"user,omitempty"`
@@ -50,10 +50,10 @@ type SavedTab struct {
 }
 
 type HostConfig struct {
-	User       string `json:"user"`
-	Port       int    `json:"port"`
-	KeyName    string `json:"keyName"` // credential name in Windows Credential Manager
-	Nickname   string `json:"nickname"`
+	User     string `json:"user"`
+	Port     int    `json:"port"`
+	KeyName  string `json:"keyName"` // credential name in Windows Credential Manager
+	Nickname string `json:"nickname"`
 }
 
 func defaultConfig() *AppConfig {

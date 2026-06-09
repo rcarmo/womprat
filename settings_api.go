@@ -8,6 +8,8 @@ import (
 	"encoding/pem"
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"golang.org/x/crypto/ssh"
@@ -15,8 +17,8 @@ import (
 
 // SSHKeyEntry stored in credential manager
 type SSHKeyEntry struct {
-	Name        string `json:"name"`
-	Fingerprint string `json:"fingerprint"`
+	Name        string   `json:"name"`
+	Fingerprint string   `json:"fingerprint"`
 	Hosts       []string `json:"hosts"`
 }
 
@@ -26,6 +28,7 @@ func (a *App) registerSettingsRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/settings/tailscale-key", a.authMiddleware(a.handleSetTailscaleKey))
 	mux.HandleFunc("/api/settings/tailscale-disconnect", a.authMiddleware(a.handleTailscaleDisconnect))
 	mux.HandleFunc("/api/settings/ssh-keys", a.authMiddleware(a.handleSSHKeys))
+	mux.HandleFunc("/api/settings/ssh-keys/", a.authMiddleware(a.handleSSHKeys))
 	mux.HandleFunc("/api/settings/ssh-keys/generate", a.authMiddleware(a.handleGenerateSSHKey))
 	mux.HandleFunc("/api/settings/hosts", a.authMiddleware(a.handleHosts))
 	mux.HandleFunc("/api/settings/hosts/", a.authMiddleware(a.handleHosts))
@@ -36,8 +39,13 @@ func (a *App) registerSettingsRoutes(mux *http.ServeMux) {
 }
 
 func (a *App) handleSetUnlockMethod(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" { http.Error(w, "method not allowed", 405); return }
-	var body struct{ Method string `json:"method"` }
+	if r.Method != "POST" {
+		http.Error(w, "method not allowed", 405)
+		return
+	}
+	var body struct {
+		Method string `json:"method"`
+	}
 	json.NewDecoder(r.Body).Decode(&body)
 	a.config.UnlockMethod = body.Method
 	SaveConfig(a.config)
@@ -45,8 +53,13 @@ func (a *App) handleSetUnlockMethod(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleSetMasterPassword(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" { http.Error(w, "method not allowed", 405); return }
-	var body struct{ Password string `json:"password"` }
+	if r.Method != "POST" {
+		http.Error(w, "method not allowed", 405)
+		return
+	}
+	var body struct {
+		Password string `json:"password"`
+	}
 	json.NewDecoder(r.Body).Decode(&body)
 	// Store PBKDF2 hash of the master password
 	hash := sha256.Sum256([]byte(body.Password + "womprat-salt"))
@@ -57,8 +70,13 @@ func (a *App) handleSetMasterPassword(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleSetTailscaleKey(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" { http.Error(w, "method not allowed", 405); return }
-	var body struct{ Key string `json:"key"` }
+	if r.Method != "POST" {
+		http.Error(w, "method not allowed", 405)
+		return
+	}
+	var body struct {
+		Key string `json:"key"`
+	}
 	json.NewDecoder(r.Body).Decode(&body)
 	if err := SaveCredential("tailscale-key", body.Key); err != nil {
 		http.Error(w, err.Error(), 500)
@@ -73,9 +91,12 @@ func (a *App) handleSetTailscaleKey(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleTailscaleDisconnect(w http.ResponseWriter, r *http.Request) {
-	if a.tsServer != nil {
-		a.tsServer.Close()
-		a.tsServer = nil
+	a.mu.Lock()
+	ts := a.tsServer
+	a.tsServer = nil
+	a.mu.Unlock()
+	if ts != nil {
+		ts.Close()
 	}
 	json.NewEncoder(w).Encode(map[string]string{"status": "disconnected"})
 }
@@ -106,8 +127,13 @@ func (a *App) handleSSHKeys(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleGenerateSSHKey(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" { http.Error(w, "method not allowed", 405); return }
-	var body struct{ Name string `json:"name"` }
+	if r.Method != "POST" {
+		http.Error(w, "method not allowed", 405)
+		return
+	}
+	var body struct {
+		Name string `json:"name"`
+	}
 	json.NewDecoder(r.Body).Decode(&body)
 
 	pub, priv, err := ed25519.GenerateKey(rand.Reader)
@@ -116,10 +142,12 @@ func (a *App) handleGenerateSSHKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	privPEM := pem.EncodeToMemory(&pem.Block{
-		Type:  "OPENSSH PRIVATE KEY",
-		Bytes: edKeyMarshal(priv),
-	})
+	privBlock, err := ssh.MarshalPrivateKey(priv, body.Name)
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	privPEM := pem.EncodeToMemory(privBlock)
 
 	sshPub, err := ssh.NewPublicKey(pub)
 	if err != nil {
@@ -148,10 +176,18 @@ func (a *App) handleHosts(w http.ResponseWriter, r *http.Request) {
 		var body map[string]interface{}
 		json.NewDecoder(r.Body).Decode(&body)
 		conf := a.config.Hosts[host]
-		if v, ok := body["user"].(string); ok { conf.User = v }
-		if v, ok := body["port"].(float64); ok { conf.Port = int(v) }
-		if v, ok := body["keyName"].(string); ok { conf.KeyName = v }
-		if v, ok := body["nickname"].(string); ok { conf.Nickname = v }
+		if v, ok := body["user"].(string); ok {
+			conf.User = v
+		}
+		if v, ok := body["port"].(float64); ok {
+			conf.Port = int(v)
+		}
+		if v, ok := body["keyName"].(string); ok {
+			conf.KeyName = v
+		}
+		if v, ok := body["nickname"].(string); ok {
+			conf.Nickname = v
+		}
 		a.config.Hosts[host] = conf
 		SaveConfig(a.config)
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
@@ -159,7 +195,10 @@ func (a *App) handleHosts(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleAppearance(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" { http.Error(w, "method not allowed", 405); return }
+	if r.Method != "POST" {
+		http.Error(w, "method not allowed", 405)
+		return
+	}
 	var body struct {
 		FontSize    int    `json:"fontSize"`
 		Theme       string `json:"theme"`
@@ -181,24 +220,28 @@ func (a *App) handleGetConfig(w http.ResponseWriter, r *http.Request) {
 
 // Helper: list SSH keys from credential store
 func (a *App) listSSHKeys() []SSHKeyEntry {
-	// TODO: enumerate credentials with prefix "ssh-key/"
-	// For now, return from config
 	entries := []SSHKeyEntry{}
-	// Scan known key names from config hosts
-	seen := map[string]bool{}
-	for _, h := range a.config.Hosts {
-		if h.KeyName != "" && !seen[h.KeyName] {
-			seen[h.KeyName] = true
-			keyData, err := GetCredential("ssh-key/" + h.KeyName)
-			if err == nil {
-				fp := fingerprintFromPEM(keyData)
-				hosts := []string{}
-				for name, hc := range a.config.Hosts {
-					if hc.KeyName == h.KeyName { hosts = append(hosts, name) }
-				}
-				entries = append(entries, SSHKeyEntry{Name: h.KeyName, Fingerprint: fp, Hosts: hosts})
+	keyDir := filepath.Join(configDir(), "creds", "ssh-key")
+	files, err := os.ReadDir(keyDir)
+	if err != nil {
+		return entries
+	}
+	for _, f := range files {
+		if f.IsDir() {
+			continue
+		}
+		name := f.Name()
+		keyData, err := GetCredential("ssh-key/" + name)
+		if err != nil {
+			continue
+		}
+		hosts := []string{}
+		for host, hc := range a.config.Hosts {
+			if hc.KeyName == name {
+				hosts = append(hosts, host)
 			}
 		}
+		entries = append(entries, SSHKeyEntry{Name: name, Fingerprint: fingerprintFromPEM(keyData), Hosts: hosts})
 	}
 	return entries
 }
@@ -226,34 +269,35 @@ func fingerprintFromPEM(pemData string) string {
 	return ssh.FingerprintSHA256(signer.PublicKey())
 }
 
-// Placeholder for ed25519 key marshaling (openssh format)
-func edKeyMarshal(key ed25519.PrivateKey) []byte {
-	// TODO: proper openssh private key format marshaling
-	return key
-}
-
 func (a *App) handleExitNode(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "GET":
 		json.NewEncoder(w).Encode(map[string]string{"exitNode": a.config.ExitNode})
 	case "POST":
-		var body struct{ ExitNode string `json:"exitNode"` }
+		var body struct {
+			ExitNode string `json:"exitNode"`
+		}
 		json.NewDecoder(r.Body).Decode(&body)
 		a.config.ExitNode = body.ExitNode
 		SaveConfig(a.config)
-		// Toggle proxy mode
-		if body.ExitNode != "" {
-			useExitNode = true
-		} else {
-			useExitNode = false
-		}
+		// Toggle proxy routing mode. Actual Tailscale exit-node selection is still
+		// handled by tsnet/control state; this flag only decides whether the local
+		// SOCKS proxy sends public destinations to tsnet or direct.
+		a.mu.Lock()
+		useExitNode = body.ExitNode != ""
+		a.mu.Unlock()
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok", "exitNode": body.ExitNode})
 	}
 }
 
 func (a *App) handleSaveTabs(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" { http.Error(w, "method not allowed", 405); return }
-	var body struct{ Tabs []SavedTab `json:"tabs"` }
+	if r.Method != "POST" {
+		http.Error(w, "method not allowed", 405)
+		return
+	}
+	var body struct {
+		Tabs []SavedTab `json:"tabs"`
+	}
 	json.NewDecoder(r.Body).Decode(&body)
 	a.config.OpenTabs = body.Tabs
 	SaveConfig(a.config)

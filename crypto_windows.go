@@ -8,11 +8,11 @@ import (
 )
 
 var (
-	crypt32              = syscall.NewLazyDLL("crypt32.dll")
-	kernel32             = syscall.NewLazyDLL("kernel32.dll")
-	procCryptProtectData = crypt32.NewProc("CryptProtectData")
+	crypt32                = syscall.NewLazyDLL("crypt32.dll")
+	kernel32               = syscall.NewLazyDLL("kernel32.dll")
+	procCryptProtectData   = crypt32.NewProc("CryptProtectData")
 	procCryptUnprotectData = crypt32.NewProc("CryptUnprotectData")
-	procLocalFree        = kernel32.NewProc("LocalFree")
+	procLocalFree          = kernel32.NewProc("LocalFree")
 )
 
 type dataBlob struct {
@@ -23,9 +23,13 @@ type dataBlob struct {
 // encryptConfig encrypts data using Windows DPAPI (user-scope)
 // Only the same Windows user account can decrypt it.
 func encryptConfig(plaintext []byte) ([]byte, error) {
+	var p *byte
+	if len(plaintext) > 0 {
+		p = &plaintext[0]
+	}
 	input := dataBlob{
 		cbData: uint32(len(plaintext)),
-		pbData: &plaintext[0],
+		pbData: p,
 	}
 	var output dataBlob
 
@@ -51,6 +55,9 @@ func encryptConfig(plaintext []byte) ([]byte, error) {
 
 // decryptConfig decrypts data encrypted with encryptConfig
 func decryptConfig(ciphertext []byte) ([]byte, error) {
+	if len(ciphertext) == 0 {
+		return nil, syscall.EINVAL
+	}
 	input := dataBlob{
 		cbData: uint32(len(ciphertext)),
 		pbData: &ciphertext[0],

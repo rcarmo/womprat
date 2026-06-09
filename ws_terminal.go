@@ -3,12 +3,11 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
-	"strings"
 	"io"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 	"sync"
 
 	"golang.org/x/crypto/ssh"
@@ -188,17 +187,25 @@ func (a *App) getSSHAuthMethods(host string) []ssh.AuthMethod {
 		}
 	}
 
-	// Try all stored keys as fallback
-	credsDir := filepath.Join(configDir(), "creds")
-	entries, _ := os.ReadDir(credsDir)
+	// Try all stored keys as fallback. Keys are stored under creds/ssh-key/<name>.
+	keyDir := filepath.Join(configDir(), "creds", "ssh-key")
+	entries, _ := os.ReadDir(keyDir)
 	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
 		name := e.Name()
-		if !strings.HasPrefix(name, "ssh-key") { continue }
-		if hostConf.KeyName != "" && strings.HasSuffix(name, hostConf.KeyName) { continue } // already tried
-		keyData, err := os.ReadFile(filepath.Join(credsDir, name))
-		if err != nil { continue }
-		signer, err := ssh.ParsePrivateKey(keyData)
-		if err != nil { continue }
+		if hostConf.KeyName != "" && name == hostConf.KeyName {
+			continue // already tried
+		}
+		keyData, err := GetCredential("ssh-key/" + name)
+		if err != nil {
+			continue
+		}
+		signer, err := ssh.ParsePrivateKey([]byte(keyData))
+		if err != nil {
+			continue
+		}
 		signers = append(signers, signer)
 	}
 
