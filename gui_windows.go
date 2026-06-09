@@ -26,6 +26,7 @@ var (
 	procTranslateMessage    = hostUser32.NewProc("TranslateMessage")
 	procDispatchMessageW    = hostUser32.NewProc("DispatchMessageW")
 	procPostQuitMessage     = hostUser32.NewProc("PostQuitMessage")
+	procSetFocus            = hostUser32.NewProc("SetFocus")
 )
 
 // wompratDarkColor is the Fluent dark surface used so the native host/child
@@ -234,6 +235,11 @@ func runGUI(app *App, shellURL string) {
 		if activeHost != nil {
 			activeHost.resizeAll()
 		}
+	})
+	w.Bind("womprat_focusShell", func() {
+		// Move OS keyboard focus to the shell child so the URL bar can receive the
+		// caret when triggered from a focused browser content WebView.
+		procSetFocus.Call(shellChild)
 	})
 
 	log.Printf("gui: navigating shell to %s", shellURL)

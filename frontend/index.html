@@ -283,7 +283,7 @@ window.wompratOnHostResize = function() {
 };
 window.wompratBrowserHotkey = function(action, arg) {
   switch (action) {
-    case 'focusUrl': focusAddress(true); break;
+    case 'focusUrl': if (window.womprat_focusShell) womprat_focusShell(); focusAddress(true); break;
     case 'newTab': newBlankTab(); break;
     case 'closeTab': closeActiveShellTab(); break;
     // Browser nav goes straight to the native content view (Go is authoritative
@@ -972,9 +972,9 @@ function installBrowserHotkeys() {
       if (ctrl && e.shiftKey && /^[1-9]$/.test(key)) { e.preventDefault(); switchTabAt(key === '9' ? 8 : Number(key) - 1); return; }
       return;
     }
-    if (e.altKey && !ctrl && key === 'arrowleft') { e.preventDefault(); history.back(); return; }
-    if (e.altKey && !ctrl && key === 'arrowright') { e.preventDefault(); history.forward(); return; }
-    if (key === 'f5' || (ctrl && key === 'r')) { e.preventDefault(); location.reload(); return; }
+    if (e.altKey && !ctrl && key === 'arrowleft') { e.preventDefault(); historyBack(); return; }
+    if (e.altKey && !ctrl && key === 'arrowright') { e.preventDefault(); historyForward(); return; }
+    if (key === 'f5' || (ctrl && key === 'r')) { e.preventDefault(); historyReload(); return; }
     if (ctrl && (key === '+' || key === '=')) { e.preventDefault(); adjustActiveContentZoom(0.1); return; }
     if (ctrl && (key === '-' || key === '_')) { e.preventDefault(); adjustActiveContentZoom(-0.1); return; }
     if (ctrl && key === '0') { e.preventDefault(); resetActiveContentZoom(); return; }
