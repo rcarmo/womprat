@@ -16,6 +16,7 @@ import (
 	"runtime/debug"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -30,9 +31,14 @@ var useExitNode = false
 const appName = "womprat"
 
 var (
-	version = "0.1.0"
-	commit  = "dev"
+	version       = "0.1.0"
+	commit        = "dev"
+	tabIDSequence uint64
 )
+
+func newTabID(prefix string) string {
+	return fmt.Sprintf("%s-%d-%d", prefix, time.Now().UnixMilli(), atomic.AddUint64(&tabIDSequence, 1))
+}
 
 type pendingSSH struct {
 	host string
@@ -65,23 +71,32 @@ type browserContentView interface {
 	Reload()
 	Show()
 	Hide()
+	Destroy()
+}
+
+type browserContentManager interface {
+	Ensure(tabID string) browserContentView
+	Get(tabID string) browserContentView
+	Show(tabID string)
+	HideAll()
+	Destroy(tabID string)
 }
 
 type App struct {
-	mu             sync.Mutex
-	config         *AppConfig
-	tsServer       *tsnet.Server
-	tabs           []Tab
-	activeTab      string
-	sshConns       map[string]*ssh.Client
-	pendingAuth    map[string]*pendingSSH
-	sessionToken   string
-	locked         bool
-	webview        shellWebView
-	contentWebView browserContentView
-	serverPort     int
-	lastCloseAt    time.Time
-	lastCloseTab   string
+	mu           sync.Mutex
+	config       *AppConfig
+	tsServer     *tsnet.Server
+	tabs         []Tab
+	activeTab    string
+	sshConns     map[string]*ssh.Client
+	pendingAuth  map[string]*pendingSSH
+	sessionToken string
+	locked       bool
+	webview      shellWebView
+	contentViews browserContentManager
+	serverPort   int
+	lastCloseAt  time.Time
+	lastCloseTab string
 }
 
 func main() {
@@ -157,11 +172,25 @@ func (a *App) navigateBrowser(url string) {
 	a.persistOpenTabs()
 	if tabID != "" {
 		a.evalShell("window.showBrowserTab(%s,%s)", jsString(tabID), jsString(url))
-		if a.contentWebView != nil {
-			a.contentWebView.Show()
-			a.contentWebView.Navigate(url)
+		if a.contentViews != nil {
+			view := a.contentViews.Ensure(tabID)
+			a.contentViews.Show(tabID)
+			view.Navigate(url)
 		}
 	}
+}
+
+func (a *App) activeContentView() browserContentView {
+	if a.contentViews == nil {
+		return nil
+	}
+	a.mu.Lock()
+	active := a.activeTab
+	a.mu.Unlock()
+	if active == "" {
+		return nil
+	}
+	return a.contentViews.Get(active)
 }
 
 func (a *App) updateActiveBrowserTitle(title, url, favicon string) {
@@ -239,13 +268,16 @@ func (a *App) switchTab(tabID string) {
 	switch tab.Type {
 	case "browser":
 		a.evalShell("window.activateTab(%s)", jsString(tabID))
-		if a.contentWebView != nil {
-			a.contentWebView.Show()
-			a.contentWebView.Navigate(tab.URL)
+		if a.contentViews != nil {
+			view := a.contentViews.Ensure(tabID)
+			a.contentViews.Show(tabID)
+			if tab.URL != "" {
+				view.Navigate(tab.URL)
+			}
 		}
 	case "terminal", "settings":
-		if a.contentWebView != nil {
-			a.contentWebView.Hide()
+		if a.contentViews != nil {
+			a.contentViews.HideAll()
 		}
 		a.evalShell("window.activateTab(%s)", jsString(tabID))
 	}
@@ -304,6 +336,9 @@ func (a *App) forgetTab(tabID string) {
 		a.activeTab = ""
 	}
 	a.mu.Unlock()
+	if a.contentViews != nil {
+		a.contentViews.Destroy(tabID)
+	}
 	a.persistOpenTabs()
 }
 
@@ -344,6 +379,9 @@ func (a *App) closeTab(tabID string) {
 	}
 	nextActive := a.activeTab
 	a.mu.Unlock()
+	if a.contentViews != nil {
+		a.contentViews.Destroy(tabID)
+	}
 	a.persistOpenTabs()
 
 	if len(newTabs) == 0 || nextActive == "" {
@@ -357,16 +395,17 @@ func (a *App) newBrowserTab(url string) {
 	if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
 		url = "http://" + url
 	}
-	tabID := fmt.Sprintf("browser-%d", time.Now().UnixMilli())
+	tabID := newTabID("browser")
 	a.mu.Lock()
 	a.tabs = append(a.tabs, Tab{ID: tabID, Type: "browser", Title: url, URL: url})
 	a.activeTab = tabID
 	a.mu.Unlock()
 	a.persistOpenTabs()
 	a.evalShell("window.showBrowserTab(%s,%s)", jsString(tabID), jsString(url))
-	if a.contentWebView != nil {
-		a.contentWebView.Show()
-		a.contentWebView.Navigate(url)
+	if a.contentViews != nil {
+		view := a.contentViews.Ensure(tabID)
+		a.contentViews.Show(tabID)
+		view.Navigate(url)
 	}
 }
 
@@ -376,8 +415,8 @@ func (a *App) openSettingsTab() {
 	a.tabs = upsertTab(a.tabs, tab)
 	a.activeTab = tab.ID
 	a.mu.Unlock()
-	if a.contentWebView != nil {
-		a.contentWebView.Hide()
+	if a.contentViews != nil {
+		a.contentViews.HideAll()
 	}
 	a.evalShell("window.activateTab(%s)", jsString(tab.ID))
 }
@@ -389,14 +428,14 @@ func (a *App) newTerminalTab(host, user string, port int) {
 	if port == 0 {
 		port = 22
 	}
-	tabID := fmt.Sprintf("term-%d", time.Now().UnixMilli())
+	tabID := newTabID("term")
 	a.mu.Lock()
 	a.tabs = upsertTab(a.tabs, Tab{ID: tabID, Type: "terminal", Title: host, Host: host, User: user, Port: port})
 	a.activeTab = tabID
 	a.mu.Unlock()
 	a.persistOpenTabs()
-	if a.contentWebView != nil {
-		a.contentWebView.Hide()
+	if a.contentViews != nil {
+		a.contentViews.HideAll()
 	}
 	a.evalShell("window.activateTab(%s)", jsString(tabID))
 }
@@ -446,6 +485,9 @@ func (a *App) clearActiveTab() {
 
 func (a *App) goHome() {
 	a.clearActiveTab()
+	if a.contentViews != nil {
+		a.contentViews.HideAll()
+	}
 	shellURL := fmt.Sprintf("http://127.0.0.1:%d/?v=%d", a.serverPort, time.Now().UnixMilli())
 	a.webview.Navigate(shellURL)
 }

@@ -29,12 +29,12 @@ func runGUI(app *App, shellURL string) {
 	defer w.Destroy()
 	app.webview = w
 
-	content, err := newNativeContentView(w.Window(), webviewDataPath())
+	content, err := newNativeContentManager(w.Window(), webviewDataPath())
 	if err != nil {
-		log.Printf("content WebView unavailable: %v", err)
+		log.Printf("content WebView manager unavailable: %v", err)
 	} else {
-		app.contentWebView = content
-		content.Hide()
+		app.contentViews = content
+		content.HideAll()
 	}
 
 	// Set native title bar appearance
@@ -69,20 +69,20 @@ func runGUI(app *App, shellURL string) {
 	})
 
 	w.Bind("womprat_browserBack", func() {
-		if app.contentWebView != nil {
-			app.contentWebView.GoBack()
+		if view := app.activeContentView(); view != nil {
+			view.GoBack()
 		}
 	})
 
 	w.Bind("womprat_browserForward", func() {
-		if app.contentWebView != nil {
-			app.contentWebView.GoForward()
+		if view := app.activeContentView(); view != nil {
+			view.GoForward()
 		}
 	})
 
 	w.Bind("womprat_browserReload", func() {
-		if app.contentWebView != nil {
-			app.contentWebView.Reload()
+		if view := app.activeContentView(); view != nil {
+			view.Reload()
 		}
 	})
 
