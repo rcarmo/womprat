@@ -255,7 +255,7 @@ window.openTerminal = async function(host, name, user, port) {
   const container = panel.querySelector('.term-container');
 
   // Create terminal immediately with "Connecting..." message
-  const term = new Terminal({ cursorBlink: true, fontSize: 14, bellStyle: 'sound', copyOnSelect: true, rightClickSelectsWord: true,
+  const term = new Terminal({ allowProposedApi: true, cursorBlink: true, fontSize: 14, bellStyle: 'sound', copyOnSelect: true, rightClickSelectsWord: true,
     fontFamily: 'FiraCode Nerd Font Mono, monospace',
     fontWeight: '400', fontWeightBold: '700',
     theme: { background: '#202020', foreground: '#fff', cursor: '#60cdff',
@@ -473,7 +473,7 @@ function activateTab(id) {
                  id="url-${id}">
           <button onclick="navigateTab('${id}')">Go</button>
         </div>
-        <iframe class="browser-frame" src="${tab.url}"></iframe>`;
+        <iframe class="browser-frame" src="${tab.type==='settings' ? tab.url : '/p/' + encodeURIComponent(tab.url)}"></iframe>`;
     }
     panels.appendChild(panel);
   }
@@ -512,7 +512,7 @@ window.navigateTab = function(id) {
   let navUrl = url;
   if (!/^https?:\/\//.test(navUrl)) navUrl = 'http://' + navUrl;
   const iframe = document.querySelector(`#panel-${id} iframe`);
-  if (iframe) iframe.src = navUrl;
+  if (iframe) iframe.src = '/p/' + encodeURIComponent(navUrl);
 };
 
 window.openSettings = function() {

@@ -28,6 +28,7 @@ func (a *App) registerSettingsRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/settings/ssh-keys", a.authMiddleware(a.handleSSHKeys))
 	mux.HandleFunc("/api/settings/ssh-keys/generate", a.authMiddleware(a.handleGenerateSSHKey))
 	mux.HandleFunc("/api/settings/hosts", a.authMiddleware(a.handleHosts))
+	mux.HandleFunc("/api/settings/hosts/", a.authMiddleware(a.handleHosts))
 	mux.HandleFunc("/api/settings/appearance", a.authMiddleware(a.handleAppearance))
 	mux.HandleFunc("/api/settings/exit-node", a.authMiddleware(a.handleExitNode))
 	mux.HandleFunc("/api/settings/save-tabs", a.authMiddleware(a.handleSaveTabs))
