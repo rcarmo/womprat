@@ -602,9 +602,11 @@ function activateTab(id) {
   const tab = state.tabs.find(t => t.id === id);
   if (!tab) return;
 
-  // External browser tabs must never be represented as shell iframes.
+  // External browser tabs must never be represented as shell iframes. Switching
+  // to an existing browser tab must preserve its Go-side tab ID; creating a new
+  // browser tab here duplicates state and makes failures look like tab loss.
   if (tab.type === 'browser') {
-    if (window.womprat_newBrowser) womprat_newBrowser(tab.url || tab.title || 'about:blank');
+    if (window.womprat_switchTab) womprat_switchTab(tab.id);
     else location.href = tab.url || tab.title || 'about:blank';
     return;
   }

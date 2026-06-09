@@ -85,6 +85,7 @@ func handleSOCKS5(conn net.Conn, app *App) {
 	// non-tailnet destinations fail closed instead of escaping locally.
 	remote, err := ts.Dial(context.Background(), "tcp", addr)
 	if err != nil {
+		log.Printf("SOCKS5 tsnet dial failed for %s: %v", addr, err)
 		writeSOCKSReply(conn, 0x05)
 		return
 	}
