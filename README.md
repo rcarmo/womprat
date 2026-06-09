@@ -2,7 +2,7 @@
 
 ![womprat icon](docs/icon-256.png)
 
-`womprat` is a portable Windows (ARM64 and Intel) SSH terminal and browser for your tailnet. It embeds Tailscale with `tsnet`, opens SSH sessions in tabbed terminals, and navigates WebView2 browser tabs through the same Tailscale path, so you can reach machines and web UIs on your tailnet from anywhere without installing the full Tailscale client on the host.
+`womprat` is a portable Windows (ARM64 and Intel) SSH terminal and browser for your tailnet. It embeds Tailscale with `tsnet`, opens SSH sessions in tabbed terminals, and provides native WebView2 browser tabs through the same Tailscale connection, so you can reach machines and web UIs on your tailnet from anywhere without installing the full Tailscale client.
 
 This is meant to be dead simple: copy one executable, launch it, unlock your saved configuration, and get to the things that normally require a VPN client, a browser, an SSH client, and a pile of local setup.
 
