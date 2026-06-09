@@ -809,6 +809,23 @@ func chromeOverlayJS(port int, token string) string {
     const input = document.getElementById('womprat-url');
     input.value = location.href;
 
+    function installChromeZoomCompensation() {
+      const baseDPR = window.devicePixelRatio || 1;
+      function apply() {
+        const dprRatio = (window.devicePixelRatio || baseDPR) / baseDPR;
+        const viewportScale = window.visualViewport?.scale || 1;
+        const zoom = Math.max(0.25, dprRatio * viewportScale);
+        const inv = 1 / zoom;
+        document.documentElement.style.setProperty('--womprat-chrome-scale', String(inv));
+        document.documentElement.style.setProperty('--womprat-chrome-width', (100 * zoom) + 'vw');
+        document.documentElement.style.setProperty('--womprat-chrome-offset', (84 * inv) + 'px');
+      }
+      apply();
+      window.addEventListener('resize', apply, { passive: true });
+      window.visualViewport?.addEventListener('resize', apply, { passive: true });
+      setInterval(apply, 500);
+    }
+
     function navigateFromInput() {
       let u = input.value.trim();
       if (!u) return;
@@ -937,6 +954,7 @@ func chromeOverlayJS(port int, token string) string {
       } catch (e) {}
     }
 
+    installChromeZoomCompensation();
     installTitleReporter();
     installDownloadInterceptor();
     updateRoutePill(true);
@@ -952,7 +970,9 @@ func chromeOverlayJS(port int, token string) string {
 }
 
 var chromeOverlayCSS = "`" + `
-#womprat-chrome{position:fixed!important;top:0!important;left:0!important;right:0!important;height:84px!important;
+:root{--womprat-chrome-scale:1;--womprat-chrome-width:100vw;--womprat-chrome-offset:84px}
+#womprat-chrome{position:fixed!important;top:0!important;left:0!important;right:auto!important;width:var(--womprat-chrome-width)!important;height:84px!important;
+  transform:scale(var(--womprat-chrome-scale))!important;transform-origin:top left!important;
   background:rgba(32,32,32,.97)!important;backdrop-filter:blur(10px)!important;display:flex!important;
   flex-direction:column!important;z-index:2147483647!important;font:14px/1.2 'Segoe UI Variable','Segoe UI',system-ui,sans-serif!important;
   color:#f3f3f3!important;border-bottom:1px solid rgba(255,255,255,.10)!important;box-sizing:border-box!important}
@@ -987,6 +1007,6 @@ var chromeOverlayCSS = "`" + `
 #womprat-chrome #womprat-route.active{display:inline-flex!important}
 #womprat-chrome #womprat-route.loading::after{content:""!important;width:6px!important;height:6px!important;border-radius:50%!important;background:currentColor!important;margin-left:6px!important;animation:wompratPulse 1s infinite ease-in-out!important}
 @keyframes wompratPulse{0%,100%{opacity:.35;transform:scale(.85)}50%{opacity:1;transform:scale(1.15)}}
-html{height:100%!important;overflow:hidden!important;scroll-padding-top:84px!important}
-body{height:calc(100vh - 84px)!important;overflow:auto!important;margin-top:84px!important;padding-top:0!important;box-sizing:border-box!important}
+html{height:100%!important;overflow:hidden!important;scroll-padding-top:var(--womprat-chrome-offset)!important}
+body{height:calc(100vh - var(--womprat-chrome-offset))!important;overflow:auto!important;margin-top:var(--womprat-chrome-offset)!important;padding-top:0!important;box-sizing:border-box!important}
 ` + "`"
