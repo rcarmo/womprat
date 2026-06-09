@@ -233,6 +233,15 @@ function applyStaticIcons(root = document) {
 }
 
 const state = { tabs: [], activeTab: null };
+function escapeHTML(value) {
+  return String(value ?? '').replace(/[&<>'"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch]));
+}
+function jsArg(value) { return JSON.stringify(String(value ?? '')); }
+function registerLocalTab(tab) {
+  if (window.womprat_registerLocalTab) {
+    womprat_registerLocalTab(JSON.stringify(tab));
+  }
+}
 applyStaticIcons();
 
 function purgeLegacyExternalIframes() {
@@ -285,32 +294,38 @@ async function loadPeers() {
   const res = await fetch('/api/tailscale/peers');
   const peers = await res.json();
   const menu = document.getElementById('peer-menu');
-  menu.innerHTML = peers.map(p => `
-    <div class="peer-item" data-host="${p.name}" data-ip="${p.ips[0] || ''}">
+  menu.innerHTML = peers.map(p => {
+    const host = p.ips?.[0] || p.name || '';
+    const title = p.name || host;
+    const web = `http://${host}:8080`;
+    return `
+    <div class="peer-item" data-host="${escapeHTML(title)}" data-ip="${escapeHTML(host)}">
       <span class="peer-dot ${p.online?'online':'offline'}"></span>
-      <span>${p.name}</span>
-      <span style="color:var(--dim);font-size:.72rem">${p.os}</span>
+      <span>${escapeHTML(title)}</span>
+      <span style="color:var(--dim);font-size:.72rem">${escapeHTML(p.os || '')}</span>
       <div class="peer-actions">
-        <button onclick="openTerminal('${p.ips[0] || p.name}','${p.name}','root',22)">SSH</button>
-        <button onclick="openBrowser('http://${p.ips[0] || p.name}:8080','${p.name}')">Web</button>
+        <button onclick="openTerminal(${jsArg(host)},${jsArg(title)},'root',22)">SSH</button>
+        <button onclick="openBrowser(${jsArg(web)},${jsArg(title)})">Web</button>
       </div>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
 }
 
 window.togglePeerMenu = function() {
   document.getElementById('peer-menu').classList.toggle('show');
 };
 
-window.openTerminal = async function(host, name, user, port) {
-  document.getElementById('peer-menu').classList.remove('show');
-  const tabId = `term-${Date.now()}`;
+window.openTerminal = async function(host, name, user, port, options = {}) {
+  document.getElementById('peer-menu')?.classList.remove('show');
+  const tabId = options.id || `term-${Date.now()}`;
   const sshUser = user || 'root';
   const sshPort = port || 22;
-  const tab = { id: tabId, type: 'terminal', title: name, host, user: sshUser, port: sshPort };
+  const tab = { id: tabId, type: 'terminal', title: name || host, host, user: sshUser, port: sshPort };
+  state.tabs = state.tabs.filter(t => t.id !== tabId);
   state.tabs.push(tab);
   renderTabs();
   activateTab(tabId);
+  if (!options.skipRegister) registerLocalTab(tab);
   saveOpenTabs(); updateHomeVisibility();
 
   const panel = document.getElementById(`panel-${tabId}`);
@@ -498,6 +513,7 @@ window.openBrowser = function(url, name) {
 window.closeTab = function(id, e) {
   e.stopPropagation();
   state.tabs = state.tabs.filter(t => t.id !== id);
+  if (window.womprat_closeTab) womprat_closeTab(id);
   saveOpenTabs(); updateHomeVisibility();
   document.getElementById(`panel-${id}`)?.remove();
   renderTabs();
@@ -513,7 +529,7 @@ function renderTabs() {
     const el = document.createElement('div');
     el.className = `tab${tab.id === state.activeTab ? ' active' : ''}`;
     el.onclick = () => activateTab(tab.id);
-    el.innerHTML = `${icon(tab.type === 'terminal' ? 'terminal' : tab.type === 'settings' ? 'settings' : 'globe')} <span class="tab-title">${tab.title}</span> <span class="tab-close" onclick="closeTab('${tab.id}',event)" title="Close">${icon('dismiss')}</span>`;
+    el.innerHTML = `${icon(tab.type === 'terminal' ? 'terminal' : tab.type === 'settings' ? 'settings' : 'globe')} <span class="tab-title">${escapeHTML(tab.title)}</span> <span class="tab-close" onclick="closeTab(${jsArg(tab.id)},event)" title="Close">${icon('dismiss')}</span>`;
     bar.insertBefore(el, plus);
   });
 }
@@ -590,7 +606,9 @@ window.navigateTab = function(id) {
 window.openSettings = function() {
   const tabId = 'settings';
   if (!state.tabs.find(t => t.id === tabId)) {
-    state.tabs.push({ id: tabId, type: 'settings', title: 'Settings', url: '/settings.html' });
+    const tab = { id: tabId, type: 'settings', title: 'Settings', url: '/settings.html' };
+    state.tabs.push(tab);
+    registerLocalTab(tab);
     renderTabs();
   }
   activateTab(tabId);
@@ -606,15 +624,39 @@ async function loadRecentTabs() {
       list.innerHTML = '<div style="color:var(--dim);font-size:.85em">No recent tabs</div>';
       return;
     }
-    list.innerHTML = tabs.map(t => `
-      <div class="recent-item" onclick="${t.type==='terminal'
-        ? `openTerminal('${t.host}','${t.title}','${t.user||'root'}',${t.port||22})`
-        : `openBrowser('${t.url}','${t.title}')`}">
+    list.innerHTML = tabs.map(t => {
+      const action = t.type === 'terminal'
+        ? `openTerminal(${jsArg(t.host)},${jsArg(t.title)},${jsArg(t.user || 'root')},${Number(t.port || 22)})`
+        : `openBrowser(${jsArg(t.url)},${jsArg(t.title)})`;
+      const detail = t.type === 'terminal'
+        ? `${t.user || 'root'}@${t.host}:${t.port || 22}`
+        : (t.url || '');
+      return `
+      <div class="recent-item" onclick="${action}">
         <span>${icon(t.type === 'terminal' ? 'terminal' : 'globe')}</span>
-        <span style="font-weight:600">${t.title}</span>
-        <span style="color:var(--dim);font-size:.8em;margin-left:auto">${t.type==='terminal' ? (t.user||'root') + '@' + t.host + ':' + (t.port||22) : t.url}</span>
-      </div>
-    `).join('');
+        <span style="font-weight:600">${escapeHTML(t.title)}</span>
+        <span style="color:var(--dim);font-size:.8em;margin-left:auto">${escapeHTML(detail)}</span>
+      </div>`;
+    }).join('');
+  } catch {}
+}
+
+async function hydrateNativeTabs() {
+  if (!window.womprat_getTabs) return;
+  try {
+    const native = JSON.parse(await womprat_getTabs());
+    const localTabs = (native.tabs || []).filter(t => t.type === 'terminal' || t.type === 'settings');
+    const requested = new URLSearchParams(location.search).get('tab') || native.activeTab;
+    const target = localTabs.find(t => t.id === requested);
+    state.tabs = localTabs.filter(t => !target || t.id !== target.id);
+    renderTabs();
+    updateHomeVisibility();
+    if (target?.type === 'terminal') {
+      await openTerminal(target.host, target.title || target.host, target.user || 'root', target.port || 22, { id: target.id, skipRegister: true });
+    } else if (target?.type === 'settings') {
+      if (!state.tabs.find(t => t.id === 'settings')) state.tabs.push(target);
+      activateTab('settings');
+    }
   } catch {}
 }
 
@@ -689,6 +731,7 @@ window.addEventListener('message', (e) => {
 });
 checkAuth();
 loadRecentTabs();
+hydrateNativeTabs();
 </script>
 
 <div id="download-bar">

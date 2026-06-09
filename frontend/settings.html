@@ -293,17 +293,29 @@ window.fetch = (url, opts = {}) => {
 };
 </script>
 <script>
+function escapeHTML(value) {
+  return String(value ?? '').replace(/[&<>'"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch]));
+}
+function jsArg(value) { return JSON.stringify(String(value ?? '')); }
+function setStatus(id, kind, text) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.innerHTML = `<span class="status ${kind}">${escapeHTML(text)}</span>`;
+}
+
 function showTab(id) {
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById('panel-'+id).classList.add('active');
-  event.target.classList.add('active');
+  document.getElementById('panel-'+id)?.classList.add('active');
+  const target = window.event?.target;
+  if (target?.classList?.contains('tab-btn')) target.classList.add('active');
 }
 
 function selectUnlock(method) {
   document.querySelectorAll('.option').forEach(o => o.classList.remove('selected'));
-  event.currentTarget.classList.add('selected');
-  document.querySelector(`input[value="${method}"]`).checked = true;
+  window.event?.currentTarget?.classList.add('selected');
+  const input = document.querySelector(`input[value="${CSS.escape(method)}"]`);
+  if (input) input.checked = true;
   document.getElementById('master-pw-section').style.display = method==='master' ? 'block' : 'none';
   fetch('/api/settings/unlock-method', {
     method:'POST', headers:{'Content-Type':'application/json'},
@@ -313,19 +325,18 @@ function selectUnlock(method) {
 
 function toggleVis(id) {
   const el = document.getElementById(id);
-  el.type = el.type==='password' ? 'text' : 'password';
+  if (el) el.type = el.type==='password' ? 'text' : 'password';
 }
 
 async function setMasterPassword() {
   const pw1 = document.getElementById('pw1').value;
   const pw2 = document.getElementById('pw2').value;
-  const status = document.getElementById('pw-status');
-  if (!pw1 || pw1 !== pw2) { status.innerHTML = '<span class="status err">Passwords don\'t match</span>'; return; }
+  if (!pw1 || pw1 !== pw2) { setStatus('pw-status', 'err', "Passwords don't match"); return; }
   const res = await fetch('/api/settings/master-password', {
     method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({password: pw1})
   });
-  status.innerHTML = res.ok ? '<span class="status ok">Password set ✓</span>' : '<span class="status err">Failed</span>';
+  setStatus('pw-status', res.ok ? 'ok' : 'err', res.ok ? 'Password set' : 'Failed');
 }
 
 async function saveTailscale() {
@@ -335,171 +346,88 @@ async function saveTailscale() {
     method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({key})
   });
-  const data = await res.json();
+  const data = await res.json().catch(()=>({}));
   document.getElementById('ts-key').value = '';
-  async function loadExitNodes() {
-  const peers = await fetch('/api/tailscale/peers').then(r=>r.json()).catch(()=>[]);
-  const sel = document.getElementById('exit-node');
-  const conf = await fetch('/api/settings/exit-node').then(r=>r.json()).catch(()=>({}));
-  peers.filter(p=>p.online).forEach(p => {
-    const opt = document.createElement('option');
-    opt.value = p.name;
-    opt.textContent = p.name + ' (' + (p.ips[0]||'') + ')';
-    if (conf.exitNode === p.name) opt.selected = true;
-    sel.appendChild(opt);
-  });
-}
-async function setExitNode(node) {
-  const res = await fetch('/api/settings/exit-node', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({exitNode: node})
-  });
-  const el = document.getElementById('exit-status');
-  if (node) {
-    el.innerHTML = '<span class="status ok">Internet via ' + node + '</span>';
-  } else {
-    el.innerHTML = '<span class="status warn">Tailnet only</span>';
-  }
-}
-
-async function loadBrowserSettings() {
-  try {
-    const res = await fetch('/api/settings/browser');
-    const data = await res.json();
-    document.getElementById('cache-size').textContent = data.cacheSize || '0 KB';
-    document.getElementById('save-passwords').checked = data.savePasswords !== false;
-    
-    // Cookies table
-    const ct = document.getElementById('cookies-table');
-    if (data.cookies && data.cookies.length) {
-      ct.innerHTML = data.cookies.map(c => `<tr>
-        <td class="mono" style="font-size:.78rem">${c.domain}</td>
-        <td>${c.count}</td>
-        <td><button class="btn-danger" onclick="clearCookiesFor('${c.domain}')" style="padding:.15rem .4rem;font-size:.7rem">✕</button></td>
-      </tr>`).join('');
-    } else {
-      ct.innerHTML = '<tr><td colspan="3" style="color:var(--dim)">No cookies</td></tr>';
-    }
-    
-    // Passwords table
-    const pt = document.getElementById('passwords-table');
-    if (data.passwords && data.passwords.length) {
-      pt.innerHTML = data.passwords.map(p => `<tr>
-        <td class="mono" style="font-size:.78rem">${p.site}</td>
-        <td>${p.username}</td>
-        <td><button class="btn-danger" onclick="deletePassword('${p.site}')" style="padding:.15rem .4rem;font-size:.7rem">✕</button></td>
-      </tr>`).join('');
-    } else {
-      pt.innerHTML = '<tr><td colspan="3" style="color:var(--dim)">None saved</td></tr>';
-    }
-  } catch {}
-}
-
-async function clearCache() {
-  if (!confirm('Clear all cached data?')) return;
-  await fetch('/api/settings/browser/clear-cache', {method:'POST'});
-  document.getElementById('cache-size').textContent = '0 KB';
-}
-
-async function clearAllCookies() {
-  if (!confirm('Clear all cookies? You will be logged out of all services.')) return;
-  await fetch('/api/settings/browser/clear-cookies', {method:'POST'});
-  loadBrowserSettings();
-}
-
-async function clearCookiesFor(domain) {
-  await fetch('/api/settings/browser/clear-cookies', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({domain})
-  });
-  loadBrowserSettings();
-}
-
-async function clearAllPasswords() {
-  if (!confirm('Delete all saved passwords?')) return;
-  await fetch('/api/settings/browser/clear-passwords', {method:'POST'});
-  loadBrowserSettings();
-}
-
-async function deletePassword(site) {
-  await fetch('/api/settings/browser/clear-passwords', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({site})
-  });
-  loadBrowserSettings();
-}
-
-async function clearAllBrowsingData() {
-  if (!confirm('Clear ALL browsing data (cache, cookies, passwords, history)?')) return;
-  await fetch('/api/settings/browser/clear-all', {method:'POST'});
-  loadBrowserSettings();
-}
-
-document.getElementById('save-passwords')?.addEventListener('change', (e) => {
-  fetch('/api/settings/browser/save-passwords', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({enabled: e.target.checked})
-  });
-});
-
-checkTailscale();
-loadBrowserSettings();
-loadExitNodes();
+  await checkTailscale();
+  await loadExitNodes();
+  if (data.error) setStatus('exit-status', 'warn', data.error);
 }
 
 async function disconnectTailscale() {
   await fetch('/api/settings/tailscale-disconnect', {method:'POST'});
-  async function loadExitNodes() {
-  const peers = await fetch('/api/tailscale/peers').then(r=>r.json()).catch(()=>[]);
+  await checkTailscale();
+  await loadExitNodes();
+}
+
+async function checkTailscale() {
+  const el = document.getElementById('ts-status');
+  try {
+    const res = await fetch('/api/tailscale/status');
+    const data = await res.json();
+    if (data.status === 'connected') {
+      el.className = 'status ok'; el.textContent = 'Connected';
+      document.getElementById('ts-hostname').textContent = data.hostname || '—';
+      document.getElementById('ts-ip').textContent = (data.ip||[]).join(', ') || '—';
+      const peers = await fetch('/api/tailscale/peers').then(r=>r.json()).catch(()=>[]);
+      document.getElementById('ts-peers').textContent = peers.filter(p=>p.online).length + ' / ' + peers.length;
+    } else {
+      el.className = 'status err'; el.textContent = 'Disconnected';
+      document.getElementById('ts-hostname').textContent = '—';
+      document.getElementById('ts-ip').textContent = '—';
+      document.getElementById('ts-peers').textContent = '—';
+    }
+  } catch {
+    el.className='status err'; el.textContent = 'Error';
+  }
+}
+
+async function loadExitNodes() {
   const sel = document.getElementById('exit-node');
+  if (!sel) return;
+  const peers = await fetch('/api/tailscale/peers').then(r=>r.json()).catch(()=>[]);
   const conf = await fetch('/api/settings/exit-node').then(r=>r.json()).catch(()=>({}));
+  sel.innerHTML = '<option value="">None — tailnet only</option>';
   peers.filter(p=>p.online).forEach(p => {
     const opt = document.createElement('option');
     opt.value = p.name;
-    opt.textContent = p.name + ' (' + (p.ips[0]||'') + ')';
+    opt.textContent = p.name + ' (' + (p.ips?.[0] || '') + ')';
     if (conf.exitNode === p.name) opt.selected = true;
     sel.appendChild(opt);
   });
+  setExitStatus(conf.exitNode || '');
+}
+function setExitStatus(node) {
+  setStatus('exit-status', node ? 'ok' : 'warn', node ? `Internet via ${node}` : 'Tailnet only');
 }
 async function setExitNode(node) {
-  const res = await fetch('/api/settings/exit-node', {
+  await fetch('/api/settings/exit-node', {
     method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({exitNode: node})
   });
-  const el = document.getElementById('exit-status');
-  if (node) {
-    el.innerHTML = '<span class="status ok">Internet via ' + node + '</span>';
-  } else {
-    el.innerHTML = '<span class="status warn">Tailnet only</span>';
-  }
+  setExitStatus(node);
 }
 
 async function loadBrowserSettings() {
   try {
-    const res = await fetch('/api/settings/browser');
-    const data = await res.json();
+    const data = await fetch('/api/settings/browser').then(r=>r.json());
     document.getElementById('cache-size').textContent = data.cacheSize || '0 KB';
     document.getElementById('save-passwords').checked = data.savePasswords !== false;
-    
-    // Cookies table
     const ct = document.getElementById('cookies-table');
-    if (data.cookies && data.cookies.length) {
+    if (data.cookies?.length) {
       ct.innerHTML = data.cookies.map(c => `<tr>
-        <td class="mono" style="font-size:.78rem">${c.domain}</td>
-        <td>${c.count}</td>
-        <td><button class="btn-danger" onclick="clearCookiesFor('${c.domain}')" style="padding:.15rem .4rem;font-size:.7rem">✕</button></td>
+        <td class="mono" style="font-size:.78rem">${escapeHTML(c.domain)}</td>
+        <td>${Number(c.count || 0)}</td>
+        <td><button class="btn-danger" onclick="clearCookiesFor(${jsArg(c.domain)})" style="padding:.15rem .4rem;font-size:.7rem">Delete</button></td>
       </tr>`).join('');
     } else {
       ct.innerHTML = '<tr><td colspan="3" style="color:var(--dim)">No cookies</td></tr>';
     }
-    
-    // Passwords table
     const pt = document.getElementById('passwords-table');
-    if (data.passwords && data.passwords.length) {
+    if (data.passwords?.length) {
       pt.innerHTML = data.passwords.map(p => `<tr>
-        <td class="mono" style="font-size:.78rem">${p.site}</td>
-        <td>${p.username}</td>
-        <td><button class="btn-danger" onclick="deletePassword('${p.site}')" style="padding:.15rem .4rem;font-size:.7rem">✕</button></td>
+        <td class="mono" style="font-size:.78rem">${escapeHTML(p.site)}</td>
+        <td>${escapeHTML(p.username)}</td>
+        <td><button class="btn-danger" onclick="deletePassword(${jsArg(p.site)})" style="padding:.15rem .4rem;font-size:.7rem">Delete</button></td>
       </tr>`).join('');
     } else {
       pt.innerHTML = '<tr><td colspan="3" style="color:var(--dim)">None saved</td></tr>';
@@ -512,108 +440,57 @@ async function clearCache() {
   await fetch('/api/settings/browser/clear-cache', {method:'POST'});
   document.getElementById('cache-size').textContent = '0 KB';
 }
-
 async function clearAllCookies() {
   if (!confirm('Clear all cookies? You will be logged out of all services.')) return;
   await fetch('/api/settings/browser/clear-cookies', {method:'POST'});
   loadBrowserSettings();
 }
-
 async function clearCookiesFor(domain) {
-  await fetch('/api/settings/browser/clear-cookies', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({domain})
-  });
+  await fetch('/api/settings/browser/clear-cookies', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({domain})});
   loadBrowserSettings();
 }
-
 async function clearAllPasswords() {
   if (!confirm('Delete all saved passwords?')) return;
   await fetch('/api/settings/browser/clear-passwords', {method:'POST'});
   loadBrowserSettings();
 }
-
 async function deletePassword(site) {
-  await fetch('/api/settings/browser/clear-passwords', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({site})
-  });
+  await fetch('/api/settings/browser/clear-passwords', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({site})});
   loadBrowserSettings();
 }
-
 async function clearAllBrowsingData() {
   if (!confirm('Clear ALL browsing data (cache, cookies, passwords, history)?')) return;
   await fetch('/api/settings/browser/clear-all', {method:'POST'});
   loadBrowserSettings();
 }
 
-document.getElementById('save-passwords')?.addEventListener('change', (e) => {
-  fetch('/api/settings/browser/save-passwords', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({enabled: e.target.checked})
-  });
-});
-
-checkTailscale();
-loadBrowserSettings();
-loadExitNodes();
-}
-
-async function checkTailscale() {
-  try {
-    const res = await fetch('/api/tailscale/status');
-    const data = await res.json();
-    const el = document.getElementById('ts-status');
-    if (data.status === 'connected') {
-      el.className = 'status ok'; el.textContent = '● Connected';
-      document.getElementById('ts-hostname').textContent = data.hostname || '—';
-      document.getElementById('ts-ip').textContent = (data.ip||[]).join(', ') || '—';
-      const peers = await fetch('/api/tailscale/peers').then(r=>r.json());
-      document.getElementById('ts-peers').textContent = peers.filter(p=>p.online).length + ' / ' + peers.length;
-    } else {
-      el.className = 'status err'; el.textContent = '○ Disconnected';
-    }
-  } catch { document.getElementById('ts-status').className='status err'; }
-}
-
 function importKey() { document.getElementById('key-file-input').click(); }
-
 async function handleKeyFile(input) {
   const file = input.files[0];
   if (!file) return;
   const content = await file.text();
   const name = file.name.replace(/\.(pem|key|pub)$/,'');
-  const res = await fetch('/api/settings/ssh-keys', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({name, content})
-  });
+  const res = await fetch('/api/settings/ssh-keys', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name, content})});
   if (res.ok) loadKeys();
   input.value = '';
 }
-
 async function generateKey() {
   const name = prompt('Key name:');
   if (!name) return;
-  await fetch('/api/settings/ssh-keys/generate', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({name})
-  });
+  await fetch('/api/settings/ssh-keys/generate', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name})});
   loadKeys();
 }
-
 async function loadKeys() {
-  const res = await fetch('/api/settings/ssh-keys');
-  const keys = await res.json();
+  const keys = await fetch('/api/settings/ssh-keys').then(r=>r.json()).catch(()=>[]);
   const tbody = document.getElementById('keys-table');
   if (!keys.length) { tbody.innerHTML = '<tr><td colspan="4" style="color:var(--dim)">No keys imported</td></tr>'; return; }
   tbody.innerHTML = keys.map(k => `<tr>
-    <td class="mono">${k.name}</td>
-    <td class="mono" style="font-size:.72rem">${k.fingerprint||'—'}</td>
-    <td>${(k.hosts||[]).join(', ')||'—'}</td>
-    <td><button class="btn-danger" onclick="deleteKey('${k.name}')" style="padding:.2rem .5rem;font-size:.7rem">✕</button></td>
+    <td class="mono">${escapeHTML(k.name)}</td>
+    <td class="mono" style="font-size:.72rem">${escapeHTML(k.fingerprint || '—')}</td>
+    <td>${escapeHTML((k.hosts || []).join(', ') || '—')}</td>
+    <td><button class="btn-danger" onclick="deleteKey(${jsArg(k.name)})" style="padding:.2rem .5rem;font-size:.7rem">Delete</button></td>
   </tr>`).join('');
 }
-
 async function deleteKey(name) {
   if (!confirm(`Delete key "${name}"?`)) return;
   await fetch('/api/settings/ssh-keys/'+encodeURIComponent(name), {method:'DELETE'});
@@ -621,159 +498,49 @@ async function deleteKey(name) {
 }
 
 async function refreshHosts() {
-  const res = await fetch('/api/tailscale/peers');
-  const peers = await res.json();
-  const confRes = await fetch('/api/settings/hosts');
-  const hostConf = await confRes.json();
+  const peers = await fetch('/api/tailscale/peers').then(r=>r.json()).catch(()=>[]);
+  const hostConf = await fetch('/api/settings/hosts').then(r=>r.json()).catch(()=>({}));
   const tbody = document.getElementById('hosts-table');
+  if (!peers.length) { tbody.innerHTML = '<tr><td colspan="5" style="color:var(--dim)">No peers</td></tr>'; return; }
   tbody.innerHTML = peers.map(p => {
     const conf = hostConf[p.name] || {};
     return `<tr>
-      <td class="mono">${p.name}</td>
-      <td><input value="${conf.user||'root'}" style="width:60px;padding:.2rem .4rem;font-size:.78rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text)" onchange="updateHost('${p.name}','user',this.value)"></td>
-      <td><input type="number" value="${conf.port||22}" style="width:45px;padding:.2rem .3rem;font-size:.78rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text)" onchange="updateHost('${p.name}','port',+this.value)"></td>
-      <td><select style="padding:.2rem;font-size:.75rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text)" onchange="updateHost('${p.name}','keyName',this.value)"><option value="">default</option></select></td>
-      <td>${p.online ? '<span class="badge badge-green">●</span>' : '<span class="badge badge-dim">○</span>'}</td>
+      <td class="mono">${escapeHTML(p.name)}</td>
+      <td><input value="${escapeHTML(conf.user || 'root')}" style="width:60px;padding:.2rem .4rem;font-size:.78rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text)" onchange="updateHost(${jsArg(p.name)},'user',this.value)"></td>
+      <td><input type="number" value="${Number(conf.port || 22)}" style="width:45px;padding:.2rem .3rem;font-size:.78rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text)" onchange="updateHost(${jsArg(p.name)},'port',+this.value)"></td>
+      <td><select style="padding:.2rem;font-size:.75rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text)" onchange="updateHost(${jsArg(p.name)},'keyName',this.value)"><option value="">default</option></select></td>
+      <td>${p.online ? '<span class="badge badge-green">online</span>' : '<span class="badge badge-dim">offline</span>'}</td>
     </tr>`;
   }).join('');
 }
-
 async function updateHost(host, field, value) {
-  await fetch('/api/settings/hosts/'+encodeURIComponent(host), {
-    method:'PATCH', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({[field]: value})
-  });
+  await fetch('/api/settings/hosts/'+encodeURIComponent(host), {method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({[field]: value})});
 }
-
 function addHost() {
   const host = prompt('Hostname or IP:');
   if (!host) return;
-  updateHost(host, 'user', 'root');
-  refreshHosts();
+  updateHost(host, 'user', 'root').then(refreshHosts);
 }
 
 async function saveAppearance() {
-  await fetch('/api/settings/appearance', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({
-      fontSize: +document.getElementById('font-size').value,
-      theme: document.getElementById('theme').value,
-      restoreTabs: document.getElementById('restore-tabs').checked,
-      autoConnect: document.getElementById('auto-connect').checked,
-    })
+  await fetch('/api/settings/appearance', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({
+    fontSize: +document.getElementById('font-size').value,
+    theme: document.getElementById('theme').value,
+    restoreTabs: document.getElementById('restore-tabs').checked,
+    autoConnect: document.getElementById('auto-connect').checked,
+  })});
+}
+
+async function initSettings() {
+  document.getElementById('save-passwords')?.addEventListener('change', (e) => {
+    fetch('/api/settings/browser/save-passwords', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({enabled: e.target.checked})});
   });
+  await checkTailscale();
+  await loadExitNodes();
+  await loadBrowserSettings();
+  await loadKeys();
 }
-
-// Init
-async function loadExitNodes() {
-  const peers = await fetch('/api/tailscale/peers').then(r=>r.json()).catch(()=>[]);
-  const sel = document.getElementById('exit-node');
-  const conf = await fetch('/api/settings/exit-node').then(r=>r.json()).catch(()=>({}));
-  peers.filter(p=>p.online).forEach(p => {
-    const opt = document.createElement('option');
-    opt.value = p.name;
-    opt.textContent = p.name + ' (' + (p.ips[0]||'') + ')';
-    if (conf.exitNode === p.name) opt.selected = true;
-    sel.appendChild(opt);
-  });
-}
-async function setExitNode(node) {
-  const res = await fetch('/api/settings/exit-node', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({exitNode: node})
-  });
-  const el = document.getElementById('exit-status');
-  if (node) {
-    el.innerHTML = '<span class="status ok">Internet via ' + node + '</span>';
-  } else {
-    el.innerHTML = '<span class="status warn">Tailnet only</span>';
-  }
-}
-
-async function loadBrowserSettings() {
-  try {
-    const res = await fetch('/api/settings/browser');
-    const data = await res.json();
-    document.getElementById('cache-size').textContent = data.cacheSize || '0 KB';
-    document.getElementById('save-passwords').checked = data.savePasswords !== false;
-    
-    // Cookies table
-    const ct = document.getElementById('cookies-table');
-    if (data.cookies && data.cookies.length) {
-      ct.innerHTML = data.cookies.map(c => `<tr>
-        <td class="mono" style="font-size:.78rem">${c.domain}</td>
-        <td>${c.count}</td>
-        <td><button class="btn-danger" onclick="clearCookiesFor('${c.domain}')" style="padding:.15rem .4rem;font-size:.7rem">✕</button></td>
-      </tr>`).join('');
-    } else {
-      ct.innerHTML = '<tr><td colspan="3" style="color:var(--dim)">No cookies</td></tr>';
-    }
-    
-    // Passwords table
-    const pt = document.getElementById('passwords-table');
-    if (data.passwords && data.passwords.length) {
-      pt.innerHTML = data.passwords.map(p => `<tr>
-        <td class="mono" style="font-size:.78rem">${p.site}</td>
-        <td>${p.username}</td>
-        <td><button class="btn-danger" onclick="deletePassword('${p.site}')" style="padding:.15rem .4rem;font-size:.7rem">✕</button></td>
-      </tr>`).join('');
-    } else {
-      pt.innerHTML = '<tr><td colspan="3" style="color:var(--dim)">None saved</td></tr>';
-    }
-  } catch {}
-}
-
-async function clearCache() {
-  if (!confirm('Clear all cached data?')) return;
-  await fetch('/api/settings/browser/clear-cache', {method:'POST'});
-  document.getElementById('cache-size').textContent = '0 KB';
-}
-
-async function clearAllCookies() {
-  if (!confirm('Clear all cookies? You will be logged out of all services.')) return;
-  await fetch('/api/settings/browser/clear-cookies', {method:'POST'});
-  loadBrowserSettings();
-}
-
-async function clearCookiesFor(domain) {
-  await fetch('/api/settings/browser/clear-cookies', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({domain})
-  });
-  loadBrowserSettings();
-}
-
-async function clearAllPasswords() {
-  if (!confirm('Delete all saved passwords?')) return;
-  await fetch('/api/settings/browser/clear-passwords', {method:'POST'});
-  loadBrowserSettings();
-}
-
-async function deletePassword(site) {
-  await fetch('/api/settings/browser/clear-passwords', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({site})
-  });
-  loadBrowserSettings();
-}
-
-async function clearAllBrowsingData() {
-  if (!confirm('Clear ALL browsing data (cache, cookies, passwords, history)?')) return;
-  await fetch('/api/settings/browser/clear-all', {method:'POST'});
-  loadBrowserSettings();
-}
-
-document.getElementById('save-passwords')?.addEventListener('change', (e) => {
-  fetch('/api/settings/browser/save-passwords', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({enabled: e.target.checked})
-  });
-});
-
-checkTailscale();
-loadBrowserSettings();
-loadExitNodes();
-loadKeys();
+initSettings();
 </script>
 </body>
 </html>

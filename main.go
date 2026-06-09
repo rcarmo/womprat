@@ -146,6 +146,10 @@ func main() {
 		app.newTerminalTab(host, user, port)
 	})
 
+	w.Bind("womprat_registerLocalTab", func(tabJSON string) {
+		app.registerLocalTab(tabJSON)
+	})
+
 	w.Bind("womprat_goHome", func() {
 		app.goHome()
 	})
@@ -242,11 +246,38 @@ func (a *App) newTerminalTab(host, user string, port int) {
 	}
 	tabID := fmt.Sprintf("term-%d", time.Now().UnixMilli())
 	a.mu.Lock()
-	a.tabs = append(a.tabs, Tab{ID: tabID, Type: "terminal", Title: host, Host: host, User: user, Port: port})
+	a.tabs = upsertTab(a.tabs, Tab{ID: tabID, Type: "terminal", Title: host, Host: host, User: user, Port: port})
 	a.activeTab = tabID
 	a.mu.Unlock()
 	shellURL := fmt.Sprintf("http://127.0.0.1:%d/?tab=%s&v=%d", a.serverPort, tabID, time.Now().UnixMilli())
 	a.webview.Navigate(shellURL)
+}
+
+func (a *App) registerLocalTab(tabJSON string) {
+	var tab Tab
+	if err := json.Unmarshal([]byte(tabJSON), &tab); err != nil || tab.ID == "" || tab.Type == "" {
+		return
+	}
+	if tab.Title == "" {
+		tab.Title = tab.URL
+		if tab.Title == "" {
+			tab.Title = tab.Host
+		}
+	}
+	a.mu.Lock()
+	a.tabs = upsertTab(a.tabs, tab)
+	a.activeTab = tab.ID
+	a.mu.Unlock()
+}
+
+func upsertTab(tabs []Tab, tab Tab) []Tab {
+	for i := range tabs {
+		if tabs[i].ID == tab.ID {
+			tabs[i] = tab
+			return tabs
+		}
+	}
+	return append(tabs, tab)
 }
 
 func (a *App) goHome() {
