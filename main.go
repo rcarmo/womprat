@@ -152,8 +152,9 @@ func main() {
 	// Inject floating chrome overlay into every page
 	w.Init(chromeOverlayJS(app.serverPort, app.sessionToken))
 
-	// Navigate to shell
-	w.Navigate(shellURL)
+	// Navigate to shell with a cache-buster so stale WebView2 shell HTML/JS
+	// cannot resurrect removed iframe code paths.
+	w.Navigate(fmt.Sprintf("%s?v=%d", shellURL, time.Now().UnixMilli()))
 
 	w.Run()
 }
@@ -193,7 +194,7 @@ func (a *App) switchTab(tabID string) {
 	case "browser":
 		a.webview.Navigate(tab.URL)
 	case "terminal", "settings":
-		shellURL := fmt.Sprintf("http://127.0.0.1:%d/?tab=%s", a.serverPort, tabID)
+		shellURL := fmt.Sprintf("http://127.0.0.1:%d/?tab=%s&v=%d", a.serverPort, tabID, time.Now().UnixMilli())
 		a.webview.Navigate(shellURL)
 	}
 }
@@ -243,7 +244,7 @@ func (a *App) newTerminalTab(host, user string, port int) {
 	a.tabs = append(a.tabs, Tab{ID: tabID, Type: "terminal", Title: host, Host: host, User: user, Port: port})
 	a.activeTab = tabID
 	a.mu.Unlock()
-	shellURL := fmt.Sprintf("http://127.0.0.1:%d/?tab=%s", a.serverPort, tabID)
+	shellURL := fmt.Sprintf("http://127.0.0.1:%d/?tab=%s&v=%d", a.serverPort, tabID, time.Now().UnixMilli())
 	a.webview.Navigate(shellURL)
 }
 
@@ -251,7 +252,7 @@ func (a *App) goHome() {
 	a.mu.Lock()
 	a.activeTab = ""
 	a.mu.Unlock()
-	shellURL := fmt.Sprintf("http://127.0.0.1:%d/", a.serverPort)
+	shellURL := fmt.Sprintf("http://127.0.0.1:%d/?v=%d", a.serverPort, time.Now().UnixMilli())
 	a.webview.Navigate(shellURL)
 }
 
@@ -308,6 +309,13 @@ func (a *App) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 }
 
 func (a *App) serveFrontend(w http.ResponseWriter, r *http.Request) {
+	// The shell changes rapidly during development and must never come from
+	// WebView2's persistent HTTP cache; stale shell JS can resurrect old iframe
+	// code paths and trigger frame-ancestors CSP failures.
+	w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+	w.Header().Set("Pragma", "no-cache")
+	w.Header().Set("Expires", "0")
+
 	path := r.URL.Path
 	if path == "/" || path == "" {
 		path = "frontend/index.html"
@@ -321,6 +329,9 @@ func (a *App) serveFrontend(w http.ResponseWriter, r *http.Request) {
 	}
 	if strings.HasSuffix(path, ".html") {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		// Internal shell pages may frame only other local shell pages (settings).
+		// External web content must be direct WebView navigation, never iframe.
+		w.Header().Set("Content-Security-Policy", "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; connect-src 'self' ws: http://127.0.0.1:*; frame-src 'self' http://127.0.0.1:*; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'unsafe-eval'")
 		content := strings.Replace(string(data), "</head>",
 			fmt.Sprintf(`<script>window.__SESSION_TOKEN="%s";window.__PORT=%d;</script></head>`, a.sessionToken, a.serverPort), 1)
 		w.Write([]byte(content))
@@ -525,11 +536,12 @@ func chromeOverlayJS(port int, token string) string {
   window.__wompratChromeInstalled = true;
 
   function install() {
-    if (!document.documentElement || !document.body) {
+    if (!document.documentElement) {
       requestAnimationFrame(install);
       return;
     }
 
+    const root = document.body || document.documentElement;
     const style = document.createElement('style');
     style.textContent = %s;
     (document.head || document.documentElement).appendChild(style);
@@ -555,7 +567,7 @@ func chromeOverlayJS(port int, token string) string {
         <input id="womprat-url" spellcheck="false">
         <button id="womprat-go">Go</button>
       </div>`+"`"+`;
-    document.body.appendChild(bar);
+    root.appendChild(bar);
 
     const input = document.getElementById('womprat-url');
     input.value = location.href;

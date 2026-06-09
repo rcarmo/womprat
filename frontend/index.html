@@ -235,6 +235,24 @@ function applyStaticIcons(root = document) {
 const state = { tabs: [], activeTab: null };
 applyStaticIcons();
 
+function purgeLegacyExternalIframes() {
+  // Defensive cleanup for stale WebView2-cached shell DOM from older builds.
+  // External web pages must never be iframe-hosted; that is what triggers
+  // frame-ancestors CSP errors. Settings remains the only local iframe.
+  document.querySelectorAll('.browser-bar').forEach(el => el.remove());
+  document.querySelectorAll('iframe').forEach(frame => {
+    const src = frame.getAttribute('src') || '';
+    if (/^https?:\/\//i.test(src) && !src.startsWith(location.origin)) {
+      const panel = frame.closest('.panel');
+      frame.remove();
+      if (panel && panel.id !== 'panel-settings') panel.remove();
+      if (window.womprat_newBrowser) womprat_newBrowser(src);
+      else location.href = src;
+    }
+  });
+}
+purgeLegacyExternalIframes();
+
 // Check auth status
 async function checkAuth() {
   const res = await fetch('/api/auth/status');
