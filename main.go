@@ -919,6 +919,8 @@ func chromeOverlayJS(port int, token string) string {
       el.classList.toggle('done', !!done);
       if (done) {
         progressTimer = setTimeout(() => el.classList.remove('active', 'done'), 450);
+      } else if (active) {
+        progressTimer = setTimeout(() => el.classList.remove('active', 'done'), 15000);
       }
     }
 

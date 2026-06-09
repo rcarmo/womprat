@@ -255,6 +255,10 @@ function setURLProgress(active, done = false) {
     urlProgressTimer = setTimeout(() => {
       el.classList.remove('active', 'done');
     }, 450);
+  } else if (active) {
+    urlProgressTimer = setTimeout(() => {
+      el.classList.remove('active', 'done');
+    }, 15000);
   }
 }
 function applyShellContentZoom() {
@@ -641,7 +645,6 @@ window.closeTab = function(id, e) {
     if (window.womprat_forgetTab) womprat_forgetTab(id);
   } else if (window.womprat_closeTab) {
     womprat_closeTab(id);
-    return;
   }
 
   saveOpenTabs();
@@ -705,14 +708,13 @@ function renderTabs() {
     close.title = 'Close';
     close.setAttribute('aria-label', 'Close tab');
     close.innerHTML = icon('dismiss');
-    const stopCloseEvent = (e) => { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation?.(); };
+    const stopCloseEvent = (e) => { e.stopPropagation(); e.stopImmediatePropagation?.(); };
+    const closeFromEvent = (e) => { e.preventDefault(); stopCloseEvent(e); closeTab(tab.id, e); };
     close.draggable = false;
     close.addEventListener('pointerdown', stopCloseEvent, true);
-    close.addEventListener('pointerup', stopCloseEvent, true);
     close.addEventListener('mousedown', stopCloseEvent, true);
-    close.addEventListener('mouseup', stopCloseEvent, true);
     close.addEventListener('dblclick', stopCloseEvent, true);
-    close.addEventListener('click', (e) => { stopCloseEvent(e); closeTab(tab.id, e); }, true);
+    close.addEventListener('click', closeFromEvent, true);
     el.appendChild(close);
     list.appendChild(el);
   });
