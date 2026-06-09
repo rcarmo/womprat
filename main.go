@@ -157,6 +157,10 @@ func main() {
 		app.switchTab(tabID)
 	})
 
+	w.Bind("womprat_updateTitle", func(title, url string) {
+		app.updateActiveBrowserTitle(title, url)
+	})
+
 	w.Bind("womprat_closeTab", func(tabID string) {
 		app.closeTab(tabID)
 	})
@@ -200,6 +204,28 @@ func (a *App) navigateBrowser(url string) {
 	}
 	a.mu.Unlock()
 	a.webview.Navigate(url)
+}
+
+func (a *App) updateActiveBrowserTitle(title, url string) {
+	title = strings.TrimSpace(title)
+	url = strings.TrimSpace(url)
+	if title == "" {
+		title = url
+	}
+	if title == "" {
+		return
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	for i := range a.tabs {
+		if a.tabs[i].ID == a.activeTab && a.tabs[i].Type == "browser" {
+			a.tabs[i].Title = title
+			if url != "" {
+				a.tabs[i].URL = url
+			}
+			return
+		}
+	}
 }
 
 func (a *App) switchTab(tabID string) {
@@ -791,6 +817,20 @@ func chromeOverlayJS(port int, token string) string {
       womprat_navigate(u);
     }
 
+    function reportPageTitle() {
+      const title = (document.title || location.hostname || location.href || '').trim();
+      if (window.womprat_updateTitle) womprat_updateTitle(title, location.href);
+    }
+
+    function installTitleReporter() {
+      reportPageTitle();
+      window.addEventListener('load', reportPageTitle);
+      document.addEventListener('readystatechange', reportPageTitle);
+      const titleEl = document.querySelector('title');
+      if (titleEl) new MutationObserver(reportPageTitle).observe(titleEl, { childList: true, subtree: true, characterData: true });
+      setInterval(reportPageTitle, 1500);
+    }
+
     function installDownloadInterceptor() {
       document.addEventListener('click', (e) => {
         const a = e.target?.closest?.('a[href][download]');
@@ -897,6 +937,7 @@ func chromeOverlayJS(port int, token string) string {
       } catch (e) {}
     }
 
+    installTitleReporter();
     installDownloadInterceptor();
     updateRoutePill(true);
     document.addEventListener('readystatechange', () => updateRoutePill(false));

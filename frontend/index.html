@@ -385,7 +385,12 @@ window.openTerminal = async function(host, name, user, port, options = {}) {
     // Update tab title from terminal title sequences
     term.onTitleChange((title) => {
       const t = state.tabs.find(t => t.id === tabId);
-      if (t && title) { t.title = title.slice(0, 30); renderTabs(); }
+      if (t && title) {
+        t.title = title.slice(0, 48);
+        renderTabs();
+        registerLocalTab(t);
+        saveOpenTabs();
+      }
     });
   term.open(container);
   fit.fit();
