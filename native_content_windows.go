@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"path/filepath"
-	"regexp"
 	"sync"
 	"time"
 	"unsafe"
@@ -195,16 +193,6 @@ type nativeContentView struct {
 	edge   *webview2edge.Chromium
 }
 
-var unsafePathChars = regexp.MustCompile(`[^A-Za-z0-9_.-]+`)
-
-func contentDataPath(base, tabID string) string {
-	name := unsafePathChars.ReplaceAllString(tabID, "_")
-	if name == "" {
-		name = "tab"
-	}
-	return filepath.Join(base, "browser-tabs", name)
-}
-
 func newNativeContentView(parent uintptr, dataPath, tabID string, shell shellWebView) (*nativeContentView, error) {
 	className, _ := windows.UTF16PtrFromString("STATIC")
 	hwnd, _, err := procCreateWindowExW.Call(0, uintptr(unsafe.Pointer(className)), 0,
@@ -214,12 +202,15 @@ func newNativeContentView(parent uintptr, dataPath, tabID string, shell shellWeb
 	}
 	cv := &nativeContentView{parent: parent, hwnd: hwnd, tabID: tabID, shell: shell}
 	edge := webview2edge.NewChromium()
-	tabDataPath := contentDataPath(dataPath, tabID)
-	if err := os.MkdirAll(tabDataPath, 0700); err != nil {
+	// All browser tabs share the same WebView2 user-data folder as the shell so
+	// they share one browser process and one proxy/network configuration. Using a
+	// separate environment/folder per tab spawned multiple browser processes and
+	// broke proxy-routed connectivity.
+	if err := os.MkdirAll(dataPath, 0700); err != nil {
 		procDestroyWindow.Call(hwnd)
 		return nil, fmt.Errorf("create content data path: %w", err)
 	}
-	edge.DataPath = tabDataPath
+	edge.DataPath = dataPath
 	edge.NavigationCompletedCallback = func(_ *webview2edge.ICoreWebView2, _ *webview2edge.ICoreWebView2NavigationCompletedEventArgs) {
 		if cv.shell != nil {
 			cv.shell.Eval(fmt.Sprintf("window.wompratNavigationDone(%s,%s)", jsString(cv.tabID), jsString(cv.url)))
