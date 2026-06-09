@@ -918,7 +918,6 @@ func chromeOverlayJS(port int, token string) string {
       <div id="womprat-tab-row">
         <div id="womprat-tabs"></div>
         <button id="womprat-new-tab" title="New tab" aria-label="New tab">${i('add')}</button>
-        <button id="womprat-home" title="Home" aria-label="Home">${i('home')}</button>
       </div>
       <div id="womprat-url-row">
         <button id="womprat-back" title="Back" aria-label="Back">${i('back')}</button>
@@ -1072,7 +1071,6 @@ func chromeOverlayJS(port int, token string) string {
     document.getElementById('womprat-reload').addEventListener('click', () => location.reload());
     document.getElementById('womprat-go').addEventListener('click', navigateFromInput);
     document.getElementById('womprat-new-tab').addEventListener('click', () => womprat_goHome());
-    document.getElementById('womprat-home').addEventListener('click', () => womprat_goHome());
     input.addEventListener('keydown', (e) => { if (e.key === 'Enter') navigateFromInput(); });
 
     async function currentTabState() {
@@ -1208,7 +1206,7 @@ var chromeOverlayCSS = "`" + `
 #womprat-chrome .womprat-icon{width:20px!important;height:20px!important;display:inline-block!important;flex:0 0 20px!important;color:currentColor!important}
 #womprat-chrome .womprat-icon svg{width:100%!important;height:100%!important;display:block!important}
 #womprat-chrome #womprat-back,#womprat-chrome #womprat-forward,#womprat-chrome #womprat-reload{padding:0!important;line-height:32px!important}
-#womprat-chrome #womprat-new-tab,#womprat-chrome #womprat-home{flex:0 0 auto!important}
+#womprat-chrome #womprat-new-tab{flex:0 0 auto!important}
 #womprat-chrome #womprat-url{height:32px!important;min-width:0!important;flex:1 1 auto!important;border:1px solid rgba(255,255,255,.16)!important;
   border-radius:4px!important;background:rgba(255,255,255,.06)!important;color:#f3f3f3!important;padding:0 10px!important;font-size:14px!important;
   line-height:32px!important;outline:none!important;color-scheme:dark!important}
