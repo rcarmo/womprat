@@ -35,7 +35,20 @@ var (
 	procSetWindowPos    = contentUser32.NewProc("SetWindowPos")
 	procShowWindow      = contentUser32.NewProc("ShowWindow")
 	procIsWindow        = contentUser32.NewProc("IsWindow")
+	procGetDpiForWindow = contentUser32.NewProc("GetDpiForWindow")
 )
+
+// chromePx returns the shell chrome height in physical pixels for the given
+// window, scaling the CSS-pixel chrome height by the window DPI. Native window
+// positioning uses physical pixels while the shell WebView lays out in CSS
+// pixels, so without this the browser content is misplaced on scaled displays.
+func chromePx(hwnd uintptr) int32 {
+	dpi, _, _ := procGetDpiForWindow.Call(hwnd)
+	if dpi == 0 {
+		dpi = 96
+	}
+	return int32(browserChromeHeight) * int32(dpi) / 96
+}
 
 type winRect struct{ Left, Top, Right, Bottom int32 }
 
@@ -146,6 +159,7 @@ func (m *nativeContentManager) resizeAll() {
 	procGetClientRect.Call(m.parent, uintptr(unsafe.Pointer(&r)))
 	width := r.Right - r.Left
 	height := r.Bottom - r.Top
+	chrome := chromePx(m.parent)
 	m.mu.Lock()
 	active := m.browserActive
 	views := make([]*nativeContentView, 0, len(m.views))
@@ -156,7 +170,7 @@ func (m *nativeContentManager) resizeAll() {
 	if active == "" {
 		procSetWindowPos.Call(m.shellHWND, hwndTop, 0, 0, uintptr(width), uintptr(height), swpNoActivate)
 	} else {
-		procSetWindowPos.Call(m.shellHWND, hwndTop, 0, 0, uintptr(width), uintptr(browserChromeHeight), swpNoActivate)
+		procSetWindowPos.Call(m.shellHWND, hwndTop, 0, 0, uintptr(width), uintptr(chrome), swpNoActivate)
 	}
 	if m.shell != nil {
 		m.shell.Resize()
@@ -236,12 +250,13 @@ func (v *nativeContentView) resize() {
 	}
 	var r winRect
 	procGetClientRect.Call(v.parent, uintptr(unsafe.Pointer(&r)))
+	chrome := chromePx(v.parent)
 	width := r.Right - r.Left
-	height := r.Bottom - r.Top - browserChromeHeight
+	height := r.Bottom - r.Top - chrome
 	if height < 0 {
 		height = 0
 	}
-	procSetWindowPos.Call(v.hwnd, hwndTop, 0, browserChromeHeight, uintptr(width), uintptr(height), swpNoActivate|swpNoZOrder)
+	procSetWindowPos.Call(v.hwnd, hwndTop, 0, uintptr(chrome), uintptr(width), uintptr(height), swpNoActivate|swpNoZOrder)
 	if v.edge != nil {
 		v.edge.Resize()
 	}
