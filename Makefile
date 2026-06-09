@@ -18,16 +18,17 @@ GOFLAGS   ?=
 LDFLAGS   := -s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT)
 GUIFLAGS  := -H windowsgui $(LDFLAGS)
 
+CMD_DIR   := cmd/womprat
 DIST_DIR  := dist
 TMP_DIR   := .tmp
 DOC_ICON  := docs/icon.png
-ICO       := icon.ico
-WINRES_ICO:= winres/icon.ico
-MANIFEST  := womprat.manifest
-RC        := womprat.rc
+ICO       := $(CMD_DIR)/icon.ico
+WINRES_ICO:= $(CMD_DIR)/winres/icon.ico
+MANIFEST  := $(CMD_DIR)/womprat.manifest
+RC        := $(CMD_DIR)/womprat.rc
 RC_NOINC  := $(TMP_DIR)/womprat-noinclude.rc
-RSRC_ARM64:= rsrc_windows_arm64.syso
-RSRC_AMD64:= rsrc_windows_amd64.syso
+RSRC_ARM64:= $(CMD_DIR)/rsrc_windows_arm64.syso
+RSRC_AMD64:= $(CMD_DIR)/rsrc_windows_amd64.syso
 
 EXE_ARM64 := $(APP).exe
 EXE_AMD64 := $(APP)-amd64.exe
@@ -91,8 +92,8 @@ patch: ## Apply optional patches from patches/*.patch, if present
 frontend-check: ## Bundle-check embedded HTML/JS entry points with Bun
 	@rm -rf $(TMP_DIR)/frontend-index $(TMP_DIR)/frontend-settings
 	@mkdir -p $(TMP_DIR)
-	$(BUN) build frontend/index.html --outdir=$(TMP_DIR)/frontend-index
-	$(BUN) build frontend/settings.html --outdir=$(TMP_DIR)/frontend-settings
+	$(BUN) build $(CMD_DIR)/frontend/index.html --outdir=$(TMP_DIR)/frontend-index
+	$(BUN) build $(CMD_DIR)/frontend/settings.html --outdir=$(TMP_DIR)/frontend-settings
 
 vet: ## Run go vet for the Windows ARM64 target
 	GOOS=windows GOARCH=arm64 $(GO) vet ./...
@@ -113,29 +114,29 @@ icon: icon-check ## Validate icon assets (docs/icon.png, icon.ico, winres/icon.i
 	@echo "Icon assets present: $(DOC_ICON), $(ICO), $(WINRES_ICO)"
 
 $(RC_NOINC): $(ICO) $(MANIFEST) | $(TMP_DIR)
-	@printf '1 ICON "$(ICO)"\n1 24 "$(MANIFEST)"\n' > $@
+	@printf '1 ICON "icon.ico"\n1 24 "womprat.manifest"\n' > $@
 
 $(TMP_DIR):
 	@mkdir -p $@
 
 resources-arm64: icon $(RC_NOINC) ## Generate Windows ARM64 resource object (.syso)
-	$(WINDRES) --target=aarch64-w64-windows-gnu -I $(CURDIR) -O coff $(RC_NOINC) -o $(RSRC_ARM64)
+	$(WINDRES) --target=aarch64-w64-windows-gnu -I $(CURDIR)/$(CMD_DIR) -O coff $(RC_NOINC) -o $(RSRC_ARM64)
 
 resources-amd64: icon $(RC_NOINC) ## Generate Windows Intel/x64 resource object (.syso)
-	$(WINDRES) --target=x86_64-w64-windows-gnu -I $(CURDIR) -O coff $(RC_NOINC) -o $(RSRC_AMD64)
+	$(WINDRES) --target=x86_64-w64-windows-gnu -I $(CURDIR)/$(CMD_DIR) -O coff $(RC_NOINC) -o $(RSRC_AMD64)
 
 resources: resources-arm64 resources-amd64 ## Generate all checked-in Windows resource objects
 
 # Builds ---------------------------------------------------------------------
 
 windows-arm64: resources ## Build Windows ARM64 GUI executable
-	GOOS=windows GOARCH=arm64 $(GO) build $(GOFLAGS) -ldflags="$(GUIFLAGS)" -o $(EXE_ARM64) .
+	GOOS=windows GOARCH=arm64 $(GO) build $(GOFLAGS) -ldflags="$(GUIFLAGS)" -o $(EXE_ARM64) ./$(CMD_DIR)
 	@ls -lh $(EXE_ARM64)
 
 windows: windows-arm64 ## Alias for Windows ARM64 build
 
 windows-amd64: resources-amd64 ## Build Windows AMD64/Intel x64 GUI executable
-	GOOS=windows GOARCH=amd64 $(GO) build $(GOFLAGS) -ldflags="$(GUIFLAGS)" -o $(EXE_AMD64) .
+	GOOS=windows GOARCH=amd64 $(GO) build $(GOFLAGS) -ldflags="$(GUIFLAGS)" -o $(EXE_AMD64) ./$(CMD_DIR)
 	@ls -lh $(EXE_AMD64)
 
 windows-intel: windows-amd64 ## Alias for Windows Intel/x64 build
@@ -143,11 +144,11 @@ windows-intel: windows-amd64 ## Alias for Windows Intel/x64 build
 intel: windows-intel ## Short alias for Windows Intel/x64 build
 
 linux: ## Build Linux AMD64 binary (for compile sanity only; app runtime is Windows-focused)
-	GOOS=linux GOARCH=amd64 $(GO) build $(GOFLAGS) -ldflags="$(LDFLAGS)" -o $(BIN_LINUX) .
+	GOOS=linux GOARCH=amd64 $(GO) build $(GOFLAGS) -ldflags="$(LDFLAGS)" -o $(BIN_LINUX) ./$(CMD_DIR)
 	@ls -lh $(BIN_LINUX)
 
 darwin: ## Build Darwin ARM64 binary (for compile sanity only; app runtime is Windows-focused)
-	GOOS=darwin GOARCH=arm64 $(GO) build $(GOFLAGS) -ldflags="$(LDFLAGS)" -o $(BIN_DARWIN) .
+	GOOS=darwin GOARCH=arm64 $(GO) build $(GOFLAGS) -ldflags="$(LDFLAGS)" -o $(BIN_DARWIN) ./$(CMD_DIR)
 	@ls -lh $(BIN_DARWIN)
 
 release: clean setup patch verify windows-arm64 ## Full clean setup/patch/check/build pipeline for Windows ARM64
@@ -157,7 +158,7 @@ release-intel: clean setup patch verify windows-intel ## Full clean setup/patch/
 # Local dev ------------------------------------------------------------------
 
 run: ## Run locally with the host Go toolchain (non-Windows paths only)
-	$(GO) run .
+	$(GO) run ./$(CMD_DIR)
 
 dev: run ## Alias for local run
 

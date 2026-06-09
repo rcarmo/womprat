@@ -110,15 +110,18 @@ The `Makefile` checks these with `make doctor` and regenerates Windows `.syso` r
 ## Repository layout
 
 ```text
-frontend/                 HTML, CSS, and JavaScript for the app shell/settings
-winres/                   Windows icon resource inputs
+cmd/womprat/              Application entry point (package main)
+cmd/womprat/frontend/     HTML, CSS, and JavaScript for the app shell/settings
+cmd/womprat/winres/       Windows icon resource inputs
+cmd/womprat/main.go       WebView2 shell, tab model, browser bindings
+cmd/womprat/socks.go      Tailscale-backed SOCKS5 endpoint
+cmd/womprat/ws_terminal.go SSH terminal WebSocket bridge
+cmd/womprat/settings_api.go Settings HTTP API
+cmd/womprat/config.go     Encrypted app configuration model
+cmd/womprat/gui_windows.go Native dual-WebView host window (Windows)
+internal/go-webview2/      Vendored WebView2 wrapper (local replace) with patches
 docs/icon.png             Source application icon
 docs/icon-256.png         README-sized icon
-main.go                   WebView2 shell, tab model, browser bindings
-socks.go                  Tailscale-backed SOCKS5 endpoint
-ws_terminal.go            SSH terminal WebSocket bridge
-settings_api.go           Settings HTTP API
-config.go                 Encrypted app configuration model
 Makefile                  Full setup/check/resource/build pipeline
 ```
 

@@ -1,0 +1,1236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="color-scheme" content="dark">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>womprat</title>
+<link rel="stylesheet" href="vendor/xterm.css">
+<style>
+@font-face {
+  font-family: 'FiraCode Nerd Font Mono';
+  src: url('fonts/FiraCodeNerdFontMono-Regular.ttf') format('truetype');
+  font-weight: 400; font-style: normal; font-display: block;
+}
+@font-face {
+  font-family: 'FiraCode Nerd Font Mono';
+  src: url('fonts/FiraCodeNerdFontMono-Bold.ttf') format('truetype');
+  font-weight: 700; font-style: normal; font-display: block;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --shell-content-zoom:1;
+  --bg:#202020;
+  --surface:rgba(32,32,32,.7);
+  --surface-solid:#2d2d2d;
+  --card:#2d2d2d;
+  --border:rgba(255,255,255,.08);
+  --border-strong:rgba(255,255,255,.14);
+  --text:#fff;
+  --text-secondary:rgba(255,255,255,.78);
+  --dim:rgba(255,255,255,.55);
+  --accent:#60cdff;
+  --accent-hover:rgba(96,205,255,.15);
+  --subtle-hover:rgba(255,255,255,.06);
+  --subtle-pressed:rgba(255,255,255,.04);
+  --layer:rgba(255,255,255,.05);
+  --radius:4px;
+  --radius-lg:8px;
+  --tab-h:40px;
+  --url-h:44px;
+  --control-h:32px;
+  --font:'Segoe UI Variable','Segoe UI',system-ui,-apple-system,sans-serif;
+}
+html{font-size:100%;color-scheme:dark}
+*,*::before,*::after{box-sizing:border-box}
+body{height:100%;background:var(--bg);color:var(--text);
+  font-family:var(--font);font-size:14px;overflow:hidden;
+  -webkit-font-smoothing:antialiased}
+
+/* Fluent reveal hover effect */
+button,a,.tab,.recent-item,.option{
+  transition:background .1s,border-color .15s,color .1s}
+.fluent-icon{width:20px;height:20px;display:inline-block;flex:0 0 20px;color:currentColor;vertical-align:middle}
+.fluent-icon svg{width:100%;height:100%;display:block}
+.tab-icon-slot{width:20px;height:20px;flex:0 0 20px;display:inline-flex;align-items:center;justify-content:center}
+.tab-favicon{width:16px;height:16px;flex:0 0 16px;object-fit:contain;border-radius:2px;vertical-align:middle}
+.icon-button{width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;
+  border:1px solid transparent;border-radius:var(--radius);background:transparent;color:var(--text-secondary);
+  cursor:pointer;padding:0;flex:0 0 auto}
+.icon-button:hover{background:var(--subtle-hover);color:var(--text)}
+
+/* Tab bar — Fluent */
+#tab-bar{display:flex;height:var(--tab-h);background:var(--surface-solid);
+  border-bottom:1px solid var(--border);
+  -webkit-app-region:drag;user-select:none;align-items:center;padding:0 8px;gap:6px;min-width:0}
+#tab-list{display:flex;align-items:center;gap:2px;min-width:0;overflow:hidden;flex:0 1 auto}
+.tab{display:flex;align-items:center;gap:6px;padding:0 6px 0 12px;height:32px;border-radius:var(--radius);
+  cursor:pointer;color:var(--dim);font-weight:400;-webkit-app-region:no-drag;line-height:32px;font-size:14px;min-width:0;flex:0 1 220px;max-width:240px}
+.tab.dragging{opacity:.45}
+.tab.drag-over{background:var(--subtle-hover);border:1px solid var(--border-strong)}
+.tab:hover{background:var(--subtle-hover);color:var(--text)}
+.tab.active{background:var(--layer);color:var(--text);font-weight:600}
+.tab-title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1 1 auto}
+.tab-close{margin-left:4px;opacity:.55;color:var(--dim);cursor:pointer;border:0;background:transparent;padding:0;border-radius:4px;width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;flex:0 0 24px}
+.tab-close .fluent-icon{width:16px;height:16px}
+.tab-close:hover{opacity:1;color:var(--text);background:var(--subtle-hover)}
+#new-tab{width:32px;height:32px;-webkit-app-region:no-drag;flex:0 0 32px}
+#new-tab .fluent-icon{width:20px;height:20px}
+
+/* Panels */
+#panels{position:absolute;inset:calc(var(--tab-h) + var(--url-h)) 0 0 0}
+#panels > .panel{zoom:var(--shell-content-zoom)}
+#panels > .term-panel{zoom:1}
+.panel{position:absolute;inset:0;display:none}
+.panel.active{display:flex;flex-direction:column}
+
+/* Terminal panel */
+.term-panel{min-height:0;background:#202020}
+.term-panel .term-container{flex:1;min-height:0;width:100%;height:100%;display:flex;overflow:hidden;background:#202020;padding:4px 6px}
+.term-panel .xterm{flex:1;width:100%;height:100%;padding:0}
+.term-panel .xterm .xterm-viewport,
+.term-panel .xterm .xterm-screen{background:transparent!important}
+/* xterm uses the VS Code scrollable-element overlay scrollbar. Its width comes
+   from the overviewRuler.width terminal option (2px). Take deterministic control
+   of fade: hidden on idle, shown while scrolling (panel .scrolling class) or on
+   hover. The slider height stays proportional to the viewport vs scrollback. */
+.term-panel .xterm .xterm-scrollable-element>.scrollbar{opacity:0!important;transition:opacity .4s ease!important}
+.term-panel.scrolling .xterm .xterm-scrollable-element>.scrollbar,
+.term-panel .xterm .xterm-scrollable-element>.scrollbar:hover{opacity:1!important;transition:opacity .1s ease!important}
+.term-panel .xterm .xterm-scrollable-element>.scrollbar>.slider{background:rgba(255,255,255,.32)!important;border-radius:2px!important}
+.term-panel .xterm .xterm-scrollable-element>.scrollbar:hover>.slider{background:rgba(255,255,255,.5)!important}
+/* overviewRuler.width also enables a decoration canvas pinned at right:0 that
+   shows a faint 1px line; we only use the option to size the scrollbar, so hide it. */
+.term-panel .xterm .xterm-decoration-overview-ruler{display:none!important}
+
+/* Local panels */
+.browser-panel{flex-direction:column}
+.browser-placeholder{flex:1;display:flex;align-items:center;justify-content:center;color:var(--dim);font-size:.85em;pointer-events:none}
+.browser-frame{flex:1;border:none}
+
+/* Setup screen */
+#setup{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  background:var(--bg);z-index:100}
+#setup.hidden{display:none}
+.setup-card{background:var(--card);border:1px solid var(--border-strong);border-radius:var(--radius-lg);
+  padding:2rem;width:min(400px,90vw);text-align:center;
+  box-shadow:0 8px 32px rgba(0,0,0,.4)}
+.setup-card h2{font-size:1.2rem;margin-bottom:.5rem}
+.setup-card p{color:var(--dim);font-size:.85rem;margin-bottom:1.2rem;line-height:1.5}
+.setup-card input{width:100%;padding:.6rem .8rem;background:var(--bg);border:1px solid var(--border);
+  border-radius:8px;color:var(--text);font-family:monospace;font-size:.85rem;margin-bottom:.8rem}
+.setup-card button{background:var(--accent);color:#fff;border:none;border-radius:8px;
+  padding:.55rem 1.2rem;font-weight:600;cursor:pointer;font-size:.85rem}
+.setup-card .status{margin-top:.8rem;font-size:.82rem;color:var(--dim)}
+
+/* Peer list (new tab menu) */
+
+#url-bar{display:flex;gap:6px;height:var(--url-h);padding:6px 8px;background:var(--surface-solid);
+  border-bottom:1px solid var(--border);align-items:center;position:relative;z-index:10}
+#url-bar input{flex:1;min-width:0;height:var(--control-h);background:var(--layer);border:1px solid var(--border);border-radius:var(--radius);
+  padding:0 10px;color:var(--text);font-family:var(--font);font-size:14px;line-height:var(--control-h);outline:none;color-scheme:dark}
+#url-bar input:focus{border-color:var(--accent);background:var(--bg)}
+#url-bar button{height:var(--control-h)}
+#url-bar .icon-button{min-width:32px;padding:0}
+#url-bar .text-button{min-width:44px;padding:0 12px;font-size:14px;font-weight:600;line-height:var(--control-h)}
+#url-bar .fluent-icon{width:20px;height:20px}
+.route-pill{display:none;align-items:center;height:22px;max-width:150px;padding:0 7px;border-radius:999px;
+  border:1px solid var(--border);background:var(--layer);color:var(--dim);
+  font-size:11px;font-weight:600;letter-spacing:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto}
+.route-pill.active{display:inline-flex}
+
+.recent-item{display:flex;align-items:center;gap:.6rem;padding:.65rem .85rem;
+  border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;font-size:.85em}
+.recent-item:hover{background:var(--subtle-hover);border-color:var(--border-strong)}
+
+#download-bar{position:fixed;bottom:0;left:0;right:0;height:2.5em;
+  background:var(--surface-solid);border-top:1px solid var(--border);
+  display:none;align-items:center;padding:0 1rem;gap:.8rem;font-size:.82em;z-index:60}
+#download-bar.active{display:flex}
+#download-bar .filename{font-weight:600;color:var(--text)}
+#download-bar .progress{flex:1;height:4px;background:var(--layer);border-radius:2px;overflow:hidden}
+#download-bar .progress-fill{height:100%;background:var(--accent);transition:width .2s}
+#download-bar .status{color:var(--dim)}
+</style>
+</head>
+<body>
+
+<div id="setup">
+  <div class="setup-card">
+    <h2>womprat</h2>
+    <p id="setup-help">Enter your Tailscale auth key to connect.<br>It will be saved encrypted for this Windows user.</p>
+    <input id="auth-key" type="password" placeholder="tskey-auth-...">
+    <input id="unlock-password" type="password" placeholder="Master password" style="display:none">
+    <button id="setup-action" onclick="saveKey()">Connect</button>
+    <div class="status" id="setup-status"></div>
+  </div>
+</div>
+
+<div id="tab-bar">
+  <div id="tab-list" aria-label="Open tabs"></div>
+  <button id="new-tab" class="icon-button" onclick="newBlankTab()" title="New tab" aria-label="New tab" data-icon="add"></button>
+  <div id="tab-trailing-controls" style="display:flex;gap:4px;flex:0 0 auto;margin-left:auto">
+    <button id="settings-btn" class="icon-button" onclick="openSettings()" title="Settings" aria-label="Settings" data-icon="settings"></button>
+  </div>
+</div>
+
+<div id="url-bar">
+  <button class="icon-button" onclick="historyBack(state.activeTab)" title="Back" aria-label="Back" data-icon="arrowLeft"></button>
+  <button class="icon-button" onclick="historyForward(state.activeTab)" title="Forward" aria-label="Forward" data-icon="arrowRight"></button>
+  <button class="icon-button" onclick="historyReload(state.activeTab)" title="Reload" aria-label="Reload" data-icon="arrowClockwise"></button>
+  <input id="url-input" list="url-history" placeholder="Enter URL or ssh://user@host" onkeydown="if(event.key==='Enter')navigateFromBar()">
+  <datalist id="url-history"></datalist>
+  <span id="route-pill" class="route-pill" title="Exit node route status"></span>
+  <button class="icon-button text-button" onclick="navigateFromBar()">Go</button>
+</div>
+
+<div id="panels">
+<!-- Home panel (shown when no tabs active) -->
+<div class="panel active" id="panel-home">
+  <div style="padding:2rem;max-width:500px;margin:0 auto">
+    <h2 style="font-size:1.1em;margin-bottom:1rem;color:var(--dim)">Recent</h2>
+    <div id="recent-list" style="display:flex;flex-direction:column;gap:.4rem"></div>
+    <div style="margin-top:1.5rem;color:var(--dim);font-size:.82em">
+      Use <kbd style="padding:2px 6px;background:var(--surface);border:1px solid var(--border);border-radius:4px">New tab</kbd> to enter a URL, or manage tailnet host URLs in Settings.
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+// Session auth token (injected by server)
+const TOKEN = window.__SESSION_TOKEN || '';
+const _fetch = window.fetch;
+window.fetch = (url, opts = {}) => {
+  opts.headers = opts.headers || {};
+  if (typeof opts.headers === 'object' && !(opts.headers instanceof Headers)) {
+    opts.headers['X-Session-Token'] = TOKEN;
+  }
+  return _fetch(url, opts);
+};
+</script>
+<script type="module">
+import { Terminal } from './vendor/xterm.mjs';
+import { FitAddon } from './vendor/addon-fit.mjs';
+import { WebLinksAddon } from './vendor/addon-web-links.mjs';
+import { AttachAddon } from './vendor/addon-attach.mjs';
+import { ClipboardAddon } from './vendor/addon-clipboard.mjs';
+import { SearchAddon } from './vendor/addon-search.mjs';
+import { Unicode11Addon } from './vendor/addon-unicode11.mjs';
+import { UnicodeGraphemesAddon } from './vendor/addon-unicode-graphemes.mjs';
+import { WebglAddon } from './vendor/addon-webgl.mjs';
+
+window.Terminal = Terminal;
+window.FitAddon = FitAddon;
+window.WebLinksAddon = WebLinksAddon;
+window.AttachAddon = AttachAddon;
+window.ClipboardAddon = ClipboardAddon;
+window.SearchAddon = SearchAddon;
+window.Unicode11Addon = Unicode11Addon;
+window.UnicodeGraphemesAddon = UnicodeGraphemesAddon;
+window.WebglAddon = WebglAddon;
+
+
+const FLUENT_ICONS = {
+  add: '<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M10 3.5a.75.75 0 0 1 .75.75v5h5a.75.75 0 0 1 0 1.5h-5v5a.75.75 0 0 1-1.5 0v-5h-5a.75.75 0 0 1 0-1.5h5v-5A.75.75 0 0 1 10 3.5Z"/></svg>',
+  dismiss: '<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M4.22 4.22a.75.75 0 0 1 1.06 0L10 8.94l4.72-4.72a.75.75 0 1 1 1.06 1.06L11.06 10l4.72 4.72a.75.75 0 1 1-1.06 1.06L10 11.06l-4.72 4.72a.75.75 0 0 1-1.06-1.06L8.94 10 4.22 5.28a.75.75 0 0 1 0-1.06Z"/></svg>',
+  settings: '<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M8.91 2.04a1.5 1.5 0 0 1 2.18 0l.42.45c.22.24.56.34.88.25l.6-.16a1.5 1.5 0 0 1 1.89 1.1l.15.6c.08.32.33.57.65.66l.61.16a1.5 1.5 0 0 1 1.09 1.88l-.17.61c-.09.31.01.65.25.87l.46.43a1.5 1.5 0 0 1 0 2.18l-.46.43a.9.9 0 0 0-.25.87l.17.61a1.5 1.5 0 0 1-1.09 1.88l-.61.16a.9.9 0 0 0-.65.66l-.15.6a1.5 1.5 0 0 1-1.89 1.1l-.6-.16a.9.9 0 0 0-.88.25l-.42.45a1.5 1.5 0 0 1-2.18 0l-.42-.45a.9.9 0 0 0-.88-.25l-.6.16a1.5 1.5 0 0 1-1.89-1.1l-.15-.6a.9.9 0 0 0-.65-.66l-.61-.16a1.5 1.5 0 0 1-1.09-1.88l.17-.61a.9.9 0 0 0-.25-.87l-.46-.43a1.5 1.5 0 0 1 0-2.18l.46-.43c.24-.22.34-.56.25-.87l-.17-.61a1.5 1.5 0 0 1 1.09-1.88l.61-.16c.32-.09.57-.34.65-.66l.15-.6a1.5 1.5 0 0 1 1.89-1.1l.6.16c.32.09.66-.01.88-.25l.42-.45ZM10 7a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z"/></svg>',
+  globe: '<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M10 2a8 8 0 1 0 0 16 8 8 0 0 0 0-16ZM4.08 9.25a6.5 6.5 0 0 1 2.1-4.2c-.4.94-.66 2.4-.72 4.2H4.08Zm0 1.5h1.38c.06 1.8.32 3.26.72 4.2a6.5 6.5 0 0 1-2.1-4.2Zm5.17 5.67c-.7-.55-1.2-2.73-1.3-5.67h2.6c-.1 2.94-.6 5.12-1.3 5.67Zm1.3-7.17h-2.6c.1-2.94.6-5.12 1.3-5.67.7.55 1.2 2.73 1.3 5.67Zm3.27 5.7c.4-.94.66-2.4.72-4.2h1.38a6.5 6.5 0 0 1-2.1 4.2Zm.72-5.7c-.06-1.8-.32-3.26-.72-4.2a6.5 6.5 0 0 1 2.1 4.2h-1.38Z"/></svg>',
+  terminal: '<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M3 4.75A2.75 2.75 0 0 1 5.75 2h8.5A2.75 2.75 0 0 1 17 4.75v10.5A2.75 2.75 0 0 1 14.25 18h-8.5A2.75 2.75 0 0 1 3 15.25V4.75ZM5.75 3.5c-.69 0-1.25.56-1.25 1.25v10.5c0 .69.56 1.25 1.25 1.25h8.5c.69 0 1.25-.56 1.25-1.25V4.75c0-.69-.56-1.25-1.25-1.25h-8.5Zm1.03 4.72 2.25 2.25a.75.75 0 0 1 0 1.06l-2.25 2.25a.75.75 0 0 1-1.06-1.06L7.44 11 5.72 9.28a.75.75 0 1 1 1.06-1.06ZM10.75 12h3a.75.75 0 0 1 0 1.5h-3a.75.75 0 0 1 0-1.5Z"/></svg>',
+  arrowLeft: '<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M9.78 4.22a.75.75 0 0 1 0 1.06L5.56 9.5h10.69a.75.75 0 0 1 0 1.5H5.56l4.22 4.22a.75.75 0 1 1-1.06 1.06l-5.5-5.5a.75.75 0 0 1 0-1.06l5.5-5.5a.75.75 0 0 1 1.06 0Z"/></svg>',
+  arrowRight: '<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M10.22 4.22a.75.75 0 0 1 1.06 0l5.5 5.5a.75.75 0 0 1 0 1.06l-5.5 5.5a.75.75 0 1 1-1.06-1.06L14.44 11H3.75a.75.75 0 0 1 0-1.5h10.69l-4.22-4.22a.75.75 0 0 1 0-1.06Z"/></svg>',
+  arrowClockwise: '<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M15.65 6.35A6.5 6.5 0 1 0 16.5 10a.75.75 0 0 1 1.5 0 8 8 0 1 1-2.34-5.66V3.25a.75.75 0 0 1 1.5 0v3.5c0 .41-.34.75-.75.75h-3.5a.75.75 0 0 1 0-1.5h2.74Z"/></svg>',
+  home: '<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M9.28 2.78a1 1 0 0 1 1.44 0l6.5 6.78a.75.75 0 0 1-1.08 1.04l-.64-.67V16a2 2 0 0 1-2 2h-2.25a.75.75 0 0 1-.75-.75V13h-1v4.25a.75.75 0 0 1-.75.75H6.5a2 2 0 0 1-2-2V9.93l-.64.67a.75.75 0 1 1-1.08-1.04l6.5-6.78Z"/></svg>'
+};
+function icon(name) { return `<span class="fluent-icon">${FLUENT_ICONS[name] || ''}</span>`; }
+function applyStaticIcons(root = document) {
+  root.querySelectorAll('[data-icon]').forEach(el => {
+    const name = el.getAttribute('data-icon');
+    if (name) el.innerHTML = icon(name);
+  });
+}
+
+const state = { tabs: [], activeTab: null };
+const terminalSessions = new Map();
+const failedFavicons = new Set();
+const TERMINAL_FONT_SIZE = 14;
+let shellContentZoom = Number(sessionStorage.getItem('wompratShellContentZoom') || '1') || 1;
+function setURLProgress(_active, _done = false) {
+  // Disabled for now: native WebView2 navigation events can arrive out of phase
+  // with shell state, and a stuck strip is worse than no progress indicator.
+}
+function setBrowserStatus(tabId, message) {
+  const panel = document.getElementById(`panel-${tabId}`);
+  if (panel) panel.innerHTML = `<div class="browser-placeholder">${escapeHTML(message || '')}</div>`;
+}
+window.wompratContentError = function(tabId, message) {
+  const tab = state.tabs.find(t => t.id === tabId);
+  if (tab) tab.title = 'Browser error';
+  setBrowserStatus(tabId, `Browser WebView failed: ${message || 'unknown error'}`);
+  renderTabs();
+};
+window.wompratReportChrome = function() {
+  try {
+    const bar = document.getElementById('url-bar');
+    if (!bar || !window.womprat_setChromeHeight) return;
+    const bottom = bar.getBoundingClientRect().bottom;
+    const px = Math.round(bottom * (window.devicePixelRatio || 1));
+    if (px > 0) womprat_setChromeHeight(px);
+  } catch {}
+};
+window.wompratOnHostResize = function() {
+  wompratReportChrome();
+  const tab = state.tabs.find(t => t.id === state.activeTab);
+  if (tab && tab.type === 'terminal') {
+    const s = terminalSessions.get(tab.id);
+    if (s && s.fit) {
+      try { s.fit.fit(); } catch {}
+    }
+  }
+};
+window.wompratBrowserHotkey = function(action, arg) {
+  switch (action) {
+    case 'focusUrl': if (window.womprat_focusShell) womprat_focusShell(); focusAddress(true); break;
+    case 'newTab': newBlankTab(); break;
+    case 'closeTab': closeActiveShellTab(); break;
+    // Browser nav goes straight to the native content view (Go is authoritative
+    // about the active browser tab); do not route through shell-state helpers,
+    // which can fall back to reloading the shell itself.
+    case 'reload': if (window.womprat_browserReload) womprat_browserReload(); break;
+    case 'back': if (window.womprat_browserBack) womprat_browserBack(); break;
+    case 'forward': if (window.womprat_browserForward) womprat_browserForward(); break;
+    case 'nextTab': switchRelativeTab(1); break;
+    case 'prevTab': switchRelativeTab(-1); break;
+    case 'tabAt': switchTabAt(arg === '9' ? 8 : (parseInt(arg, 10) || 1) - 1); break;
+  }
+};
+window.wompratSetTabTitle = function(tabId, title) {
+  window.wompratSetTabMeta(tabId, title, '');
+};
+window.wompratSetTabMeta = function(tabId, title, favicon) {
+  const tab = state.tabs.find(t => t.id === tabId);
+  if (!tab) return;
+  let changed = false;
+  if (title) { const t = String(title).slice(0, 80); if (tab.title !== t) { tab.title = t; changed = true; } }
+  if (favicon && isUsableFavicon(favicon) && tab.favicon !== favicon) { tab.favicon = favicon; changed = true; }
+  if (!changed) return;
+  renderTabs();
+  registerLocalTab(tab);
+  saveOpenTabs();
+};
+window.wompratNavigationDone = function(tabId, url) {
+  const tab = state.tabs.find(t => t.id === tabId);
+  if (tab && url && /^https?:\/\//i.test(url)) {
+    tab.url = url;
+    if (state.activeTab === tabId) document.getElementById('url-input').value = url;
+    registerLocalTab(tab);
+    saveOpenTabs();
+  }
+  setURLProgress(false, true);
+};
+function applyShellContentZoom() {
+  shellContentZoom = Math.max(0.5, Math.min(3, shellContentZoom));
+  sessionStorage.setItem('wompratShellContentZoom', String(shellContentZoom));
+  document.documentElement.style.setProperty('--shell-content-zoom', String(shellContentZoom));
+}
+applyShellContentZoom();
+function escapeHTML(value) {
+  return String(value ?? '').replace(/[&<>'"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch]));
+}
+function jsArg(value) { return JSON.stringify(String(value ?? '')); }
+async function registerLocalTab(tab) {
+  if (window.womprat_registerLocalTab) {
+    await womprat_registerLocalTab(JSON.stringify(tab));
+  }
+}
+function loadURLHistory() {
+  try { return JSON.parse(localStorage.getItem('wompratURLHistory') || '[]'); }
+  catch { return []; }
+}
+function isHistoryURL(url) {
+  return /^(https?:\/\/|ssh:\/\/)/i.test(String(url || ''));
+}
+function saveURLHistory(url) {
+  if (!isHistoryURL(url)) return;
+  const history = loadURLHistory().filter(u => u !== url);
+  history.unshift(url);
+  localStorage.setItem('wompratURLHistory', JSON.stringify(history.slice(0, 100)));
+  refreshURLHistoryDatalist();
+}
+function formatSSHURL(user, host, port) {
+  const u = user || 'root';
+  const h = host || '';
+  const p = Number(port || 0);
+  return p && p !== 22 ? `ssh://${u}@${h}:${p}` : `ssh://${u}@${h}`;
+}
+function refreshURLHistoryDatalist(extra = []) {
+  const list = document.getElementById('url-history');
+  if (!list) return;
+  const urls = new Set(loadURLHistory());
+  for (const t of state.tabs || []) {
+    if (t.type === 'browser' && t.url) urls.add(t.url);
+    if (t.type === 'terminal' && t.host) urls.add(formatSSHURL(t.user, t.host, t.port));
+  }
+  for (const u of extra || []) if (u) urls.add(u);
+  list.textContent = '';
+  [...urls].filter(isHistoryURL).slice(0, 100).forEach(u => {
+    const opt = document.createElement('option');
+    opt.value = u;
+    list.appendChild(opt);
+  });
+}
+async function updateNetworkIndicator() {
+  const pill = document.getElementById('route-pill');
+  if (!pill) return;
+  try {
+    const ns = window.womprat_getNetworkState ? JSON.parse(await womprat_getNetworkState()) : {};
+    if (ns.exitActive && ns.exitNode) {
+      pill.textContent = ns.exitNode;
+      pill.title = `Traffic is routed via exit node ${ns.exitNode}`;
+      pill.classList.add('active');
+    } else {
+      pill.textContent = '';
+      pill.classList.remove('active');
+    }
+  } catch {
+    pill.classList.remove('active');
+  }
+}
+applyStaticIcons();
+updateNetworkIndicator(false);
+
+function purgeLegacyExternalIframes() {
+  // Defensive cleanup for stale WebView2-cached shell DOM from older builds.
+  // External web pages must never be iframe-hosted; that is what triggers
+  // frame-ancestors CSP errors. Settings remains the only local iframe.
+  document.querySelectorAll('.browser-bar').forEach(el => el.remove());
+  document.querySelectorAll('iframe').forEach(frame => {
+    const src = frame.getAttribute('src') || '';
+    if (/^https?:\/\//i.test(src) && !src.startsWith(location.origin)) {
+      const panel = frame.closest('.panel');
+      frame.remove();
+      if (panel && panel.id !== 'panel-settings') panel.remove();
+      if (window.womprat_newBrowser) womprat_newBrowser(src);
+      else location.href = src;
+    }
+  });
+}
+purgeLegacyExternalIframes();
+
+// Check auth status
+async function checkAuth() {
+  const res = await fetch('/api/auth/status');
+  const data = await res.json();
+  if (data.locked) {
+    showUnlock();
+    return;
+  }
+  if (data.hasKey && data.connected) {
+    document.getElementById('setup').classList.add('hidden');
+  }
+}
+
+function showUnlock() {
+  document.getElementById('setup').classList.remove('hidden');
+  document.getElementById('setup-help').textContent = 'Enter your master password to unlock womprat.';
+  document.getElementById('auth-key').style.display = 'none';
+  document.getElementById('unlock-password').style.display = 'block';
+  const btn = document.getElementById('setup-action');
+  btn.textContent = 'Unlock';
+  btn.onclick = unlockApp;
+  document.getElementById('unlock-password').focus();
+}
+
+window.unlockApp = async function() {
+  const password = document.getElementById('unlock-password').value;
+  const status = document.getElementById('setup-status');
+  status.textContent = 'Unlocking...';
+  const res = await fetch('/api/auth/unlock', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({password})
+  });
+  if (!res.ok) {
+    status.textContent = 'Unlock failed';
+    return;
+  }
+  document.getElementById('setup').classList.add('hidden');
+};
+
+window.saveKey = async function() {
+  const key = document.getElementById('auth-key').value.trim();
+  const status = document.getElementById('setup-status');
+  if (!key) { status.textContent = 'Please enter a key'; return; }
+  status.textContent = 'Connecting...';
+  const res = await fetch('/api/auth/save-key', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({key})
+  });
+  const data = await res.json();
+  if (data.status === 'connected') {
+    document.getElementById('setup').classList.add('hidden');
+  } else {
+    status.textContent = data.error || 'Failed to connect';
+  }
+};
+
+window.newBlankTab = function() {
+  state.activeTab = null;
+  if (window.womprat_clearActiveTab) womprat_clearActiveTab();
+  document.getElementById('panels')?.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  updateHomeVisibility();
+  renderTabs();
+  refreshURLHistoryDatalist();
+  const input = document.getElementById('url-input');
+  if (input) {
+    input.value = '';
+    focusAddress(false);
+  }
+};
+
+window.openTerminal = async function(host, name, user, port, options = {}) {
+  const tabId = options.id || `term-${Date.now()}`;
+  const sshUser = user || 'root';
+  const sshPort = port || 22;
+  const tab = { id: tabId, type: 'terminal', title: name || host, host, user: sshUser, port: sshPort };
+  const existingIndex = state.tabs.findIndex(t => t.id === tabId);
+  if (existingIndex >= 0) state.tabs[existingIndex] = tab;
+  else state.tabs.push(tab);
+  renderTabs();
+  activateTab(tabId);
+  if (!options.skipRegister) registerLocalTab(tab);
+  saveOpenTabs(); updateHomeVisibility();
+
+  const existingSession = terminalSessions.get(tabId);
+  if (existingSession) {
+    requestAnimationFrame(() => {
+      existingSession.fit?.fit?.();
+      existingSession.term?.focus?.();
+    });
+    return;
+  }
+
+  const panel = document.getElementById(`panel-${tabId}`);
+  const container = panel.querySelector('.term-container');
+
+  // Create terminal immediately with "Connecting..." message
+  const term = new Terminal({ allowProposedApi: true, cursorBlink: true, fontSize: TERMINAL_FONT_SIZE, bellStyle: 'sound', copyOnSelect: true, rightClickSelectsWord: true, scrollback: 10000, overviewRuler: { width: 2 },
+    fontFamily: 'FiraCode Nerd Font Mono, monospace',
+    fontWeight: '400', fontWeightBold: '700',
+    theme: { background: '#202020', foreground: '#fff', cursor: '#60cdff',
+             selectionBackground: 'rgba(96,205,255,.3)' }
+  });
+  const fit = new FitAddon();
+  term.loadAddon(fit);
+  term.loadAddon(new WebLinksAddon());
+  term.loadAddon(new ClipboardAddon());
+  term.loadAddon(new SearchAddon());
+  term.loadAddon(new Unicode11Addon());
+  term.loadAddon(new UnicodeGraphemesAddon());
+  try { term.loadAddon(new WebglAddon()); } catch(e) {}
+  term.unicode.activeVersion = '11';
+    // Search: Ctrl+Shift+F
+    const searchAddon = term._addonManager?._addons?.find(a => a?.instance?.findNext) || null;
+    term.attachCustomKeyEventHandler((ev) => {
+      const key = ev.key.toLowerCase();
+      if (ev.ctrlKey && ev.shiftKey && !ev.altKey && key === 'w') {
+        ev.preventDefault?.();
+        ev.stopPropagation?.();
+        ev.stopImmediatePropagation?.();
+        window.__wompratSuppressCloseShortcutUntil = Date.now() + 250;
+        closeTab(tabId);
+        return false;
+      }
+      if (ev.ctrlKey && ev.shiftKey && ev.key === 'F') {
+        // TODO: show search bar UI
+        return false;
+      }
+      return true;
+    });
+    // Update tab title from terminal title sequences
+    term.onTitleChange((title) => {
+      const t = state.tabs.find(t => t.id === tabId);
+      if (t && title) {
+        t.title = title.slice(0, 48);
+        renderTabs();
+        registerLocalTab(t);
+        saveOpenTabs();
+      }
+    });
+  term.open(container);
+  fit.fit();
+  terminalSessions.set(tabId, { term, fit, fontSize: TERMINAL_FONT_SIZE, ws: null });
+  window.addEventListener('resize', () => { if (state.activeTab === tabId) fit.fit(); });
+  // Fade the scrollbar on idle: reveal on scroll/output (and hover via CSS),
+  // hide after a short idle delay.
+  let scrollbarFadeTimer = null;
+  const revealScrollbar = () => {
+    panel.classList.add('scrolling');
+    clearTimeout(scrollbarFadeTimer);
+    scrollbarFadeTimer = setTimeout(() => panel.classList.remove('scrolling'), 1200);
+  };
+  term.onScroll(revealScrollbar);
+  const termViewport = container.querySelector('.xterm-viewport');
+  if (termViewport) termViewport.addEventListener('scroll', revealScrollbar, { passive: true });
+
+  term.write(`\x1b[2m Connecting to ${sshUser}@${host}:${sshPort}...\x1b[0m\r\n`);
+
+  // Get initial dimensions
+  const cols = term.cols;
+  const rows = term.rows;
+
+  // Connect SSH
+  let res;
+  try {
+    res = await fetch('/api/ssh/connect', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ host, user: sshUser, port: sshPort, cols, rows })
+    });
+  } catch(err) {
+    term.write(`\x1b[31m Connection failed: ${err.message}\x1b[0m\r\n`);
+    showReconnect(term, tabId, host, name, sshUser, sshPort);
+    return;
+  }
+
+  if (!res.ok) {
+    const errText = await res.text();
+    term.write(`\x1b[31m SSH error: ${errText}\x1b[0m\r\n`);
+    showReconnect(term, tabId, host, name, sshUser, sshPort);
+    return;
+  }
+
+  const data = await res.json();
+  if (!data.tabId) {
+    term.write(`\x1b[31m No session returned\x1b[0m\r\n`);
+    showReconnect(term, tabId, host, name, sshUser, sshPort);
+    return;
+  }
+
+  // Check if password is needed
+  if (data.needsPassword) {
+    term.write(`\x1b[33m Password required for ${sshUser}@${host}:\x1b[0m `);
+    let password = '';
+    const pwHandler = term.onData(ch => {
+      if (ch === '\r' || ch === '\n') {
+        pwHandler.dispose();
+        term.write('\r\n');
+        submitPassword(data.tabId, password, term, tabId, host, name, sshUser, sshPort, cols, rows);
+      } else if (ch === '\x7f' || ch === '\b') {
+        if (password.length) {
+          password = password.slice(0, -1);
+          term.write('\b \b');
+        }
+      } else if (ch === '\x15') {
+        // Ctrl+U: clear the line
+        while (password.length) { password = password.slice(0, -1); term.write('\b \b'); }
+      } else if (ch >= ' ' && ch !== '\x7f') {
+        password += ch;
+        term.write('*');
+      }
+    });
+    return;
+  }
+
+  // Open WebSocket for terminal I/O
+  connectWebSocket(data.tabId, term, tabId, host, name, sshUser, sshPort, cols, rows);
+};
+
+async function submitPassword(sshTabId, password, term, tabId, host, name, user, port, cols, rows) {
+  const res = await fetch('/api/ssh/auth-password', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ tabId: sshTabId, password })
+  });
+  if (!res.ok) {
+    term.write(`\x1b[31m Authentication failed\x1b[0m\r\n`);
+    showReconnect(term, tabId, host, name, user, port);
+    return;
+  }
+  connectWebSocket(sshTabId, term, tabId, host, name, user, port, cols, rows);
+}
+
+function connectWebSocket(sshTabId, term, tabId, host, name, user, port, cols, rows) {
+  term.write(`\x1b[2m Connected.\x1b[0m\r\n\r\n`);
+  const ws = new WebSocket(`ws://${location.host}/api/ssh/ws?tab=${sshTabId}&cols=${cols}&rows=${rows}&token=${TOKEN}`);
+  const session = terminalSessions.get(tabId);
+  if (session) session.ws = ws;
+
+  ws.onopen = () => {
+    term.loadAddon(new AttachAddon(ws));
+    // Send initial resize
+    ws.send(JSON.stringify({type:'resize', cols, rows}));
+  };
+
+  ws.onclose = () => {
+    term.write('\r\n\x1b[2m[Connection closed]\x1b[0m\r\n');
+    showReconnect(term, tabId, host, name, user, port);
+  };
+
+  ws.onerror = () => {
+    term.write('\r\n\x1b[31m[WebSocket error]\x1b[0m\r\n');
+  };
+
+  // Handle terminal resize → send to server
+  term.onResize(({cols, rows}) => {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({type:'resize', cols, rows}));
+    }
+  });
+}
+
+function showReconnect(term, tabId, host, name, user, port) {
+  term.write('\r\n\x1b[2m Press Enter to reconnect...\x1b[0m');
+  const handler = term.onData(ch => {
+    if (ch === '\r' || ch === '\n') {
+      handler.dispose();
+      term.clear();
+      // Reconnect
+      reconnectTerminal(tabId, host, name, user, port, term);
+    }
+  });
+}
+
+async function reconnectTerminal(tabId, host, name, user, port, term) {
+  term.write(`\x1b[2m Reconnecting to ${user}@${host}:${port}...\x1b[0m\r\n`);
+  const cols = term.cols, rows = term.rows;
+  let res;
+  try {
+    res = await fetch('/api/ssh/connect', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ host, user, port, cols, rows })
+    });
+  } catch(err) {
+    term.write(`\x1b[31m ${err.message}\x1b[0m\r\n`);
+    showReconnect(term, tabId, host, name, user, port);
+    return;
+  }
+  if (!res.ok) {
+    term.write(`\x1b[31m ${await res.text()}\x1b[0m\r\n`);
+    showReconnect(term, tabId, host, name, user, port);
+    return;
+  }
+  const data = await res.json();
+  if (data.tabId) connectWebSocket(data.tabId, term, tabId, host, name, user, port, cols, rows);
+}
+
+window.openBrowser = function(url, name) {
+  let navUrl = url;
+  if (!/^https?:\/\//.test(navUrl)) navUrl = 'http://' + navUrl;
+
+  updateNetworkIndicator();
+  setURLProgress(true);
+  saveURLHistory(navUrl);
+  focusContentArea();
+  // Browser tabs are real WebView2 navigations managed by Go.
+  // Do not create shell panels/iframes for external pages.
+  if (window.womprat_newBrowser) {
+    womprat_newBrowser(navUrl);
+  } else {
+    location.href = navUrl;
+  }
+};
+
+window.closeTab = function(id, e) {
+  e?.stopPropagation?.();
+  const closingActive = state.activeTab === id;
+  const closing = state.tabs.find(t => t.id === id);
+  state.tabs = state.tabs.filter(t => t.id !== id);
+  const terminalSession = terminalSessions.get(id);
+  if (terminalSession) {
+    try { terminalSession.ws?.close?.(); } catch {}
+    try { terminalSession.term?.dispose?.(); } catch {}
+    terminalSessions.delete(id);
+  }
+  document.getElementById(`panel-${id}`)?.remove();
+
+  if (closing?.type === 'settings') {
+    if (window.womprat_forgetTab) womprat_forgetTab(id);
+  } else if (window.womprat_closeTab) {
+    womprat_closeTab(id);
+  }
+
+  saveOpenTabs();
+  if (closingActive) state.activeTab = state.tabs[0]?.id || null;
+  renderTabs();
+  if (state.activeTab) activateTab(state.activeTab);
+  else updateHomeVisibility();
+};
+
+function isUsableFavicon(value) {
+  if (!value) return false;
+  const v = String(value);
+  if (failedFavicons.has(v)) return false;
+  return /^https?:\/\//i.test(v) || /^data:image\//i.test(v) || /^blob:/i.test(v);
+}
+
+function tabIconHTML(tab) {
+  if (tab.type === 'browser') {
+    if (isUsableFavicon(tab.favicon)) {
+      return `<span class="tab-icon-slot"><img class="tab-favicon" src="${escapeHTML(tab.favicon)}" alt="" referrerpolicy="no-referrer" onerror="failedFavicons.add(this.src);this.closest('.tab-icon-slot').innerHTML=icon('globe')"></span>`;
+    }
+    return `<span class="tab-icon-slot">${icon('globe')}</span>`;
+  }
+  return `<span class="tab-icon-slot">${icon(tab.type === 'terminal' ? 'terminal' : tab.type === 'settings' ? 'settings' : 'globe')}</span>`;
+}
+
+function renderTabs() {
+  const list = document.getElementById('tab-list');
+  if (!list) return;
+  list.textContent = '';
+  state.tabs.forEach(tab => {
+    const el = document.createElement('div');
+    el.className = `tab${tab.id === state.activeTab ? ' active' : ''}`;
+    el.draggable = true;
+    el.dataset.tabId = tab.id;
+    el.onclick = (e) => {
+      if (e.target?.closest?.('.tab-close')) return;
+      activateTab(tab.id);
+    };
+    el.addEventListener('dragstart', (e) => {
+      el.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', tab.id);
+    });
+    el.addEventListener('dragend', () => {
+      el.classList.remove('dragging');
+      document.querySelectorAll('.tab.drag-over').forEach(t => t.classList.remove('drag-over'));
+    });
+    el.addEventListener('dragover', (e) => { e.preventDefault(); el.classList.add('drag-over'); e.dataTransfer.dropEffect = 'move'; });
+    el.addEventListener('dragleave', () => el.classList.remove('drag-over'));
+    el.addEventListener('drop', (e) => {
+      e.preventDefault();
+      el.classList.remove('drag-over');
+      const fromId = e.dataTransfer.getData('text/plain');
+      reorderTab(fromId, tab.id);
+    });
+    el.innerHTML = `${tabIconHTML(tab)} <span class="tab-title">${escapeHTML(tab.title)}</span>`;
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'tab-close';
+    close.title = 'Close';
+    close.setAttribute('aria-label', 'Close tab');
+    close.innerHTML = icon('dismiss');
+    const stopCloseEvent = (e) => { e.stopPropagation(); e.stopImmediatePropagation?.(); };
+    const closeFromEvent = (e) => { e.preventDefault(); stopCloseEvent(e); closeTab(tab.id, e); };
+    close.draggable = false;
+    close.addEventListener('pointerdown', stopCloseEvent, true);
+    close.addEventListener('mousedown', stopCloseEvent, true);
+    close.addEventListener('dblclick', stopCloseEvent, true);
+    close.addEventListener('click', closeFromEvent, true);
+    el.appendChild(close);
+    list.appendChild(el);
+  });
+}
+
+function reorderTab(fromId, beforeId) {
+  if (!fromId || fromId === beforeId) return;
+  const fromIndex = state.tabs.findIndex(t => t.id === fromId);
+  const beforeIndex = state.tabs.findIndex(t => t.id === beforeId);
+  if (fromIndex < 0 || beforeIndex < 0) return;
+  const [tab] = state.tabs.splice(fromIndex, 1);
+  let insertAt = beforeIndex;
+  if (fromIndex < beforeIndex) insertAt--;
+  state.tabs.splice(insertAt, 0, tab);
+  renderTabs();
+  saveOpenTabs();
+  if (window.womprat_reorderTab) womprat_reorderTab(fromId, beforeIndex);
+}
+
+function activateTab(id, options = {}) {
+  const tab = state.tabs.find(t => t.id === id);
+  if (!tab) return;
+  state.activeTab = id;
+  if (!options.skipNative && window.womprat_switchTab) { try { womprat_switchTab(id); } catch {} }
+
+  // Update URL bar with active tab's address
+  const urlInput = document.getElementById('url-input');
+  if (urlInput) {
+    if (tab.type === 'browser') urlInput.value = tab.url || '';
+    else if (tab.type === 'terminal') urlInput.value = 'ssh://' + (tab.user||'root') + '@' + (tab.host||'') + ':' + (tab.port||22);
+    else if (tab.type === 'settings') urlInput.value = 'settings:';
+    else urlInput.value = '';
+  }
+
+  const panels = document.getElementById('panels');
+  // Create panel if it doesn't exist. Only local content is allowed here.
+  if (!document.getElementById(`panel-${id}`)) {
+    const panel = document.createElement('div');
+    panel.id = `panel-${id}`;
+    if (tab.type === 'browser') {
+      panel.className = 'panel browser-panel';
+      panel.innerHTML = '<div class="browser-placeholder" aria-hidden="true"></div>';
+    } else if (tab.type === 'terminal') {
+      panel.className = 'panel term-panel';
+      panel.innerHTML = '<div class="term-container" style="flex:1"></div>';
+    } else if (tab.type === 'settings') {
+      panel.className = 'panel browser-panel';
+      panel.innerHTML = '<iframe class="browser-frame" src="/settings.html"></iframe>';
+    } else {
+      return;
+    }
+    panels.appendChild(panel);
+  }
+  // Show active panel, hide others
+  panels.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById(`panel-${id}`).classList.add('active');
+  registerLocalTab(tab);
+  updateHomeVisibility();
+  renderTabs();
+  if (tab.type === 'terminal') {
+    requestAnimationFrame(() => {
+      terminalSessions.get(id)?.fit?.fit?.();
+      terminalSessions.get(id)?.term?.focus?.();
+    });
+  } else {
+    focusContentArea();
+  }
+}
+
+window.showBrowserTab = function(id, url, options = {}) {
+  let navUrl = url || 'about:blank';
+  if (!/^https?:\/\//i.test(navUrl) && navUrl !== 'about:blank') navUrl = 'http://' + navUrl;
+  let tab = state.tabs.find(t => t.id === id);
+  if (!tab) {
+    tab = { id, type: 'browser', title: navUrl, url: navUrl };
+    state.tabs.push(tab);
+  } else {
+    tab.type = 'browser';
+    tab.url = navUrl;
+    tab.title = tab.title || navUrl;
+  }
+  renderTabs();
+  activateTab(id, { skipNative: !!options.skipNative });
+  setBrowserStatus(id, `Loading ${navUrl}…`);
+  saveURLHistory(navUrl);
+  registerLocalTab(tab);
+  saveOpenTabs();
+};
+
+function activeBrowserTab() {
+  const tab = state.tabs.find(t => t.id === state.activeTab);
+  return tab?.type === 'browser' ? tab : null;
+}
+window.historyBack = function() { if (window.womprat_browserBack) womprat_browserBack(); };
+window.historyForward = function() { if (window.womprat_browserForward) womprat_browserForward(); };
+window.historyReload = function() { if (window.womprat_browserReload) womprat_browserReload(); };
+
+function focusAddress(selectAll = true) {
+  const input = document.getElementById('url-input');
+  if (!input) return;
+  input.focus();
+  if (selectAll) input.select();
+}
+function switchRelativeTab(delta) {
+  if (!state.tabs.length) return;
+  const idx = Math.max(0, state.tabs.findIndex(t => t.id === state.activeTab));
+  const next = state.tabs[(idx + delta + state.tabs.length) % state.tabs.length];
+  if (next) activateTab(next.id);
+}
+function switchTabAt(index) {
+  if (!state.tabs.length) return;
+  const target = state.tabs[Math.min(index, state.tabs.length - 1)];
+  if (target) activateTab(target.id);
+}
+function closeActiveShellTab() {
+  if (state.activeTab) closeTab(state.activeTab);
+  else if (window.womprat_goHome) womprat_goHome();
+}
+function adjustActiveContentZoom(delta) {
+  const session = terminalSessions.get(state.activeTab);
+  if (session) {
+    session.fontSize = Math.max(8, Math.min(30, Math.round((session.fontSize + delta * 10) * 10) / 10));
+    session.term.options.fontSize = session.fontSize;
+    session.fit.fit();
+    return;
+  }
+  shellContentZoom = Math.round((shellContentZoom + delta) * 100) / 100;
+  applyShellContentZoom();
+}
+function focusContentArea() {
+  document.activeElement?.blur?.();
+  const tab = state.tabs.find(t => t.id === state.activeTab);
+  if (tab?.type === 'terminal') {
+    terminalSessions.get(tab.id)?.term?.focus?.();
+    return;
+  }
+  const panel = tab ? document.getElementById(`panel-${tab.id}`) : document.getElementById('panel-home');
+  const target = panel?.querySelector?.('iframe, .term-container, input, button, [tabindex]') || panel || document.body;
+  target?.focus?.();
+}
+
+function resetActiveContentZoom() {
+  const session = terminalSessions.get(state.activeTab);
+  if (session) {
+    session.fontSize = TERMINAL_FONT_SIZE;
+    session.term.options.fontSize = TERMINAL_FONT_SIZE;
+    session.fit.fit();
+    return;
+  }
+  shellContentZoom = 1;
+  applyShellContentZoom();
+}
+
+function installBrowserHotkeys() {
+  document.addEventListener('wheel', (e) => {
+    if (!e.ctrlKey) return;
+    e.preventDefault();
+    e.stopPropagation();
+    adjustActiveContentZoom(e.deltaY < 0 ? 0.1 : -0.1);
+  }, { capture: true, passive: false });
+
+  document.addEventListener('keydown', (e) => {
+    const key = e.key.toLowerCase();
+    const ctrl = e.ctrlKey || e.metaKey;
+    const active = state.tabs.find(t => t.id === state.activeTab);
+    const terminalFocused = active?.type === 'terminal';
+    if (terminalFocused) {
+      if (ctrl && e.shiftKey && key === 'w') {
+        e.preventDefault();
+        if (Date.now() < (window.__wompratSuppressCloseShortcutUntil || 0)) return;
+        closeActiveShellTab();
+        return;
+      }
+      if (ctrl && e.shiftKey && key === 't') { e.preventDefault(); newBlankTab(); return; }
+      if (ctrl && e.shiftKey && key === 'l') { e.preventDefault(); focusAddress(true); return; }
+      if (ctrl && e.shiftKey && key === 'r') { e.preventDefault(); historyReload(state.activeTab); return; }
+      if (ctrl && e.shiftKey && (key === 'tab' || key === 'pagedown')) { e.preventDefault(); switchRelativeTab(1); return; }
+      if (ctrl && e.shiftKey && key === 'pageup') { e.preventDefault(); switchRelativeTab(-1); return; }
+      if (ctrl && e.shiftKey && /^[1-9]$/.test(key)) { e.preventDefault(); switchTabAt(key === '9' ? 8 : Number(key) - 1); return; }
+      return;
+    }
+    if (e.altKey && !ctrl && key === 'arrowleft') { e.preventDefault(); historyBack(); return; }
+    if (e.altKey && !ctrl && key === 'arrowright') { e.preventDefault(); historyForward(); return; }
+    if (key === 'f5' || (ctrl && key === 'r')) { e.preventDefault(); historyReload(); return; }
+    if (ctrl && (key === '+' || key === '=')) { e.preventDefault(); adjustActiveContentZoom(0.1); return; }
+    if (ctrl && (key === '-' || key === '_')) { e.preventDefault(); adjustActiveContentZoom(-0.1); return; }
+    if (ctrl && key === '0') { e.preventDefault(); resetActiveContentZoom(); return; }
+    if ((ctrl && key === 'l') || (e.altKey && !ctrl && key === 'd')) { e.preventDefault(); focusAddress(true); return; }
+    if (ctrl && key === 't') { e.preventDefault(); newBlankTab(); return; }
+    if (ctrl && key === 'w') { e.preventDefault(); closeActiveShellTab(); return; }
+    if (ctrl && (key === 'tab' || key === 'pagedown')) { e.preventDefault(); switchRelativeTab(e.shiftKey ? -1 : 1); return; }
+    if (ctrl && key === 'pageup') { e.preventDefault(); switchRelativeTab(-1); return; }
+    if (ctrl && /^[1-9]$/.test(key)) { e.preventDefault(); switchTabAt(key === '9' ? 8 : Number(key) - 1); return; }
+    if (e.altKey && !ctrl && key === 'home') { e.preventDefault(); newBlankTab(); return; }
+  }, true);
+}
+installBrowserHotkeys();
+
+window.navigateFromBar = function() {
+  const url = document.getElementById('url-input').value.trim();
+  if (!url) return;
+  if (/^settings:?$/i.test(url)) {
+    openSettings();
+    return;
+  }
+  const sshMatch = url.match(/^ssh:\/\/(?:([^@]+)@)?([^:\/]+)(?::(\d+))?/);
+  if (sshMatch) {
+    const user = sshMatch[1] || 'root';
+    const host = sshMatch[2];
+    const port = sshMatch[3] ? parseInt(sshMatch[3]) : 22;
+    saveURLHistory(formatSSHURL(user, host, port));
+    openTerminal(host, host, user, port);
+    return;
+  }
+  let navUrl = url;
+  if (!/^https?:\/\//.test(navUrl)) navUrl = 'http://' + navUrl;
+  updateNetworkIndicator();
+  setURLProgress(true);
+  saveURLHistory(navUrl);
+  focusContentArea();
+  // External browsing is direct WebView2 navigation, never a shell iframe.
+  const active = state.tabs.find(t => t.id === state.activeTab);
+  const shouldCreateBrowserTab = !active || active.type !== 'browser';
+  if (shouldCreateBrowserTab && window.womprat_newBrowser) womprat_newBrowser(navUrl);
+  else if (window.womprat_navigate) womprat_navigate(navUrl);
+  else location.href = navUrl;
+};
+
+window.navigateTab = function(id) {
+  // Legacy entrypoint kept for old handlers; route through persistent URL bar.
+  navigateFromBar();
+};
+
+window.openSettings = function() {
+  const tabId = 'settings';
+  if (!state.tabs.find(t => t.id === tabId)) {
+    state.tabs.push({ id: tabId, type: 'settings', title: 'Settings', url: 'settings:' });
+  }
+  renderTabs();
+  // Tell the native host to hide browser views and restore the full-height shell.
+  if (window.womprat_openSettings) { try { womprat_openSettings(); } catch {} }
+  // Render the settings panel locally regardless of native timing.
+  activateTab(tabId, { skipNative: true });
+};
+
+function activateRecentTab(tab) {
+  if (!tab) return;
+  if (tab.type === 'terminal') {
+    saveURLHistory(formatSSHURL(tab.user || 'root', tab.host || tab.title, tab.port));
+    openTerminal(tab.host || tab.title, tab.title || tab.host, tab.user || 'root', Number(tab.port || 22));
+    return;
+  }
+  const url = tab.url || tab.title;
+  if (url) {
+    saveURLHistory(/^https?:\/\//i.test(url) ? url : 'http://' + url);
+    openBrowser(url, tab.title || url);
+  }
+}
+
+async function loadRecentTabs() {
+  try {
+    const res = await fetch('/api/settings/config');
+    const cfg = await res.json();
+    const list = document.getElementById('recent-list');
+    const tabs = cfg.openTabs || [];
+    refreshURLHistoryDatalist(tabs.map(t => t.type === 'terminal' ? formatSSHURL(t.user || 'root', t.host || t.title, t.port) : (t.url || t.title)));
+    list.textContent = '';
+    if (!tabs.length) {
+      const empty = document.createElement('div');
+      empty.style.cssText = 'color:var(--dim);font-size:.85em';
+      empty.textContent = 'No recent tabs';
+      list.appendChild(empty);
+      return;
+    }
+    tabs.forEach(t => {
+      const detail = t.type === 'terminal'
+        ? `${t.user || 'root'}@${t.host}:${t.port || 22}`
+        : (t.url || '');
+      const item = document.createElement('div');
+      item.className = 'recent-item';
+      item.tabIndex = 0;
+      item.setAttribute('role', 'button');
+      item.addEventListener('click', () => activateRecentTab(t));
+      item.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          activateRecentTab(t);
+        }
+      });
+
+      const iconSpan = document.createElement('span');
+      iconSpan.innerHTML = t.type === 'browser' && isUsableFavicon(t.favicon)
+        ? `<img class="tab-favicon" src="${escapeHTML(t.favicon)}" alt="" referrerpolicy="no-referrer" onerror="failedFavicons.add(this.src);this.remove()">`
+        : icon(t.type === 'terminal' ? 'terminal' : 'globe');
+      const title = document.createElement('span');
+      title.style.fontWeight = '600';
+      title.textContent = t.title || t.host || t.url || 'Untitled';
+      const detailSpan = document.createElement('span');
+      detailSpan.style.cssText = 'color:var(--dim);font-size:.8em;margin-left:auto';
+      detailSpan.textContent = detail;
+      item.append(iconSpan, title, detailSpan);
+      list.appendChild(item);
+    });
+  } catch {}
+}
+
+async function hydrateNativeTabs() {
+  if (!window.womprat_getTabs) return;
+  try {
+    const native = JSON.parse(await womprat_getTabs());
+    const localTabs = (native.tabs || []).filter(t => t.type === 'terminal' || t.type === 'settings' || t.type === 'browser');
+    const requested = new URLSearchParams(location.search).get('tab') || '';
+    const target = localTabs.find(t => t.id === requested && (t.type === 'terminal' || t.type === 'settings'));
+    state.tabs = localTabs;
+    state.activeTab = target ? target.id : null;
+    renderTabs();
+    updateHomeVisibility();
+    if (target?.type === 'terminal') {
+      await openTerminal(target.host, target.title || target.host, target.user || 'root', target.port || 22, { id: target.id, skipRegister: true });
+    } else if (target?.type === 'settings') {
+      if (!state.tabs.find(t => t.id === 'settings')) state.tabs.push(target);
+      activateTab('settings');
+    }
+  } catch {}
+}
+
+// Save tabs on changes
+function saveOpenTabs() {
+  const tabs = state.tabs.filter(t => t.id !== 'settings').map(t => ({
+    type: t.type, title: t.title,
+    host: t.host || '', user: t.user || '', port: t.port || 0, url: t.url || '', favicon: t.favicon || ''
+  }));
+  fetch('/api/settings/save-tabs', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({tabs})
+  }).catch(() => {});
+}
+
+// Show/hide home panel
+function updateHomeVisibility() {
+  const home = document.getElementById('panel-home');
+  if (!home) return;
+  if (state.tabs.length === 0 || !state.activeTab) {
+    home.style.display = 'flex';
+    home.classList.add('active');
+  } else {
+    home.style.display = 'none';
+    home.classList.remove('active');
+  }
+}
+
+// Hook tab changes
+const origRenderTabs = renderTabs;
+// Actually just call saveOpenTabs + updateHome after every tab change
+
+
+// Download handling — intercept download links in iframes
+window.triggerDownload = async function(url) {
+  const bar = document.getElementById('download-bar');
+  const fname = document.getElementById('dl-filename');
+  const prog = document.getElementById('dl-progress');
+  const status = document.getElementById('dl-status');
+  
+  bar.classList.add('active');
+  fname.textContent = url.split('/').pop() || 'download';
+  status.textContent = 'Starting...';
+  prog.style.width = '0%';
+  
+  await fetch('/api/download?url=' + encodeURIComponent(url));
+  
+  // Poll progress
+  const poll = setInterval(async () => {
+    const res = await fetch('/api/download/status');
+    const d = await res.json();
+    if (d.status === 'downloading') {
+      const pct = d.size > 0 ? Math.round(d.done / d.size * 100) : 0;
+      prog.style.width = pct + '%';
+      fname.textContent = d.filename;
+      status.textContent = d.size > 0 ? Math.round(d.done/1024) + ' / ' + Math.round(d.size/1024) + ' KB' : Math.round(d.done/1024) + ' KB';
+    } else if (d.status === 'complete') {
+      clearInterval(poll);
+      prog.style.width = '100%';
+      status.textContent = 'Saved to Downloads';
+      setTimeout(() => bar.classList.remove('active'), 4000);
+    } else if (d.status === 'error') {
+      clearInterval(poll);
+      status.textContent = 'Error: ' + d.error;
+      setTimeout(() => bar.classList.remove('active'), 5000);
+    }
+  }, 500);
+};
+
+// Listen for messages from iframes requesting downloads
+window.addEventListener('message', (e) => {
+  if (e.data?.type === 'download' && e.data.url) {
+    triggerDownload(e.data.url);
+  }
+});
+window.addEventListener('load', () => { setURLProgress(false, true); wompratReportChrome(); });
+document.addEventListener('readystatechange', () => {
+  if (document.readyState === 'complete') setURLProgress(false, true);
+});
+window.addEventListener('resize', () => wompratReportChrome());
+try { matchMedia('(resolution: 1dppx)').addEventListener('change', () => wompratReportChrome()); } catch {}
+wompratReportChrome();
+setTimeout(wompratReportChrome, 300);
+checkAuth();
+loadRecentTabs();
+hydrateNativeTabs();
+setInterval(() => updateNetworkIndicator(false), 1500);
+</script>
+
+<div id="download-bar">
+  <span class="filename" id="dl-filename"></span>
+  <div class="progress"><div class="progress-fill" id="dl-progress" style="width:0%"></div></div>
+  <span class="status" id="dl-status"></span>
+</div>
+</body>
+</html>
