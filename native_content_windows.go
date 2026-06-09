@@ -219,6 +219,11 @@ func newNativeContentView(parent uintptr, dataPath, tabID string, shell shellWeb
 	cv := &nativeContentView{parent: parent, hwnd: hwnd, tabID: tabID, shell: shell}
 	edge := webview2edge.NewChromium()
 	edge.MessageCallback = func(raw string) {
+		if action := parseHotkeyMessage(raw); action != "" && cv.shell != nil {
+			arg := parseHotkeyArg(raw)
+			cv.shell.Eval(fmt.Sprintf("window.wompratBrowserHotkey(%s,%s)", jsString(action), jsString(arg)))
+			return
+		}
 		// Browser content reports its document title and favicon via postMessage so
 		// the shell tab can display the page title and icon instead of the raw URL.
 		title, favicon := parseTitleMessage(raw)
@@ -266,6 +271,20 @@ const browserTitleReporterJS = `(function(){
   window.addEventListener('load', send);
   try { var t=document.querySelector('title'); if(t){ new MutationObserver(send).observe(t,{childList:true}); } } catch(e){}
   try { new MutationObserver(function(){ send(); }).observe(document.head||document.documentElement,{subtree:true,childList:true}); } catch(e){}
+  function fire(action, arg){ try{ window.chrome.webview.postMessage(JSON.stringify({wompratKey: action, wompratArg: arg||''})); }catch(e){} }
+  document.addEventListener('keydown', function(e){
+    var ctrl = e.ctrlKey || e.metaKey;
+    var k = (e.key||'').toLowerCase();
+    if (ctrl && k==='l'){ e.preventDefault(); fire('focusUrl'); return; }
+    if (ctrl && k==='t'){ e.preventDefault(); fire('newTab'); return; }
+    if (ctrl && k==='w'){ e.preventDefault(); fire('closeTab'); return; }
+    if (k==='f5' || (ctrl && k==='r')){ e.preventDefault(); fire('reload'); return; }
+    if (e.altKey && !ctrl && k==='arrowleft'){ e.preventDefault(); fire('back'); return; }
+    if (e.altKey && !ctrl && k==='arrowright'){ e.preventDefault(); fire('forward'); return; }
+    if (ctrl && (k==='tab'||k==='pagedown')){ e.preventDefault(); fire(e.shiftKey?'prevTab':'nextTab'); return; }
+    if (ctrl && k==='pageup'){ e.preventDefault(); fire('prevTab'); return; }
+    if (ctrl && /^[1-9]$/.test(k)){ e.preventDefault(); fire('tabAt', k); return; }
+  }, true);
   send();
 })();`
 
@@ -278,6 +297,26 @@ func parseTitleMessage(raw string) (string, string) {
 		return "", ""
 	}
 	return m.WompratTitle, m.WompratFavicon
+}
+
+func parseHotkeyMessage(raw string) string {
+	var m struct {
+		WompratKey string `json:"wompratKey"`
+	}
+	if err := json.Unmarshal([]byte(raw), &m); err != nil {
+		return ""
+	}
+	return m.WompratKey
+}
+
+func parseHotkeyArg(raw string) string {
+	var m struct {
+		WompratArg string `json:"wompratArg"`
+	}
+	if err := json.Unmarshal([]byte(raw), &m); err != nil {
+		return ""
+	}
+	return m.WompratArg
 }
 
 func (v *nativeContentView) resize() {

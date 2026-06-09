@@ -255,6 +255,19 @@ window.wompratContentError = function(tabId, message) {
   setBrowserStatus(tabId, `Browser WebView failed: ${message || 'unknown error'}`);
   renderTabs();
 };
+window.wompratBrowserHotkey = function(action, arg) {
+  switch (action) {
+    case 'focusUrl': focusAddress(true); break;
+    case 'newTab': newBlankTab(); break;
+    case 'closeTab': closeActiveShellTab(); break;
+    case 'reload': historyReload(); break;
+    case 'back': historyBack(); break;
+    case 'forward': historyForward(); break;
+    case 'nextTab': switchRelativeTab(1); break;
+    case 'prevTab': switchRelativeTab(-1); break;
+    case 'tabAt': switchTabAt(arg === '9' ? 8 : (parseInt(arg, 10) || 1) - 1); break;
+  }
+};
 window.wompratSetTabTitle = function(tabId, title) {
   window.wompratSetTabMeta(tabId, title, '');
 };
