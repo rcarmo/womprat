@@ -286,9 +286,12 @@ window.wompratBrowserHotkey = function(action, arg) {
     case 'focusUrl': focusAddress(true); break;
     case 'newTab': newBlankTab(); break;
     case 'closeTab': closeActiveShellTab(); break;
-    case 'reload': historyReload(); break;
-    case 'back': historyBack(); break;
-    case 'forward': historyForward(); break;
+    // Browser nav goes straight to the native content view (Go is authoritative
+    // about the active browser tab); do not route through shell-state helpers,
+    // which can fall back to reloading the shell itself.
+    case 'reload': if (window.womprat_browserReload) womprat_browserReload(); break;
+    case 'back': if (window.womprat_browserBack) womprat_browserBack(); break;
+    case 'forward': if (window.womprat_browserForward) womprat_browserForward(); break;
     case 'nextTab': switchRelativeTab(1); break;
     case 'prevTab': switchRelativeTab(-1); break;
     case 'tabAt': switchTabAt(arg === '9' ? 8 : (parseInt(arg, 10) || 1) - 1); break;
@@ -881,9 +884,9 @@ function activeBrowserTab() {
   const tab = state.tabs.find(t => t.id === state.activeTab);
   return tab?.type === 'browser' ? tab : null;
 }
-window.historyBack = function() { if (activeBrowserTab() && window.womprat_browserBack) womprat_browserBack(); else history.back(); };
-window.historyForward = function() { if (activeBrowserTab() && window.womprat_browserForward) womprat_browserForward(); else history.forward(); };
-window.historyReload = function() { if (activeBrowserTab() && window.womprat_browserReload) { setURLProgress(true); womprat_browserReload(); } else location.reload(); };
+window.historyBack = function() { if (window.womprat_browserBack) womprat_browserBack(); };
+window.historyForward = function() { if (window.womprat_browserForward) womprat_browserForward(); };
+window.historyReload = function() { if (window.womprat_browserReload) womprat_browserReload(); };
 
 function focusAddress(selectAll = true) {
   const input = document.getElementById('url-input');

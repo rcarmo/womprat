@@ -202,16 +202,19 @@ func runGUI(app *App, shellURL string) {
 	w.Bind("womprat_navigate", func(url string) { app.navigateBrowser(url) })
 	w.Bind("womprat_switchTab", func(tabID string) { app.switchTab(tabID) })
 	w.Bind("womprat_browserBack", func() {
+		log.Printf("hotkey: browserBack (active=%s)", app.activeTab)
 		if view := app.activeContentView(); view != nil {
 			view.GoBack()
 		}
 	})
 	w.Bind("womprat_browserForward", func() {
+		log.Printf("hotkey: browserForward (active=%s)", app.activeTab)
 		if view := app.activeContentView(); view != nil {
 			view.GoForward()
 		}
 	})
 	w.Bind("womprat_browserReload", func() {
+		log.Printf("hotkey: browserReload (active=%s)", app.activeTab)
 		if view := app.activeContentView(); view != nil {
 			view.Reload()
 		}
