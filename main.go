@@ -159,6 +159,7 @@ func (a *App) evalShell(format string, args ...interface{}) {
 }
 
 func (a *App) navigateBrowser(url string) {
+	log.Printf("tab: navigateBrowser %s (active=%s)", url, a.activeTab)
 	if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
 		url = "http://" + url
 	}
@@ -255,6 +256,7 @@ func (a *App) persistOpenTabs() {
 }
 
 func (a *App) switchTab(tabID string) {
+	log.Printf("tab: switchTab %s", tabID)
 	a.mu.Lock()
 	var tab *Tab
 	for i := range a.tabs {
@@ -404,6 +406,7 @@ func (a *App) closeTab(tabID string) {
 }
 
 func (a *App) newBrowserTab(url string) {
+	log.Printf("tab: newBrowserTab %s", url)
 	if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
 		url = "http://" + url
 	}
@@ -422,6 +425,7 @@ func (a *App) newBrowserTab(url string) {
 }
 
 func (a *App) openSettingsTab() {
+	log.Printf("tab: openSettingsTab")
 	tab := Tab{ID: "settings", Type: "settings", Title: "Settings", URL: "settings:"}
 	a.mu.Lock()
 	a.tabs = upsertTab(a.tabs, tab)

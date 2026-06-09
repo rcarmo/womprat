@@ -222,6 +222,7 @@ func newNativeContentView(parent uintptr, dataPath, tabID string, shell shellWeb
 	}
 	cv.edge = edge
 	cv.resize()
+	log.Printf("content: created browser WebView for tab %s hwnd=0x%x", tabID, hwnd)
 	return cv, nil
 }
 
@@ -249,6 +250,7 @@ func (v *nativeContentView) resize() {
 func (v *nativeContentView) Navigate(url string) {
 	if v != nil && v.edge != nil {
 		v.url = url
+		log.Printf("content: tab %s navigate %s", v.tabID, url)
 		v.edge.Navigate(url)
 	}
 }

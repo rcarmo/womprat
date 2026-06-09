@@ -151,21 +151,25 @@ func createHostChild(parent uintptr) (uintptr, error) {
 }
 
 func runGUI(app *App, shellURL string) {
+	log.Printf("gui: creating native host window")
 	host, err := createHostWindow("womprat", 1200, 800)
 	if err != nil {
 		log.Fatal(err)
 	}
+	log.Printf("gui: host hwnd=0x%x", host)
 	applyDarkModeToHWND(host)
 	applyAppIconToHWND(host)
 	shellChild, err := createHostChild(host)
 	if err != nil {
 		log.Fatal(err)
 	}
+	log.Printf("gui: shell child hwnd=0x%x", shellChild)
 	resizeChildToClient(host, shellChild, 0, 0)
 	w := webview2.NewWithOptions(webview2.WebViewOptions{Debug: true, AutoFocus: true, Window: unsafe.Pointer(shellChild), DataPath: webviewDataPath()})
 	if w == nil {
 		log.Fatal("Failed to create shell WebView2")
 	}
+	log.Printf("gui: shell WebView2 created")
 	defer w.Destroy()
 	app.webview = w
 	applyDarkMode(w)
@@ -219,6 +223,7 @@ func runGUI(app *App, shellURL string) {
 	w.Bind("womprat_goHome", func() { app.goHome() })
 	w.Bind("womprat_clearActiveTab", func() { app.clearActiveTab() })
 
+	log.Printf("gui: navigating shell to %s", shellURL)
 	w.Navigate(fmt.Sprintf("%s?v=%d", shellURL, time.Now().UnixMilli()))
 	if contentViews != nil {
 		contentViews.HideAll()
@@ -227,10 +232,6 @@ func runGUI(app *App, shellURL string) {
 	// window so it paints (avoids a blank window when no WM_SIZE follows show).
 	resizeChildToClient(host, shellChild, 0, 0)
 	w.Resize()
-	// Use the wrapper run loop: it pumps all thread messages (including the host
-	// window proc for WM_SIZE) and, critically, drains the dispatch queue that
-	// resolves JS<->Go bound-function promises. A custom GetMessage loop that does
-	// not handle WMApp leaves every bound call's promise unresolved, which hangs
-	// any awaited womprat_* call (settings/browser activation).
+	log.Printf("gui: entering run loop")
 	w.Run()
 }
