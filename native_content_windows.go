@@ -42,19 +42,20 @@ var (
 type winRect struct{ Left, Top, Right, Bottom int32 }
 
 type nativeContentManager struct {
-	mu       sync.Mutex
-	parent   uintptr
-	dataPath string
-	shell    shellWebView
-	views    map[string]*nativeContentView
+	mu            sync.Mutex
+	parent        uintptr
+	shellHWND     uintptr
+	dataPath      string
+	shell         shellWebView
+	browserActive string
+	views         map[string]*nativeContentView
 }
 
-func newNativeContentManager(parent unsafe.Pointer, dataPath string, shell shellWebView) (*nativeContentManager, error) {
-	parentHWND := uintptr(parent)
-	if parentHWND == 0 {
-		return nil, fmt.Errorf("missing parent HWND")
+func newNativeContentManager(parent uintptr, shellHWND uintptr, dataPath string, shell shellWebView) (*nativeContentManager, error) {
+	if parent == 0 || shellHWND == 0 {
+		return nil, fmt.Errorf("missing parent/shell HWND")
 	}
-	m := &nativeContentManager{parent: parentHWND, dataPath: dataPath, shell: shell, views: map[string]*nativeContentView{}}
+	m := &nativeContentManager{parent: parent, shellHWND: shellHWND, dataPath: dataPath, shell: shell, views: map[string]*nativeContentView{}}
 	go m.resizeLoop()
 	return m, nil
 }
@@ -89,11 +90,13 @@ func (m *nativeContentManager) Get(tabID string) browserContentView {
 
 func (m *nativeContentManager) Show(tabID string) {
 	m.mu.Lock()
+	m.browserActive = tabID
 	views := make(map[string]*nativeContentView, len(m.views))
 	for id, v := range m.views {
 		views[id] = v
 	}
 	m.mu.Unlock()
+	m.resizeAll()
 	for id, v := range views {
 		if id == tabID {
 			v.Show()
@@ -105,11 +108,13 @@ func (m *nativeContentManager) Show(tabID string) {
 
 func (m *nativeContentManager) HideAll() {
 	m.mu.Lock()
+	m.browserActive = ""
 	views := make([]*nativeContentView, 0, len(m.views))
 	for _, v := range m.views {
 		views = append(views, v)
 	}
 	m.mu.Unlock()
+	m.resizeAll()
 	for _, v := range views {
 		v.Hide()
 	}
@@ -125,19 +130,36 @@ func (m *nativeContentManager) Destroy(tabID string) {
 	}
 }
 
+func (m *nativeContentManager) resizeAll() {
+	if m == nil || m.parent == 0 || m.shellHWND == 0 {
+		return
+	}
+	var r winRect
+	procGetClientRect.Call(m.parent, uintptr(unsafe.Pointer(&r)))
+	width := r.Right - r.Left
+	height := r.Bottom - r.Top
+	m.mu.Lock()
+	active := m.browserActive
+	views := make([]*nativeContentView, 0, len(m.views))
+	for _, v := range m.views {
+		views = append(views, v)
+	}
+	m.mu.Unlock()
+	if active == "" {
+		procSetWindowPos.Call(m.shellHWND, hwndTop, 0, 0, uintptr(width), uintptr(height), swpNoActivate)
+	} else {
+		procSetWindowPos.Call(m.shellHWND, hwndTop, 0, 0, uintptr(width), uintptr(browserChromeHeight), swpNoActivate)
+	}
+	for _, v := range views {
+		v.resize()
+	}
+}
+
 func (m *nativeContentManager) resizeLoop() {
 	ticker := time.NewTicker(250 * time.Millisecond)
 	defer ticker.Stop()
 	for range ticker.C {
-		m.mu.Lock()
-		views := make([]*nativeContentView, 0, len(m.views))
-		for _, v := range m.views {
-			views = append(views, v)
-		}
-		m.mu.Unlock()
-		for _, v := range views {
-			v.resize()
-		}
+		m.resizeAll()
 	}
 }
 
