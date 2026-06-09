@@ -10,6 +10,8 @@ This is meant to be dead simple: copy one executable, launch it, unlock your sav
 
 I kept finding myself in places I couldn't install the full Tailscale client but needed it to access my own stuff. And sometimes you want access to a handful of machines without adding another persistent system service, changing the host network stack, or asking Windows to remember one more thing at boot.
 
+And then I got a corporate, locked-down Windows ARM laptop to test and realized that I really wanted to get at my Proxmox cluster from outside the house.
+
 `womprat` takes the opposite approach: the tailnet identity belongs to the app, not the machine. When it is running, it can reach your tailnet. When it is closed, there is no VPN client left behind.
 
 That makes it useful for portable operations work, especially when SSH and internal web UIs are the only things you need.
