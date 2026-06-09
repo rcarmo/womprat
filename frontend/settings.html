@@ -12,39 +12,40 @@
   --subtle-hover:rgba(255,255,255,.06);--layer:rgba(255,255,255,.05);
   --radius:4px;--radius-lg:8px;
   --font:'Segoe UI Variable','Segoe UI',system-ui,sans-serif}
-body{background:var(--bg);color:var(--text);font-family:system-ui,sans-serif;font-size:small;padding:1.5rem;max-width:640px;margin:0 auto}
-h2{font-size:1rem;margin-bottom:1rem;display:flex;align-items:center;gap:.5rem}
-h3{font-size:.85rem;color:var(--dim);margin:1.2rem 0 .5rem;text-transform:uppercase;letter-spacing:.05em}
+html{font-size:100%;color-scheme:dark}
+body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14px;line-height:1.35;padding:24px;max-width:720px;margin:0 auto;-webkit-font-smoothing:antialiased}
+h2{font-size:20px;font-weight:600;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+h3{font-size:12px;color:var(--dim);margin:20px 0 8px;text-transform:uppercase;letter-spacing:.04em;font-weight:600}
 
 /* Tabs */
-.tabs{display:flex;gap:2px;border-bottom:1px solid var(--border);margin-bottom:1.5rem}
-.tab-btn{padding:.5rem 1rem;background:none;border:none;color:var(--dim);font-size:.82em;
-  font-weight:600;cursor:pointer;border-bottom:2px solid transparent;transition:.1s}
-.tab-btn:hover{color:var(--text)}
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--border);margin-bottom:24px;overflow-x:auto}
+.tab-btn{height:36px;padding:0 14px;background:none;border:none;color:var(--dim);font-family:var(--font);font-size:14px;
+  font-weight:600;cursor:pointer;border-bottom:2px solid transparent;transition:.1s;white-space:nowrap;border-radius:var(--radius) var(--radius) 0 0}
+.tab-btn:hover{color:var(--text);background:var(--subtle-hover)}
 .tab-btn.active{color:var(--accent);border-bottom-color:var(--accent)}
 .tab-panel{display:none}
 .tab-panel.active{display:block}
 
 /* Form elements */
-label{display:block;font-size:.78rem;font-weight:600;color:var(--dim);margin-bottom:.3rem;
+label{display:block;font-size:12px;font-weight:600;color:var(--dim);margin-bottom:6px;
   text-transform:uppercase;letter-spacing:.04em}
 input[type="text"],input[type="password"],input[type="number"],select{
   color-scheme:dark;
-  width:100%;padding:.5rem .7rem;background:var(--layer);border:1px solid var(--border);
-  border-radius:var(--radius);color:var(--text);font-size:.85rem;margin-bottom:.8rem}
-input:focus,select:focus{outline:none;border-color:var(--accent)}
-.row{display:flex;gap:.5rem;align-items:flex-end}
+  width:100%;height:32px;padding:0 10px;background:var(--layer);border:1px solid var(--border);
+  border-radius:var(--radius);color:var(--text);font-family:var(--font);font-size:14px;line-height:32px;margin-bottom:12px}
+input:focus,select:focus{outline:none;border-color:var(--accent);background:#1f1f1f}
+.row{display:flex;gap:8px;align-items:flex-end}
 .row input,.row select{flex:1}
 
-button{padding:.45rem .9rem;border:none;border-radius:var(--radius);font-size:.8rem;
-  font-weight:600;cursor:pointer;transition:.1s}
+button{height:32px;padding:0 12px;border:none;border-radius:var(--radius);font-family:var(--font);font-size:14px;
+  font-weight:600;cursor:pointer;transition:.1s;white-space:nowrap}
 .btn-primary{background:var(--accent);color:#000;font-weight:600}
 .btn-primary:hover{filter:brightness(1.15)}
 .btn-secondary{background:var(--layer);color:var(--text);border:1px solid var(--border-strong)}
 .btn-secondary:hover{background:var(--subtle-hover);border-color:var(--border-strong)}
 .btn-danger{background:rgba(248,81,73,.12);color:var(--danger);border:1px solid rgba(248,81,73,.3)}
 .btn-danger:hover{background:rgba(248,81,73,.2)}
-.btn-row{display:flex;gap:.5rem;margin-top:.5rem}
+.btn-row{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
 
 /* Status */
 .status{display:inline-flex;align-items:center;gap:.4rem;font-size:.8rem;padding:.3rem .6rem;
@@ -70,7 +71,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
 .option-desc{font-size:.78rem;color:var(--dim)}
 
 /* Misc */
-.section{margin-bottom:1.5rem;padding-bottom:1.5rem;border-bottom:1px solid var(--border)}
+.section{margin-bottom:24px;padding-bottom:24px;border-bottom:1px solid var(--border)}
 .section:last-child{border-bottom:none}
 .mono{font-family:'JetBrains Mono',monospace;font-size:.8rem}
 .badge{display:inline-block;padding:.15rem .4rem;border-radius:4px;font-size:.7rem;font-weight:700}

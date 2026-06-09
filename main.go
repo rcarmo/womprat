@@ -534,17 +534,24 @@ func chromeOverlayJS(port int, token string) string {
     style.textContent = %s;
     (document.head || document.documentElement).appendChild(style);
 
+    const icons = {
+      back: '<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M12.73 4.22a.75.75 0 0 1 .05 1.06L8.56 10l4.22 4.72a.75.75 0 1 1-1.12 1L7 10.53a.75.75 0 0 1 0-1.06l4.66-5.2a.75.75 0 0 1 1.07-.05Z"/></svg>',
+      forward: '<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M7.27 4.22a.75.75 0 0 0-.05 1.06L11.44 10l-4.22 4.72a.75.75 0 1 0 1.12 1L13 10.53a.75.75 0 0 0 0-1.06l-4.66-5.2a.75.75 0 0 0-1.07-.05Z"/></svg>',
+      reload: '<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M15.65 6.35A6.5 6.5 0 1 0 16.5 10a.75.75 0 0 1 1.5 0 8 8 0 1 1-2.34-5.66V3.25a.75.75 0 0 1 1.5 0v3.5c0 .41-.34.75-.75.75h-3.5a.75.75 0 0 1 0-1.5h2.74Z"/></svg>',
+      home: '<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M9.28 2.78a1 1 0 0 1 1.44 0l6.5 6.78a.75.75 0 0 1-1.08 1.04l-.64-.67V16a2 2 0 0 1-2 2h-2.25a.75.75 0 0 1-.75-.75V13h-1v4.25a.75.75 0 0 1-.75.75H6.5a2 2 0 0 1-2-2V9.93l-.64.67a.75.75 0 1 1-1.08-1.04l6.5-6.78Z"/></svg>'
+    };
+    const i = (name) => '<span class="womprat-icon">' + icons[name] + '</span>';
     const bar = document.createElement('div');
     bar.id = 'womprat-chrome';
     bar.innerHTML = `+"`"+`
       <div id="womprat-tab-row">
         <div id="womprat-tabs"></div>
-        <button id="womprat-home" title="Home">⌂</button>
+        <button id="womprat-home" title="Home" aria-label="Home">${i('home')}</button>
       </div>
       <div id="womprat-url-row">
-        <button id="womprat-back" title="Back">‹</button>
-        <button id="womprat-forward" title="Forward">›</button>
-        <button id="womprat-reload" title="Reload">↻</button>
+        <button id="womprat-back" title="Back" aria-label="Back">${i('back')}</button>
+        <button id="womprat-forward" title="Forward" aria-label="Forward">${i('forward')}</button>
+        <button id="womprat-reload" title="Reload" aria-label="Reload">${i('reload')}</button>
         <input id="womprat-url" spellcheck="false">
         <button id="womprat-go">Go</button>
       </div>`+"`"+`;
@@ -608,8 +615,10 @@ var chromeOverlayCSS = "`" + `
 #womprat-chrome button{height:32px!important;min-width:32px!important;border:1px solid transparent!important;border-radius:4px!important;background:transparent!important;
   color:#d6d6d6!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;cursor:pointer!important;font-size:14px!important;padding:0 10px!important}
 #womprat-chrome button:hover{background:rgba(255,255,255,.08)!important;color:#fff!important}
-#womprat-chrome #womprat-back,#womprat-chrome #womprat-forward,#womprat-chrome #womprat-reload{font-size:22px!important;padding:0!important;line-height:32px!important}
-#womprat-chrome #womprat-home{margin-left:auto!important;font-size:18px!important;flex:0 0 auto!important}
+#womprat-chrome .womprat-icon{width:20px!important;height:20px!important;display:inline-block!important;flex:0 0 20px!important;color:currentColor!important}
+#womprat-chrome .womprat-icon svg{width:100%!important;height:100%!important;display:block!important}
+#womprat-chrome #womprat-back,#womprat-chrome #womprat-forward,#womprat-chrome #womprat-reload{padding:0!important;line-height:32px!important}
+#womprat-chrome #womprat-home{margin-left:auto!important;flex:0 0 auto!important}
 #womprat-chrome #womprat-url{height:32px!important;min-width:0!important;flex:1 1 auto!important;border:1px solid rgba(255,255,255,.16)!important;
   border-radius:4px!important;background:rgba(255,255,255,.06)!important;color:#f3f3f3!important;padding:0 10px!important;font-size:14px!important;
   line-height:32px!important;outline:none!important;color-scheme:dark!important}
