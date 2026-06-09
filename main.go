@@ -602,6 +602,10 @@ func (a *App) handleSSHAuthPassword(w http.ResponseWriter, r *http.Request) {
 func chromeOverlayJS(port int, token string) string {
 	return fmt.Sprintf(`
 (function() {
+  // Inject chrome only into the top-level browser document. Third-party pages
+  // often contain ad/login/sandbox iframes; adding womprat chrome inside those
+  // frames creates nested URL bars and breaks page layout.
+  if (window.top !== window.self) return;
   // Don't inject into our own shell pages.
   if (location.hostname === '127.0.0.1' && location.port === '%d') return;
   if (window.__wompratChromeInstalled) return;
