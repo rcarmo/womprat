@@ -131,6 +131,10 @@ func NewWithOptions(options WebViewOptions) WebView {
 	if err != nil {
 		log.Fatal(err)
 	}
+	// Disable WebView2's built-in browser accelerator keys (Ctrl+R/F5 reload,
+	// etc.) so the host application controls those keys instead of the WebView
+	// reloading itself.
+	_ = chromium.PutAreBrowserAcceleratorKeysEnabled(false)
 
 	return w
 }

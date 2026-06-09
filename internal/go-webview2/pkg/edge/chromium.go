@@ -325,6 +325,17 @@ func (e *Chromium) GetSettings() (*ICoreWebViewSettings, error) {
 	return e.webview.GetSettings()
 }
 
+// PutAreBrowserAcceleratorKeysEnabled toggles WebView2's built-in browser
+// accelerator keys (Ctrl+R/F5 reload, Ctrl+P print, etc.). Disabling lets the
+// host application handle those keys instead.
+func (e *Chromium) PutAreBrowserAcceleratorKeysEnabled(enabled bool) error {
+	s, err := e.GetSettings()
+	if err != nil {
+		return err
+	}
+	return s.PutAreBrowserAcceleratorKeysEnabled(enabled)
+}
+
 func (e *Chromium) GetController() *ICoreWebView2Controller {
 	return e.controller
 }
