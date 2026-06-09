@@ -86,8 +86,8 @@ func TestBrowserTabsUseSeparateContentViews(t *testing.T) {
 	if manager.views[firstID].shown == 0 || manager.views[secondID].hidden == 0 {
 		t.Fatalf("switch did not show first/hide second: first=%+v second=%+v", manager.views[firstID], manager.views[secondID])
 	}
-	if len(manager.views[firstID].urls) < 2 || manager.views[firstID].urls[len(manager.views[firstID].urls)-1] != "http://one.example" {
-		t.Fatalf("first view not restored to first URL: %#v", manager.views[firstID].urls)
+	if got := manager.views[firstID].urls; len(got) != 1 || got[0] != "http://one.example" {
+		t.Fatalf("first view should preserve state without reload: %#v", got)
 	}
 }
 

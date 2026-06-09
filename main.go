@@ -258,28 +258,31 @@ func (a *App) switchTab(tabID string) {
 			break
 		}
 	}
+	if tab == nil {
+		a.mu.Unlock()
+		return
+	}
 	a.activeTab = tabID
 	a.mu.Unlock()
 
-	if tab == nil {
-		return
-	}
-
 	switch tab.Type {
 	case "browser":
-		a.evalShell("window.activateTab(%s)", jsString(tabID))
+		a.evalShell("window.activateTab(%s,{skipNative:true})", jsString(tabID))
 		if a.contentViews != nil {
-			view := a.contentViews.Ensure(tabID)
-			a.contentViews.Show(tabID)
-			if tab.URL != "" {
-				view.Navigate(tab.URL)
+			view := a.contentViews.Get(tabID)
+			if view == nil {
+				view = a.contentViews.Ensure(tabID)
+				if tab.URL != "" {
+					view.Navigate(tab.URL)
+				}
 			}
+			a.contentViews.Show(tabID)
 		}
 	case "terminal", "settings":
 		if a.contentViews != nil {
 			a.contentViews.HideAll()
 		}
-		a.evalShell("window.activateTab(%s)", jsString(tabID))
+		a.evalShell("window.activateTab(%s,{skipNative:true})", jsString(tabID))
 	}
 }
 
@@ -345,8 +348,8 @@ func (a *App) forgetTab(tabID string) {
 func (a *App) closeTab(tabID string) {
 	a.mu.Lock()
 	now := time.Now()
-	if !a.lastCloseAt.IsZero() && now.Sub(a.lastCloseAt) < 250*time.Millisecond {
-		log.Printf("ignoring duplicate/overlapping tab close for %s after %s", tabID, a.lastCloseTab)
+	if tabID == a.lastCloseTab && !a.lastCloseAt.IsZero() && now.Sub(a.lastCloseAt) < 250*time.Millisecond {
+		log.Printf("ignoring duplicate tab close for %s", tabID)
 		a.mu.Unlock()
 		return
 	}
@@ -361,6 +364,10 @@ func (a *App) closeTab(tabID string) {
 			continue
 		}
 		newTabs = append(newTabs, t)
+	}
+	if closedIndex < 0 {
+		a.mu.Unlock()
+		return
 	}
 	a.tabs = newTabs
 	if oldActive == tabID {
@@ -418,7 +425,7 @@ func (a *App) openSettingsTab() {
 	if a.contentViews != nil {
 		a.contentViews.HideAll()
 	}
-	a.evalShell("window.activateTab(%s)", jsString(tab.ID))
+	a.evalShell("window.activateTab(%s,{skipNative:true})", jsString(tab.ID))
 }
 
 func (a *App) newTerminalTab(host, user string, port int) {
@@ -437,7 +444,7 @@ func (a *App) newTerminalTab(host, user string, port int) {
 	if a.contentViews != nil {
 		a.contentViews.HideAll()
 	}
-	a.evalShell("window.activateTab(%s)", jsString(tabID))
+	a.evalShell("window.activateTab(%s,{skipNative:true})", jsString(tabID))
 }
 
 func (a *App) registerLocalTab(tabJSON string) {
@@ -481,6 +488,9 @@ func (a *App) clearActiveTab() {
 	a.mu.Lock()
 	a.activeTab = ""
 	a.mu.Unlock()
+	if a.contentViews != nil {
+		a.contentViews.HideAll()
+	}
 }
 
 func (a *App) goHome() {

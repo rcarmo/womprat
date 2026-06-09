@@ -419,6 +419,13 @@ window.openTerminal = async function(host, name, user, port, options = {}) {
   if (!options.skipRegister) registerLocalTab(tab);
   saveOpenTabs(); updateHomeVisibility();
 
+  const existingSession = terminalSessions.get(tabId);
+  if (existingSession) {
+    existingSession.fit?.fit?.();
+    existingSession.term?.focus?.();
+    return;
+  }
+
   const panel = document.getElementById(`panel-${tabId}`);
   const container = panel.querySelector('.term-container');
 
@@ -543,6 +550,8 @@ async function submitPassword(sshTabId, password, term, tabId, host, name, user,
 function connectWebSocket(sshTabId, term, tabId, host, name, user, port, cols, rows) {
   term.write(`\x1b[2m Connected.\x1b[0m\r\n\r\n`);
   const ws = new WebSocket(`ws://${location.host}/api/ssh/ws?tab=${sshTabId}&cols=${cols}&rows=${rows}&token=${TOKEN}`);
+  const session = terminalSessions.get(tabId);
+  if (session) session.ws = ws;
 
   ws.onopen = () => {
     term.loadAddon(new AttachAddon(ws));
@@ -618,7 +627,12 @@ window.closeTab = function(id, e) {
   const closingActive = state.activeTab === id;
   const closing = state.tabs.find(t => t.id === id);
   state.tabs = state.tabs.filter(t => t.id !== id);
-  terminalSessions.delete(id);
+  const terminalSession = terminalSessions.get(id);
+  if (terminalSession) {
+    try { terminalSession.ws?.close?.(); } catch {}
+    try { terminalSession.term?.dispose?.(); } catch {}
+    terminalSessions.delete(id);
+  }
   document.getElementById(`panel-${id}`)?.remove();
 
   if (closing?.type === 'settings') {
@@ -716,10 +730,13 @@ function reorderTab(fromId, beforeId) {
   if (window.womprat_reorderTab) womprat_reorderTab(fromId, beforeIndex);
 }
 
-function activateTab(id) {
-  state.activeTab = id;
+function activateTab(id, options = {}) {
   const tab = state.tabs.find(t => t.id === id);
   if (!tab) return;
+  state.activeTab = id;
+  if (!options.skipNative && window.womprat_switchTab) {
+    womprat_switchTab(id);
+  }
 
   // Update URL bar with active tab's address
   const urlInput = document.getElementById('url-input');
@@ -771,7 +788,7 @@ window.showBrowserTab = function(id, url, title) {
     tab.title = title || navUrl;
   }
   renderTabs();
-  activateTab(id);
+  activateTab(id, { skipNative: true });
   setURLProgress(true);
   saveURLHistory(navUrl);
   registerLocalTab(tab);
