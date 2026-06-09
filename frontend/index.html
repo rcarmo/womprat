@@ -72,14 +72,8 @@ button,a,.tab,.recent-item,.peer-item,.option{
 /* Terminal panel */
 .term-panel .xterm{flex:1}
 
-/* Browser panel */
+/* Local panels */
 .browser-panel{flex-direction:column}
-.browser-bar{display:flex;gap:.3rem;padding:.35rem .5rem;background:var(--surface-solid);border-bottom:1px solid var(--border);align-items:center}
-.browser-bar input{flex:1;background:var(--layer);border:1px solid var(--border);border-radius:var(--radius);
-  padding:.35rem .6rem;color:var(--text);font-family:var(--font);outline:none}
-.browser-bar input:focus{border-color:var(--accent);background:var(--bg)}
-.browser-bar button{background:transparent;color:var(--text-secondary);border:1px solid transparent;border-radius:var(--radius);width:2em;height:2em;display:inline-flex;align-items:center;justify-content:center;font-size:1em;
-  padding:.35rem .7rem;font-size:.78rem;font-weight:600;cursor:pointer}
 .browser-frame{flex:1;border:none}
 
 /* Setup screen */
@@ -444,11 +438,16 @@ async function reconnectTerminal(tabId, host, name, user, port, term) {
 
 window.openBrowser = function(url, name) {
   document.getElementById('peer-menu').classList.remove('show');
-  const tabId = `browser-${Date.now()}`;
-  const tab = { id: tabId, type: 'browser', title: name, url };
-  state.tabs.push(tab);
-  renderTabs();
-  activateTab(tabId);
+  let navUrl = url;
+  if (!/^https?:\/\//.test(navUrl)) navUrl = 'http://' + navUrl;
+
+  // Browser tabs are real WebView2 navigations managed by Go.
+  // Do not create shell panels/iframes for external pages.
+  if (window.womprat_newBrowser) {
+    womprat_newBrowser(navUrl);
+  } else {
+    location.href = navUrl;
+  }
 };
 
 window.closeTab = function(id, e) {
@@ -476,35 +475,37 @@ function renderTabs() {
 
 function activateTab(id) {
   state.activeTab = id;
-  // Update URL bar with active tab's URL
   const tab = state.tabs.find(t => t.id === id);
+  if (!tab) return;
+
+  // External browser tabs must never be represented as shell iframes.
+  if (tab.type === 'browser') {
+    if (window.womprat_newBrowser) womprat_newBrowser(tab.url || tab.title || 'about:blank');
+    else location.href = tab.url || tab.title || 'about:blank';
+    return;
+  }
+
+  // Update URL bar with active local tab's address
   const urlInput = document.getElementById('url-input');
-  if (urlInput && tab) {
-    if (tab.type === 'browser') urlInput.value = tab.url || '';
-    else if (tab.type === 'terminal') urlInput.value = 'ssh://' + (tab.user||'root') + '@' + (tab.host||'') + ':' + (tab.port||22);
+  if (urlInput) {
+    if (tab.type === 'terminal') urlInput.value = 'ssh://' + (tab.user||'root') + '@' + (tab.host||'') + ':' + (tab.port||22);
+    else if (tab.type === 'settings') urlInput.value = '/settings.html';
     else urlInput.value = '';
   }
+
   const panels = document.getElementById('panels');
-  // Create panel if it doesn't exist
+  // Create panel if it doesn't exist. Only local content is allowed here.
   if (!document.getElementById(`panel-${id}`)) {
-    const tab = state.tabs.find(t => t.id === id);
     const panel = document.createElement('div');
     panel.id = `panel-${id}`;
     if (tab.type === 'terminal') {
       panel.className = 'panel term-panel';
       panel.innerHTML = '<div class="term-container" style="flex:1"></div>';
-    } else {
+    } else if (tab.type === 'settings') {
       panel.className = 'panel browser-panel';
-      panel.innerHTML = `
-        <div class="browser-bar">
-          <button onclick="historyBack('')" title="Back"><svg width="1em" height="1em" viewBox="0 0 20 20" fill="currentColor"><path d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z"/></svg></button>
-          <button onclick="historyForward('')" title="Forward"><svg width="1em" height="1em" viewBox="0 0 20 20" fill="currentColor"><path d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"/></svg></button>
-          <button onclick="historyReload('')" title="Reload"><svg width="1em" height="1em" viewBox="0 0 20 20" fill="currentColor"><path d="M14.66 4.26A8 8 0 003.07 8H1.5a.5.5 0 00-.4.8l2.5 3.33a.5.5 0 00.8 0L6.9 8.8A.5.5 0 006.5 8H5.07a6 6 0 1111.12 4.23.5.5 0 00.12.52l.7.7a.5.5 0 00.78-.08A8 8 0 0014.66 4.26z"/></svg></button>
-          <input value="${tab.url}" onkeydown="if(event.key==='Enter')navigateTab('${id}')"
-                 id="url-${id}">
-          <button onclick="navigateTab('${id}')">Go</button>
-        </div>
-        <iframe class="browser-frame" src="${tab.url}"></iframe>`;
+      panel.innerHTML = '<iframe class="browser-frame" src="/settings.html"></iframe>';
+    } else {
+      return;
     }
     panels.appendChild(panel);
   }
@@ -514,18 +515,9 @@ function activateTab(id) {
   renderTabs();
 }
 
-window.historyBack = function(id) {
-  const iframe = document.querySelector(`#panel-${id} iframe`);
-  if (iframe?.contentWindow) try { iframe.contentWindow.history.back(); } catch {}
-};
-window.historyForward = function(id) {
-  const iframe = document.querySelector(`#panel-${id} iframe`);
-  if (iframe?.contentWindow) try { iframe.contentWindow.history.forward(); } catch {}
-};
-window.historyReload = function(id) {
-  const iframe = document.querySelector(`#panel-${id} iframe`);
-  if (iframe?.contentWindow) try { iframe.contentWindow.location.reload(); } catch {}
-};
+window.historyBack = function() { history.back(); };
+window.historyForward = function() { history.forward(); };
+window.historyReload = function() { location.reload(); };
 
 window.navigateFromBar = function() {
   const url = document.getElementById('url-input').value.trim();
@@ -540,36 +532,14 @@ window.navigateFromBar = function() {
   }
   let navUrl = url;
   if (!/^https?:\/\//.test(navUrl)) navUrl = 'http://' + navUrl;
-  // If active tab is a browser tab, navigate it
-  const active = state.tabs.find(t => t.id === state.activeTab);
-  if (active && active.type === 'browser') {
-    active.url = navUrl;
-    const iframe = document.querySelector('#panel-' + active.id + ' iframe');
-    if (iframe) iframe.src = navUrl;
-    saveOpenTabs();
-  } else {
-    // Open a new browser tab
-    openBrowser(navUrl, new URL(navUrl).hostname || 'page');
-  }
+  // External browsing is direct WebView2 navigation, never a shell iframe.
+  if (window.womprat_navigate) womprat_navigate(navUrl);
+  else location.href = navUrl;
 };
 
 window.navigateTab = function(id) {
-  const url = document.getElementById(`url-${id}`).value.trim();
-  // Handle ssh:// URLs - open as terminal tab instead
-  const sshMatch = url.match(/^ssh:\/\/(?:([^@]+)@)?([^:\/]+)(?::(\d+))?/);
-  if (sshMatch) {
-    const user = sshMatch[1] || 'root';
-    const host = sshMatch[2];
-    const port = sshMatch[3] ? parseInt(sshMatch[3]) : 22;
-    openTerminal(host, host, user, port);
-    closeTab(id, new Event('click'));
-    return;
-  }
-  // Ensure http(s) prefix
-  let navUrl = url;
-  if (!/^https?:\/\//.test(navUrl)) navUrl = 'http://' + navUrl;
-  const iframe = document.querySelector(`#panel-${id} iframe`);
-  if (iframe) iframe.src = navUrl;
+  // Legacy entrypoint kept for old handlers; route through persistent URL bar.
+  navigateFromBar();
 };
 
 window.openSettings = function() {
