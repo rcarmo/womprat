@@ -119,6 +119,8 @@ func createHostWindow(title string, width, height int) (uintptr, error) {
 	if hwnd == 0 {
 		return 0, fmt.Errorf("create host window: %w", err)
 	}
+	procShowWindowHost.Call(hwnd, swShow)
+	procUpdateWindow.Call(hwnd)
 	return hwnd, nil
 }
 
@@ -221,9 +223,10 @@ func runGUI(app *App, shellURL string) {
 	if contentViews != nil {
 		contentViews.HideAll()
 	}
-	// Show the host only after the shell WebView exists and is navigating, so the
-	// dark child surface is up before the window becomes visible (no white flash).
-	showHostWindow(host)
+	// Ensure the shell WebView controller is laid out against the visible host
+	// window so it paints (avoids a blank window when no WM_SIZE follows show).
+	resizeChildToClient(host, shellChild, 0, 0)
+	w.Resize()
 	// Use the wrapper run loop: it pumps all thread messages (including the host
 	// window proc for WM_SIZE) and, critically, drains the dispatch queue that
 	// resolves JS<->Go bound-function promises. A custom GetMessage loop that does
