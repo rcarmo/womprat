@@ -182,6 +182,13 @@ func (m *nativeContentManager) resizeAll() {
 	}
 }
 
+func (m *nativeContentManager) notifyShellResize() {
+	if m == nil || m.shell == nil {
+		return
+	}
+	m.shell.Eval("window.wompratOnHostResize && window.wompratOnHostResize()")
+}
+
 func (m *nativeContentManager) resizeLoop() {
 	ticker := time.NewTicker(250 * time.Millisecond)
 	defer ticker.Stop()

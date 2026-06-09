@@ -255,6 +255,15 @@ window.wompratContentError = function(tabId, message) {
   setBrowserStatus(tabId, `Browser WebView failed: ${message || 'unknown error'}`);
   renderTabs();
 };
+window.wompratOnHostResize = function() {
+  const tab = state.tabs.find(t => t.id === state.activeTab);
+  if (tab && tab.type === 'terminal') {
+    const s = terminalSessions.get(tab.id);
+    if (s && s.fit) {
+      try { s.fit.fit(); } catch {}
+    }
+  }
+};
 window.wompratBrowserHotkey = function(action, arg) {
   switch (action) {
     case 'focusUrl': focusAddress(true); break;
