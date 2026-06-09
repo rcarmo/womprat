@@ -67,7 +67,7 @@ button,a,.tab,.recent-item,.option{
 .tab:hover{background:var(--subtle-hover);color:var(--text)}
 .tab.active{background:var(--layer);color:var(--text);font-weight:600}
 .tab-title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.tab-close{margin-left:4px;opacity:.55;color:var(--dim);cursor:pointer;border-radius:4px;width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;flex:0 0 24px}
+.tab-close{margin-left:4px;opacity:.55;color:var(--dim);cursor:pointer;border:0;background:transparent;padding:0;border-radius:4px;width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;flex:0 0 24px}
 .tab-close .fluent-icon{width:16px;height:16px}
 .tab-close:hover{opacity:1;color:var(--text);background:var(--subtle-hover)}
 #new-tab{width:32px;height:32px;-webkit-app-region:no-drag;flex:0 0 32px}
@@ -611,7 +611,18 @@ function renderTabs() {
     const el = document.createElement('div');
     el.className = `tab${tab.id === state.activeTab ? ' active' : ''}`;
     el.onclick = () => activateTab(tab.id);
-    el.innerHTML = `${tabIconHTML(tab)} <span class="tab-title">${escapeHTML(tab.title)}</span> <span class="tab-close" onclick="closeTab(${jsArg(tab.id)},event)" title="Close">${icon('dismiss')}</span>`;
+    el.innerHTML = `${tabIconHTML(tab)} <span class="tab-title">${escapeHTML(tab.title)}</span>`;
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'tab-close';
+    close.title = 'Close';
+    close.setAttribute('aria-label', 'Close tab');
+    close.innerHTML = icon('dismiss');
+    const stopCloseEvent = (e) => { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation?.(); };
+    close.addEventListener('pointerdown', stopCloseEvent, true);
+    close.addEventListener('mousedown', stopCloseEvent, true);
+    close.addEventListener('click', (e) => { stopCloseEvent(e); closeTab(tab.id, e); }, true);
+    el.appendChild(close);
     bar.insertBefore(el, plus);
   });
 }

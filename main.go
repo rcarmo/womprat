@@ -1077,11 +1077,15 @@ func chromeOverlayJS(port int, token string) string {
           title.appendChild(label);
           title.addEventListener('click', () => womprat_switchTab(t.id));
           const close = document.createElement('button');
+          close.type = 'button';
           close.className = 'wt-close';
           close.title = 'Close tab';
           close.setAttribute('aria-label', 'Close tab');
           close.innerHTML = i('close');
-          close.addEventListener('click', (e) => { e.stopPropagation(); womprat_closeTab(t.id); });
+          const stopCloseEvent = (e) => { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation?.(); };
+          close.addEventListener('pointerdown', stopCloseEvent, true);
+          close.addEventListener('mousedown', stopCloseEvent, true);
+          close.addEventListener('click', (e) => { stopCloseEvent(e); womprat_closeTab(t.id); }, true);
           item.appendChild(title);
           item.appendChild(close);
           tabs.appendChild(item);
