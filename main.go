@@ -78,13 +78,12 @@ func main() {
 	port := listener.Addr().(*net.TCPAddr).Port
 	go http.Serve(listener, mux)
 
+	// Start SOCKS5 proxy immediately (port must be open before WebView2 starts)
+	startSOCKS5Listener(app)
+
 	// Start Tailscale
 	if err := app.startTailscale(); err != nil {
 		log.Printf("Tailscale start failed: %v (will prompt for key)", err)
-	} else {
-		if err := startSOCKS5(app.tsServer); err != nil {
-			log.Printf("SOCKS5: %v", err)
-		}
 	}
 
 

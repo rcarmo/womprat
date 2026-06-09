@@ -5,16 +5,18 @@ import (
 	"fmt"
 	"log"
 	"net"
-
-	"tailscale.com/tsnet"
+	"time"
 )
 
 var socksAddr = "127.0.0.1:1080"
 
-func startSOCKS5(ts *tsnet.Server) error {
+// startSOCKS5Listener starts the SOCKS5 listener immediately.
+// It can serve requests as soon as app.tsServer is non-nil.
+func startSOCKS5Listener(app *App) {
 	ln, err := net.Listen("tcp", socksAddr)
 	if err != nil {
-		return err
+		log.Printf("SOCKS5 listen failed: %v", err)
+		return
 	}
 	go func() {
 		for {
@@ -25,14 +27,13 @@ func startSOCKS5(ts *tsnet.Server) error {
 				conn.Close()
 				continue
 			}
-			go handleSOCKS5(conn, ts)
+			go handleSOCKS5(conn, app)
 		}
 	}()
-	log.Printf("SOCKS5 proxy on %s", socksAddr)
-	return nil
+	log.Printf("SOCKS5 proxy on %s (waiting for tailscale)", socksAddr)
 }
 
-func handleSOCKS5(conn net.Conn, ts *tsnet.Server) {
+func handleSOCKS5(conn net.Conn, app *App) {
 	defer conn.Close()
 	buf := make([]byte, 256)
 	n, err := conn.Read(buf)
@@ -66,14 +67,26 @@ func handleSOCKS5(conn net.Conn, ts *tsnet.Server) {
 		return
 	}
 
-	// Filter: only tailnet or all (if exit node active)
-	if !useExitNode && !isTailnetDest(host) {
-		conn.Write([]byte{0x05, 0x02, 0x00, 0x01, 0, 0, 0, 0, 0, 0})
+	// Check if tailscale is connected
+	app.mu.Lock()
+	ts := app.tsServer
+	app.mu.Unlock()
+	if ts == nil {
+		// Not connected yet — refuse
+		conn.Write([]byte{0x05, 0x05, 0x00, 0x01, 0, 0, 0, 0, 0, 0})
 		return
 	}
 
 	addr := fmt.Sprintf("%s:%d", host, port)
-	remote, err := ts.Dial(context.Background(), "tcp", addr)
+	var remote net.Conn
+
+	if isTailnetDest(host) || useExitNode {
+		// Route through tsnet (tailnet or exit node)
+		remote, err = ts.Dial(context.Background(), "tcp", addr)
+	} else {
+		// Non-tailnet destination, no exit node: dial directly
+		remote, err = net.DialTimeout("tcp", addr, 10*time.Second)
+	}
 	if err != nil {
 		conn.Write([]byte{0x05, 0x05, 0x00, 0x01, 0, 0, 0, 0, 0, 0})
 		return
@@ -94,7 +107,7 @@ func isTailnetDest(host string) bool {
 		if ip4 != nil { return ip4[0] == 100 && (ip4[1]&0xC0) == 64 }
 		return len(ip) == 16 && ip[0] == 0xfd && ip[1] == 0x7a
 	}
-	return true // DNS names resolve via MagicDNS
+	return true
 }
 
 func relay(dst, src net.Conn) {
