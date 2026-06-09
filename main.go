@@ -684,6 +684,48 @@ func chromeOverlayJS(port int, token string) string {
     document.getElementById('womprat-home').addEventListener('click', () => womprat_goHome());
     input.addEventListener('keydown', (e) => { if (e.key === 'Enter') navigateFromInput(); });
 
+    async function currentTabState() {
+      try { return JSON.parse(await womprat_getTabs()); } catch(e) { return { tabs: [], activeTab: '' }; }
+    }
+    async function switchRelativeTab(delta) {
+      const state = await currentTabState();
+      const tabs = state.tabs || [];
+      if (!tabs.length) return;
+      const idx = Math.max(0, tabs.findIndex(t => t.id === state.activeTab));
+      const next = tabs[(idx + delta + tabs.length) %% tabs.length];
+      if (next) womprat_switchTab(next.id);
+    }
+    async function switchTabAt(index) {
+      const state = await currentTabState();
+      const tabs = state.tabs || [];
+      if (!tabs.length) return;
+      const target = tabs[Math.min(index, tabs.length - 1)];
+      if (target) womprat_switchTab(target.id);
+    }
+    async function closeActiveTab() {
+      const state = await currentTabState();
+      if (state.activeTab) womprat_closeTab(state.activeTab);
+      else womprat_goHome();
+    }
+    function focusAddress(selectAll) {
+      input.focus();
+      if (selectAll) input.select();
+    }
+    document.addEventListener('keydown', (e) => {
+      const key = e.key.toLowerCase();
+      const ctrl = e.ctrlKey || e.metaKey;
+      if (e.altKey && !ctrl && key === 'arrowleft') { e.preventDefault(); history.back(); return; }
+      if (e.altKey && !ctrl && key === 'arrowright') { e.preventDefault(); history.forward(); return; }
+      if (key === 'f5' || (ctrl && key === 'r')) { e.preventDefault(); location.reload(); return; }
+      if ((ctrl && key === 'l') || (e.altKey && !ctrl && key === 'd')) { e.preventDefault(); focusAddress(true); return; }
+      if (ctrl && key === 't') { e.preventDefault(); womprat_goHome(); return; }
+      if (ctrl && key === 'w') { e.preventDefault(); closeActiveTab(); return; }
+      if (ctrl && (key === 'tab' || key === 'pagedown')) { e.preventDefault(); switchRelativeTab(e.shiftKey ? -1 : 1); return; }
+      if (ctrl && key === 'pageup') { e.preventDefault(); switchRelativeTab(-1); return; }
+      if (ctrl && /^[1-9]$/.test(key)) { e.preventDefault(); switchTabAt(key === '9' ? 8 : Number(key) - 1); return; }
+      if (e.altKey && !ctrl && key === 'home') { e.preventDefault(); womprat_goHome(); return; }
+    }, true);
+
     async function refresh() {
       try {
         const state = JSON.parse(await womprat_getTabs());
