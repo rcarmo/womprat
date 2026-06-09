@@ -155,7 +155,8 @@ func isTailnetDest(host string) bool {
 
 	// MagicDNS short names and ts.net names should go through tsnet.
 	// Public FQDNs (e.g. news.ycombinator.com) should go direct unless an exit
-	// node is active. .local is intentionally direct for mDNS/LAN.
+	// node is active. Without an exit node, .local stays direct for mDNS/LAN;
+	// with an exit node, shouldRouteViaTSNet returns before this function.
 	if strings.HasSuffix(h, ".local") {
 		return false
 	}
