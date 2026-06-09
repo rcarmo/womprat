@@ -863,11 +863,23 @@ func chromeOverlayJS(port int, token string) string {
         <input id="womprat-url" spellcheck="false">
         <span id="womprat-route" title="Exit node route status"></span>
         <button id="womprat-go">Go</button>
+        <div id="womprat-progress" aria-hidden="true"><div></div></div>
       </div>`+"`"+`;
     root.appendChild(bar);
 
     const input = document.getElementById('womprat-url');
     input.value = location.href;
+    let progressTimer = null;
+    function setProgress(active, done) {
+      const el = document.getElementById('womprat-progress');
+      if (!el) return;
+      clearTimeout(progressTimer);
+      el.classList.toggle('active', !!active || !!done);
+      el.classList.toggle('done', !!done);
+      if (done) {
+        progressTimer = setTimeout(() => el.classList.remove('active', 'done'), 450);
+      }
+    }
 
     function installContentZoomControls() {
       let contentZoom = Number(sessionStorage.getItem('wompratContentZoom') || '1') || 1;
@@ -914,7 +926,8 @@ func chromeOverlayJS(port int, token string) string {
         return;
       }
       if (!/^https?:\/\//i.test(u)) u = 'http://' + u;
-      updateRoutePill(true);
+      updateRoutePill();
+      setProgress(true, false);
       womprat_navigate(u);
     }
 
@@ -939,8 +952,11 @@ func chromeOverlayJS(port int, token string) string {
 
     function installTitleReporter() {
       reportPageTitle();
-      window.addEventListener('load', reportPageTitle);
-      document.addEventListener('readystatechange', reportPageTitle);
+      window.addEventListener('load', () => { reportPageTitle(); setProgress(false, true); });
+      document.addEventListener('readystatechange', () => {
+        reportPageTitle();
+        if (document.readyState === 'complete') setProgress(false, true);
+      });
       const titleEl = document.querySelector('title');
       if (titleEl) new MutationObserver(reportPageTitle).observe(titleEl, { childList: true, subtree: true, characterData: true });
       new MutationObserver(reportPageTitle).observe(document.documentElement, { childList: true, subtree: true });
@@ -958,16 +974,15 @@ func chromeOverlayJS(port int, token string) string {
       }, true);
     }
 
-    async function updateRoutePill(loading) {
+    async function updateRoutePill() {
       const pill = document.getElementById('womprat-route');
       if (!pill) return;
       try {
         const ns = window.womprat_getNetworkState ? JSON.parse(await womprat_getNetworkState()) : {};
-        const isLoading = loading || document.readyState !== 'complete';
         if (ns.exitActive && ns.exitNode) {
           pill.textContent = ns.exitNode;
-          pill.title = isLoading ? 'Loading via exit node ' + ns.exitNode : 'Traffic is routed via exit node ' + ns.exitNode;
-          pill.className = 'active' + (isLoading ? ' loading' : '');
+          pill.title = 'Traffic is routed via exit node ' + ns.exitNode;
+          pill.className = 'active';
         } else {
           pill.textContent = '';
           pill.className = '';
@@ -1100,7 +1115,13 @@ var chromeOverlayCSS = "`" + `
 #womprat-chrome .wt-close{width:24px!important;height:24px!important;min-width:24px!important;padding:0!important;border:0!important;border-radius:4px!important;background:transparent!important;color:#cfcfcf!important;opacity:.65!important;flex:0 0 24px!important}
 #womprat-chrome .wt-close:hover{background:rgba(255,255,255,.10)!important;color:#fff!important;opacity:1!important}
 #womprat-chrome .wt-close .womprat-icon{width:16px!important;height:16px!important;flex-basis:16px!important}
-#womprat-url-row{height:44px!important;display:flex!important;align-items:center!important;gap:6px!important;padding:6px 8px!important;min-width:0!important}
+#womprat-url-row{height:44px!important;display:flex!important;align-items:center!important;gap:6px!important;padding:6px 8px!important;min-width:0!important;position:relative!important}
+#womprat-chrome #womprat-progress{position:absolute!important;left:0!important;right:0!important;bottom:-1px!important;height:2px!important;overflow:hidden!important;opacity:0!important;pointer-events:none!important;transition:opacity .15s!important}
+#womprat-chrome #womprat-progress.active{opacity:1!important}
+#womprat-chrome #womprat-progress>div{height:100%!important;width:30%!important;background:#60cdff!important;border-radius:999px!important;box-shadow:0 0 8px rgba(96,205,255,.45)!important;transform:translateX(-120%)!important}
+#womprat-chrome #womprat-progress.active>div{animation:wompratUrlProgress 1.15s ease-in-out infinite!important}
+#womprat-chrome #womprat-progress.done>div{width:100%!important;transform:translateX(0)!important;animation:none!important;transition:width .18s,transform .18s!important}
+@keyframes wompratUrlProgress{0%{transform:translateX(-120%);width:28%}50%{width:48%}100%{transform:translateX(360%);width:28%}}
 #womprat-chrome button{height:32px!important;min-width:32px!important;border:1px solid transparent!important;border-radius:4px!important;background:transparent!important;
   color:#d6d6d6!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;cursor:pointer!important;font-size:14px!important;padding:0 10px!important}
 #womprat-chrome button:hover{background:rgba(255,255,255,.08)!important;color:#fff!important}
@@ -1116,8 +1137,6 @@ var chromeOverlayCSS = "`" + `
   border:1px solid rgba(255,255,255,.10)!important;background:rgba(255,255,255,.05)!important;color:rgba(255,255,255,.55)!important;
   font-size:11px!important;font-weight:600!important;letter-spacing:0!important;text-transform:none!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;flex:0 1 auto!important}
 #womprat-chrome #womprat-route.active{display:inline-flex!important}
-#womprat-chrome #womprat-route.loading::after{content:""!important;width:6px!important;height:6px!important;border-radius:50%!important;background:currentColor!important;margin-left:6px!important;animation:wompratPulse 1s infinite ease-in-out!important}
-@keyframes wompratPulse{0%,100%{opacity:.35;transform:scale(.85)}50%{opacity:1;transform:scale(1.15)}}
 html{height:100%!important;overflow:hidden!important;scroll-padding-top:var(--womprat-chrome-offset)!important}
 body{height:calc(100vh - var(--womprat-chrome-offset))!important;overflow:auto!important;margin-top:var(--womprat-chrome-offset)!important;padding-top:0!important;box-sizing:border-box!important}
 body > :not(#womprat-chrome){zoom:var(--womprat-content-zoom)!important}
