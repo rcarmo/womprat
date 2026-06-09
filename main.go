@@ -63,7 +63,10 @@ type App struct {
 	pendingAuth  map[string]*pendingSSH
 	sessionToken string
 	locked       bool
-	webview      interface{ Navigate(string) }
+	webview      interface {
+		Navigate(string)
+		Eval(string)
+	}
 	serverPort   int
 	lastCloseAt  time.Time
 	lastCloseTab string
@@ -113,20 +116,36 @@ func main() {
 	runGUI(app, shellURL)
 }
 
+func jsString(v interface{}) string {
+	b, _ := json.Marshal(v)
+	return string(b)
+}
+
+func (a *App) evalShell(format string, args ...interface{}) {
+	if a.webview == nil {
+		return
+	}
+	a.webview.Eval(fmt.Sprintf(format, args...))
+}
+
 func (a *App) navigateBrowser(url string) {
 	if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
 		url = "http://" + url
 	}
-	// Update active tab URL
+	var tabID string
 	a.mu.Lock()
 	for i, t := range a.tabs {
 		if t.ID == a.activeTab && t.Type == "browser" {
 			a.tabs[i].URL = url
+			a.tabs[i].Title = url
+			tabID = t.ID
 		}
 	}
 	a.mu.Unlock()
 	a.persistOpenTabs()
-	a.webview.Navigate(url)
+	if tabID != "" {
+		a.evalShell("window.showBrowserTab(%s,%s)", jsString(tabID), jsString(url))
+	}
 }
 
 func (a *App) updateActiveBrowserTitle(title, url, favicon string) {
@@ -202,11 +221,8 @@ func (a *App) switchTab(tabID string) {
 	}
 
 	switch tab.Type {
-	case "browser":
-		a.webview.Navigate(tab.URL)
-	case "terminal", "settings":
-		shellURL := fmt.Sprintf("http://127.0.0.1:%d/?tab=%s&v=%d", a.serverPort, tabID, time.Now().UnixMilli())
-		a.webview.Navigate(shellURL)
+	case "browser", "terminal", "settings":
+		a.evalShell("window.activateTab(%s)", jsString(tabID))
 	}
 }
 
@@ -322,7 +338,7 @@ func (a *App) newBrowserTab(url string) {
 	a.activeTab = tabID
 	a.mu.Unlock()
 	a.persistOpenTabs()
-	a.webview.Navigate(url)
+	a.evalShell("window.showBrowserTab(%s,%s)", jsString(tabID), jsString(url))
 }
 
 func (a *App) openSettingsTab() {
@@ -331,8 +347,7 @@ func (a *App) openSettingsTab() {
 	a.tabs = upsertTab(a.tabs, tab)
 	a.activeTab = tab.ID
 	a.mu.Unlock()
-	shellURL := fmt.Sprintf("http://127.0.0.1:%d/?tab=settings&v=%d", a.serverPort, time.Now().UnixMilli())
-	a.webview.Navigate(shellURL)
+	a.evalShell("window.activateTab(%s)", jsString(tab.ID))
 }
 
 func (a *App) newTerminalTab(host, user string, port int) {
@@ -348,8 +363,7 @@ func (a *App) newTerminalTab(host, user string, port int) {
 	a.activeTab = tabID
 	a.mu.Unlock()
 	a.persistOpenTabs()
-	shellURL := fmt.Sprintf("http://127.0.0.1:%d/?tab=%s&v=%d", a.serverPort, tabID, time.Now().UnixMilli())
-	a.webview.Navigate(shellURL)
+	a.evalShell("window.activateTab(%s)", jsString(tabID))
 }
 
 func (a *App) registerLocalTab(tabJSON string) {
@@ -502,7 +516,7 @@ func (a *App) serveFrontend(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		// Internal shell pages may frame only other local shell pages (settings).
 		// External web content must be direct WebView navigation, never iframe.
-		w.Header().Set("Content-Security-Policy", "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; connect-src 'self' ws: http://127.0.0.1:*; frame-src 'self' http://127.0.0.1:*; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'unsafe-eval'")
+		w.Header().Set("Content-Security-Policy", "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; connect-src 'self' ws: http://127.0.0.1:*; frame-src 'self' http://127.0.0.1:* http: https:; img-src 'self' data: blob: http: https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'unsafe-eval'")
 		content := strings.Replace(string(data), "</head>",
 			fmt.Sprintf(`<script>window.__SESSION_TOKEN="%s";window.__PORT=%d;</script></head>`, a.sessionToken, a.serverPort), 1)
 		w.Write([]byte(content))
@@ -854,409 +868,3 @@ func (a *App) handleSSHAuthPassword(w http.ResponseWriter, r *http.Request) {
 	a.mu.Unlock()
 	json.NewEncoder(w).Encode(map[string]string{"status": "connected", "tabId": body.TabId})
 }
-
-// chromeOverlayJS returns JS that injects native-sized browser chrome into external pages.
-func chromeOverlayJS(port int, token string) string {
-	return fmt.Sprintf(`
-(function() {
-  // Inject chrome only into the top-level browser document. Third-party pages
-  // often contain ad/login/sandbox iframes; adding womprat chrome inside those
-  // frames creates nested URL bars and breaks page layout.
-  if (window.top !== window.self) return;
-  // Don't inject into our own shell pages.
-  if (location.hostname === '127.0.0.1' && location.port === '%d') return;
-  if (window.__wompratChromeInstalled) return;
-  window.__wompratChromeInstalled = true;
-
-  function install() {
-    if (!document.documentElement) {
-      requestAnimationFrame(install);
-      return;
-    }
-
-    const root = document.body || document.documentElement;
-    const style = document.createElement('style');
-    style.textContent = %s;
-    (document.head || document.documentElement).appendChild(style);
-
-    const icons = {
-      back: '<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M9.78 4.22a.75.75 0 0 1 0 1.06L5.56 9.5h10.69a.75.75 0 0 1 0 1.5H5.56l4.22 4.22a.75.75 0 1 1-1.06 1.06l-5.5-5.5a.75.75 0 0 1 0-1.06l5.5-5.5a.75.75 0 0 1 1.06 0Z"/></svg>',
-      forward: '<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M10.22 4.22a.75.75 0 0 1 1.06 0l5.5 5.5a.75.75 0 0 1 0 1.06l-5.5 5.5a.75.75 0 1 1-1.06-1.06L14.44 11H3.75a.75.75 0 0 1 0-1.5h10.69l-4.22-4.22a.75.75 0 0 1 0-1.06Z"/></svg>',
-      reload: '<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M15.65 6.35A6.5 6.5 0 1 0 16.5 10a.75.75 0 0 1 1.5 0 8 8 0 1 1-2.34-5.66V3.25a.75.75 0 0 1 1.5 0v3.5c0 .41-.34.75-.75.75h-3.5a.75.75 0 0 1 0-1.5h2.74Z"/></svg>',
-      close: '<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M4.22 4.22a.75.75 0 0 1 1.06 0L10 8.94l4.72-4.72a.75.75 0 1 1 1.06 1.06L11.06 10l4.72 4.72a.75.75 0 1 1-1.06 1.06L10 11.06l-4.72 4.72a.75.75 0 0 1-1.06-1.06L8.94 10 4.22 5.28a.75.75 0 0 1 0-1.06Z"/></svg>',
-      add: '<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M10 3.5a.75.75 0 0 1 .75.75v5h5a.75.75 0 0 1 0 1.5h-5v5a.75.75 0 0 1-1.5 0v-5h-5a.75.75 0 0 1 0-1.5h5v-5A.75.75 0 0 1 10 3.5Z"/></svg>',
-      globe: '<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M10 2a8 8 0 1 0 0 16 8 8 0 0 0 0-16ZM4.08 9.25a6.5 6.5 0 0 1 2.1-4.2c-.4.94-.66 2.4-.72 4.2H4.08Zm0 1.5h1.38c.06 1.8.32 3.26.72 4.2a6.5 6.5 0 0 1-2.1-4.2Zm5.17 5.67c-.7-.55-1.2-2.73-1.3-5.67h2.6c-.1 2.94-.6 5.12-1.3 5.67Zm1.3-7.17h-2.6c.1-2.94.6-5.12 1.3-5.67.7.55 1.2 2.73 1.3 5.67Zm3.27 5.7c.4-.94.66-2.4.72-4.2h1.38a6.5 6.5 0 0 1-2.1 4.2Zm.72-5.7c-.06-1.8-.32-3.26-.72-4.2a6.5 6.5 0 0 1 2.1 4.2h-1.38Z"/></svg>'
-    };
-    const i = (name) => '<span class="womprat-icon">' + icons[name] + '</span>';
-    const bar = document.createElement('div');
-    bar.id = 'womprat-chrome';
-    bar.innerHTML = `+"`"+`
-      <div id="womprat-tab-row">
-        <div id="womprat-tabs"></div>
-        <button id="womprat-new-tab" title="New tab" aria-label="New tab">${i('add')}</button>
-      </div>
-      <div id="womprat-url-row">
-        <button id="womprat-back" title="Back" aria-label="Back">${i('back')}</button>
-        <button id="womprat-forward" title="Forward" aria-label="Forward">${i('forward')}</button>
-        <button id="womprat-reload" title="Reload" aria-label="Reload">${i('reload')}</button>
-        <input id="womprat-url" list="womprat-url-history" spellcheck="false">
-        <datalist id="womprat-url-history"></datalist>
-        <span id="womprat-route" title="Exit node route status"></span>
-        <button id="womprat-go">Go</button>
-        <div id="womprat-progress" aria-hidden="true"><div></div></div>
-      </div>`+"`"+`;
-    root.appendChild(bar);
-
-    const input = document.getElementById('womprat-url');
-    input.value = location.href;
-    const failedFavicons = new Set();
-    let progressTimer = null;
-    function setProgress(active, done) {
-      const el = document.getElementById('womprat-progress');
-      if (!el) return;
-      clearTimeout(progressTimer);
-      el.classList.toggle('active', !!active || !!done);
-      el.classList.toggle('done', !!done);
-      if (done) {
-        progressTimer = setTimeout(() => el.classList.remove('active', 'done'), 450);
-      }
-    }
-
-    function installContentZoomControls() {
-      let contentZoom = Number(sessionStorage.getItem('wompratContentZoom') || '1') || 1;
-      function apply() {
-        contentZoom = Math.max(0.5, Math.min(3, contentZoom));
-        sessionStorage.setItem('wompratContentZoom', String(contentZoom));
-        document.documentElement.style.setProperty('--womprat-content-zoom', String(contentZoom));
-      }
-      function change(delta) {
-        contentZoom = Math.round((contentZoom + delta) * 100) / 100;
-        apply();
-      }
-      apply();
-
-      // In Chromium/WebView2, trackpad pinch is delivered to pages as Ctrl+wheel.
-      // Prevent WebView page zoom so the app chrome remains native-sized, then
-      // apply zoom only to page content children outside #womprat-chrome.
-      window.addEventListener('wheel', (e) => {
-        if (!e.ctrlKey) return;
-        e.preventDefault();
-        e.stopPropagation();
-        change(e.deltaY < 0 ? 0.1 : -0.1);
-      }, { capture: true, passive: false });
-
-      document.addEventListener('keydown', (e) => {
-        const key = e.key;
-        const ctrl = e.ctrlKey || e.metaKey;
-        if (!ctrl) return;
-        if (key === '+' || key === '=') { e.preventDefault(); change(0.1); }
-        else if (key === '-' || key === '_') { e.preventDefault(); change(-0.1); }
-        else if (key === '0') { e.preventDefault(); contentZoom = 1; apply(); }
-      }, true);
-    }
-
-    function focusPageContent() {
-      input.blur();
-      if (document.body) {
-        if (!document.body.hasAttribute('tabindex')) document.body.setAttribute('tabindex', '-1');
-        document.body.focus({ preventScroll: true });
-      }
-    }
-
-    function formatSSHURL(user, host, port) {
-      const p = Number(port || 0);
-      return p && p !== 22 ? 'ssh://' + (user || 'root') + '@' + host + ':' + p : 'ssh://' + (user || 'root') + '@' + host;
-    }
-
-    function refreshURLHistoryDatalist(state) {
-      const list = document.getElementById('womprat-url-history');
-      if (!list) return;
-      list.textContent = '';
-      const urls = [];
-      (state?.tabs || []).forEach(t => {
-        if (t.type === 'browser' && t.url && /^https?:\/\//i.test(t.url)) urls.push(t.url);
-        if (t.type === 'terminal' && t.host) urls.push(formatSSHURL(t.user, t.host, t.port));
-      });
-      [...new Set(urls)].slice(0, 100).forEach(u => {
-        const opt = document.createElement('option');
-        opt.value = u;
-        list.appendChild(opt);
-      });
-    }
-
-    function navigateFromInput() {
-      let u = input.value.trim();
-      if (!u) return;
-      if (/^settings:?$/i.test(u)) {
-        if (window.womprat_openSettings) womprat_openSettings();
-        else womprat_switchTab('settings');
-        return;
-      }
-      const sshMatch = u.match(/^ssh:\/\/(?:([^@]+)@)?([^:\/]+)(?::(\d+))?/i);
-      if (sshMatch) {
-        const user = sshMatch[1] || 'root';
-        const host = sshMatch[2];
-        const port = sshMatch[3] ? parseInt(sshMatch[3], 10) : 22;
-        input.value = formatSSHURL(user, host, port);
-        if (window.womprat_newTerminal) womprat_newTerminal(host, user, port);
-        return;
-      }
-      if (!/^https?:\/\//i.test(u)) u = 'http://' + u;
-      updateRoutePill();
-      setProgress(true, false);
-      focusPageContent();
-      womprat_navigate(u);
-    }
-
-    function currentFavicon() {
-      const selectors = [
-        'link[rel~="icon"][href]',
-        'link[rel="shortcut icon"][href]',
-        'link[rel="apple-touch-icon"][href]',
-        'link[rel="mask-icon"][href]'
-      ];
-      for (const sel of selectors) {
-        const el = document.querySelector(sel);
-        if (el?.href) return new URL(el.getAttribute('href'), location.href).href;
-      }
-      return '';
-    }
-
-    function reportPageTitle() {
-      const title = (document.title || location.hostname || location.href || '').trim();
-      if (window.womprat_updateTitle) womprat_updateTitle(title, location.href, currentFavicon());
-    }
-
-    function installTitleReporter() {
-      reportPageTitle();
-      window.addEventListener('load', () => { reportPageTitle(); setProgress(false, true); });
-      document.addEventListener('readystatechange', () => {
-        reportPageTitle();
-        if (document.readyState === 'complete') setProgress(false, true);
-      });
-      const titleEl = document.querySelector('title');
-      if (titleEl) new MutationObserver(reportPageTitle).observe(titleEl, { childList: true, subtree: true, characterData: true });
-      new MutationObserver(reportPageTitle).observe(document.documentElement, { childList: true, subtree: true });
-      setInterval(reportPageTitle, 1500);
-    }
-
-    function installDownloadInterceptor() {
-      document.addEventListener('click', (e) => {
-        const a = e.target?.closest?.('a[href][download]');
-        if (!a) return;
-        const href = new URL(a.getAttribute('href'), location.href).href;
-        if (!/^https?:\/\//i.test(href)) return;
-        e.preventDefault();
-        fetch('http://127.0.0.1:%d/api/download?token=%s&url=' + encodeURIComponent(href)).catch(() => {});
-      }, true);
-    }
-
-    async function updateRoutePill() {
-      const pill = document.getElementById('womprat-route');
-      if (!pill) return;
-      try {
-        const ns = window.womprat_getNetworkState ? JSON.parse(await womprat_getNetworkState()) : {};
-        if (ns.exitActive && ns.exitNode) {
-          pill.textContent = ns.exitNode;
-          pill.title = 'Traffic is routed via exit node ' + ns.exitNode;
-          pill.className = 'active';
-        } else {
-          pill.textContent = '';
-          pill.className = '';
-        }
-      } catch(e) {
-        pill.textContent = '';
-        pill.className = '';
-      }
-    }
-
-    document.getElementById('womprat-back').addEventListener('click', () => history.back());
-    document.getElementById('womprat-forward').addEventListener('click', () => history.forward());
-    document.getElementById('womprat-reload').addEventListener('click', () => location.reload());
-    document.getElementById('womprat-go').addEventListener('click', navigateFromInput);
-    document.getElementById('womprat-new-tab').addEventListener('click', () => womprat_goHome());
-    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') navigateFromInput(); });
-
-    async function currentTabState() {
-      try { return JSON.parse(await womprat_getTabs()); } catch(e) { return { tabs: [], activeTab: '' }; }
-    }
-    async function switchRelativeTab(delta) {
-      const state = await currentTabState();
-      const tabs = state.tabs || [];
-      if (!tabs.length) return;
-      const idx = Math.max(0, tabs.findIndex(t => t.id === state.activeTab));
-      const next = tabs[(idx + delta + tabs.length) %% tabs.length];
-      if (next) womprat_switchTab(next.id);
-    }
-    async function switchTabAt(index) {
-      const state = await currentTabState();
-      const tabs = state.tabs || [];
-      if (!tabs.length) return;
-      const target = tabs[Math.min(index, tabs.length - 1)];
-      if (target) womprat_switchTab(target.id);
-    }
-    async function closeActiveTab() {
-      const state = await currentTabState();
-      if (state.activeTab) womprat_closeTab(state.activeTab);
-      else womprat_goHome();
-    }
-    function focusAddress(selectAll) {
-      input.focus();
-      if (selectAll) input.select();
-    }
-    document.addEventListener('keydown', (e) => {
-      const key = e.key.toLowerCase();
-      const ctrl = e.ctrlKey || e.metaKey;
-      if (e.altKey && !ctrl && key === 'arrowleft') { e.preventDefault(); history.back(); return; }
-      if (e.altKey && !ctrl && key === 'arrowright') { e.preventDefault(); history.forward(); return; }
-      if (key === 'f5' || (ctrl && key === 'r')) { e.preventDefault(); location.reload(); return; }
-      if ((ctrl && key === 'l') || (e.altKey && !ctrl && key === 'd')) { e.preventDefault(); focusAddress(true); return; }
-      if (ctrl && key === 't') { e.preventDefault(); womprat_goHome(); return; }
-      if (ctrl && key === 'w') { e.preventDefault(); closeActiveTab(); return; }
-      if (ctrl && (key === 'tab' || key === 'pagedown')) { e.preventDefault(); switchRelativeTab(e.shiftKey ? -1 : 1); return; }
-      if (ctrl && key === 'pageup') { e.preventDefault(); switchRelativeTab(-1); return; }
-      if (ctrl && /^[1-9]$/.test(key)) { e.preventDefault(); switchTabAt(key === '9' ? 8 : Number(key) - 1); return; }
-      if (e.altKey && !ctrl && key === 'home') { e.preventDefault(); womprat_goHome(); return; }
-    }, true);
-
-    async function refresh() {
-      try {
-        const state = JSON.parse(await womprat_getTabs());
-        refreshURLHistoryDatalist(state);
-        const tabs = document.getElementById('womprat-tabs');
-        tabs.textContent = '';
-        state.tabs.forEach((t) => {
-          const item = document.createElement('div');
-          item.className = 'wt' + (t.id === state.activeTab ? ' active' : '');
-          item.draggable = true;
-          item.dataset.tabId = t.id;
-          item.addEventListener('dragstart', (e) => {
-            item.classList.add('dragging');
-            e.dataTransfer.effectAllowed = 'move';
-            e.dataTransfer.setData('text/plain', t.id);
-          });
-          item.addEventListener('dragend', () => {
-            item.classList.remove('dragging');
-            document.querySelectorAll('#womprat-chrome .wt.drag-over').forEach(el => el.classList.remove('drag-over'));
-          });
-          item.addEventListener('dragover', (e) => { e.preventDefault(); item.classList.add('drag-over'); e.dataTransfer.dropEffect = 'move'; });
-          item.addEventListener('dragleave', () => item.classList.remove('drag-over'));
-          item.addEventListener('drop', (e) => {
-            e.preventDefault();
-            item.classList.remove('drag-over');
-            const fromId = e.dataTransfer.getData('text/plain');
-            const toIndex = Array.from(tabs.children).indexOf(item);
-            if (fromId && fromId !== t.id && window.womprat_reorderTab) womprat_reorderTab(fromId, toIndex);
-            refresh();
-          });
-          const iconSlot = document.createElement('span');
-          iconSlot.className = 'wt-icon-slot';
-          if (t.type === 'browser' && t.favicon && !failedFavicons.has(t.favicon) && (/^https?:\/\//i.test(t.favicon) || /^data:image\//i.test(t.favicon) || /^blob:/i.test(t.favicon))) {
-            const fav = document.createElement('img');
-            fav.className = 'wt-favicon';
-            fav.src = t.favicon;
-            fav.alt = '';
-            fav.referrerPolicy = 'no-referrer';
-            fav.addEventListener('error', () => { failedFavicons.add(fav.src); iconSlot.innerHTML = i('globe'); }, { once: true });
-            iconSlot.appendChild(fav);
-          } else {
-            iconSlot.innerHTML = i('globe');
-          }
-          const title = document.createElement('button');
-          title.className = 'wt-title';
-          const label = document.createElement('span');
-          label.textContent = (t.title || t.url || t.host || 'tab').slice(0, 24);
-          title.appendChild(label);
-          title.addEventListener('click', (e) => {
-            if (e.target?.closest?.('.wt-close')) return;
-            womprat_switchTab(t.id);
-          });
-          const close = document.createElement('button');
-          close.type = 'button';
-          close.className = 'wt-close';
-          close.title = 'Close tab';
-          close.setAttribute('aria-label', 'Close tab');
-          close.innerHTML = i('close');
-          close.draggable = false;
-          const stopCloseEvent = (e) => { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation?.(); };
-          close.addEventListener('pointerdown', stopCloseEvent, true);
-          close.addEventListener('pointerup', stopCloseEvent, true);
-          close.addEventListener('mousedown', stopCloseEvent, true);
-          close.addEventListener('mouseup', stopCloseEvent, true);
-          close.addEventListener('dblclick', stopCloseEvent, true);
-          close.addEventListener('click', (e) => { stopCloseEvent(e); womprat_closeTab(t.id); }, true);
-          item.appendChild(iconSlot);
-          item.appendChild(title);
-          item.appendChild(close);
-          tabs.appendChild(item);
-        });
-        if (document.activeElement !== input) input.value = location.href;
-      } catch (e) {}
-    }
-
-    installContentZoomControls();
-    installTitleReporter();
-    installDownloadInterceptor();
-    updateRoutePill(true);
-    document.addEventListener('readystatechange', () => updateRoutePill(false));
-    window.addEventListener('load', () => updateRoutePill(false));
-    refresh();
-    setInterval(refresh, 1500);
-    setInterval(() => updateRoutePill(false), 1500);
-  }
-  install();
-})();
-`, port, chromeOverlayCSS, port, token)
-}
-
-var chromeOverlayCSS = "`" + `
-:root{--womprat-chrome-offset:84px;--womprat-content-zoom:1}
-#womprat-chrome{position:fixed!important;top:0!important;left:0!important;right:0!important;width:auto!important;height:84px!important;
-  transform:none!important;transform-origin:top left!important;
-  background:rgba(32,32,32,.97)!important;backdrop-filter:blur(10px)!important;display:flex!important;
-  flex-direction:column!important;z-index:2147483647!important;font:14px/1.2 'Segoe UI Variable','Segoe UI',system-ui,sans-serif!important;
-  color:#f3f3f3!important;border-bottom:1px solid rgba(255,255,255,.10)!important;box-sizing:border-box!important}
-#womprat-chrome *,#womprat-chrome *::before,#womprat-chrome *::after{box-sizing:border-box!important;font-family:'Segoe UI Variable','Segoe UI',system-ui,sans-serif!important}
-#womprat-tab-row{height:40px!important;display:flex!important;align-items:center!important;gap:6px!important;padding:4px 8px!important;min-width:0!important}
-#womprat-tabs{display:flex!important;align-items:center!important;gap:4px!important;min-width:0!important;overflow:hidden!important;flex:0 1 auto!important}
-#womprat-chrome .wt{height:32px!important;max-width:240px!important;padding:0 4px 0 10px!important;border:1px solid transparent!important;border-radius:4px!important;
-  background:transparent!important;color:#cfcfcf!important;cursor:pointer!important;opacity:.85!important;font-size:14px!important;line-height:30px!important;
-  white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;flex:0 1 220px!important;display:inline-flex!important;align-items:center!important;gap:4px!important;min-width:0!important}
-#womprat-chrome .wt:hover{background:rgba(255,255,255,.08)!important;color:#fff!important}
-#womprat-chrome .wt.active{background:rgba(255,255,255,.12)!important;color:#fff!important;font-weight:600!important}
-#womprat-chrome .wt.dragging{opacity:.45!important}
-#womprat-chrome .wt.drag-over{background:rgba(255,255,255,.08)!important;border-color:rgba(255,255,255,.18)!important}
-#womprat-chrome .wt-title{height:30px!important;min-width:0!important;max-width:none!important;flex:1 1 auto!important;padding:0!important;border:0!important;background:transparent!important;color:inherit!important;justify-content:flex-start!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important;font-weight:inherit!important;gap:6px!important}
-#womprat-chrome .wt-title:hover{background:transparent!important;color:inherit!important}
-#womprat-chrome .wt-title span{overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important}
-#womprat-chrome .wt-icon-slot{width:20px!important;height:20px!important;min-width:20px!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;flex:0 0 20px!important}
-#womprat-chrome .wt-favicon{width:16px!important;height:16px!important;min-width:16px!important;object-fit:contain!important;border-radius:2px!important}
-#womprat-chrome .wt-close{width:24px!important;height:24px!important;min-width:24px!important;padding:0!important;border:0!important;border-radius:4px!important;background:transparent!important;color:#cfcfcf!important;opacity:.65!important;flex:0 0 24px!important}
-#womprat-chrome .wt-close:hover{background:rgba(255,255,255,.10)!important;color:#fff!important;opacity:1!important}
-#womprat-chrome .wt-close .womprat-icon{width:16px!important;height:16px!important;flex-basis:16px!important}
-#womprat-url-row{height:44px!important;display:flex!important;align-items:center!important;gap:6px!important;padding:6px 8px!important;min-width:0!important;position:relative!important}
-#womprat-chrome #womprat-progress{position:absolute!important;left:0!important;right:0!important;bottom:-1px!important;height:2px!important;overflow:hidden!important;opacity:0!important;pointer-events:none!important;transition:opacity .15s!important}
-#womprat-chrome #womprat-progress.active{opacity:1!important}
-#womprat-chrome #womprat-progress>div{height:100%!important;width:30%!important;background:#60cdff!important;border-radius:999px!important;box-shadow:0 0 8px rgba(96,205,255,.45)!important;transform:translateX(-120%)!important}
-#womprat-chrome #womprat-progress.active>div{animation:wompratUrlProgress 1.15s ease-in-out infinite!important}
-#womprat-chrome #womprat-progress.done>div{width:100%!important;transform:translateX(0)!important;animation:none!important;transition:width .18s,transform .18s!important}
-@keyframes wompratUrlProgress{0%{transform:translateX(-120%);width:28%}50%{width:48%}100%{transform:translateX(360%);width:28%}}
-#womprat-chrome button{height:32px!important;min-width:32px!important;border:1px solid transparent!important;border-radius:4px!important;background:transparent!important;
-  color:#d6d6d6!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;cursor:pointer!important;font-size:14px!important;padding:0 10px!important}
-#womprat-chrome button:hover{background:rgba(255,255,255,.08)!important;color:#fff!important}
-#womprat-chrome .womprat-icon{width:20px!important;height:20px!important;display:inline-block!important;flex:0 0 20px!important;color:currentColor!important}
-#womprat-chrome .womprat-icon svg{width:100%!important;height:100%!important;display:block!important}
-#womprat-chrome #womprat-back,#womprat-chrome #womprat-forward,#womprat-chrome #womprat-reload{padding:0!important;line-height:32px!important}
-#womprat-chrome #womprat-new-tab{flex:0 0 auto!important}
-#womprat-chrome #womprat-url{height:32px!important;min-width:0!important;flex:1 1 auto!important;border:1px solid rgba(255,255,255,.16)!important;
-  border-radius:4px!important;background:rgba(255,255,255,.06)!important;color:#f3f3f3!important;padding:0 10px!important;font-size:14px!important;
-  line-height:32px!important;outline:none!important;color-scheme:dark!important}
-#womprat-chrome #womprat-url:focus{border-color:#60cdff!important;background:rgba(0,0,0,.28)!important}
-#womprat-chrome #womprat-route{display:none!important;align-items:center!important;height:22px!important;max-width:150px!important;padding:0 7px!important;border-radius:999px!important;
-  border:1px solid rgba(255,255,255,.10)!important;background:rgba(255,255,255,.05)!important;color:rgba(255,255,255,.55)!important;
-  font-size:11px!important;font-weight:600!important;letter-spacing:0!important;text-transform:none!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;flex:0 1 auto!important}
-#womprat-chrome #womprat-route.active{display:inline-flex!important}
-html{scroll-padding-top:var(--womprat-chrome-offset)!important}
-body{min-height:calc(100vh + var(--womprat-chrome-offset))!important;padding-top:var(--womprat-chrome-offset)!important;box-sizing:border-box!important}
-body > :not(#womprat-chrome){zoom:var(--womprat-content-zoom)!important}
-` + "`"

@@ -88,8 +88,8 @@ button,a,.tab,.recent-item,.option{
 .term-panel .xterm{flex:1}
 
 /* Local panels */
-.browser-panel{flex-direction:column}
-.browser-frame{flex:1;border:none}
+.browser-panel{flex-direction:column;background:#fff}
+.browser-frame{flex:1;border:none;width:100%;height:100%;background:#fff}
 
 /* Setup screen */
 #setup{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
@@ -330,19 +330,9 @@ updateNetworkIndicator(false);
 
 function purgeLegacyExternalIframes() {
   // Defensive cleanup for stale WebView2-cached shell DOM from older builds.
-  // External web pages must never be iframe-hosted; that is what triggers
-  // frame-ancestors CSP errors. Settings remains the only local iframe.
+  // Browser content is now shell-owned, but Womprat never proxies, rewrites, or
+  // strips target headers. Sites that forbid framing will fail closed on their own terms.
   document.querySelectorAll('.browser-bar').forEach(el => el.remove());
-  document.querySelectorAll('iframe').forEach(frame => {
-    const src = frame.getAttribute('src') || '';
-    if (/^https?:\/\//i.test(src) && !src.startsWith(location.origin)) {
-      const panel = frame.closest('.panel');
-      frame.remove();
-      if (panel && panel.id !== 'panel-settings') panel.remove();
-      if (window.womprat_newBrowser) womprat_newBrowser(src);
-      else location.href = src;
-    }
-  });
 }
 purgeLegacyExternalIframes();
 
@@ -619,14 +609,8 @@ window.openBrowser = function(url, name) {
   updateNetworkIndicator();
   setURLProgress(true);
   saveURLHistory(navUrl);
-  focusContentArea();
-  // Browser tabs are real WebView2 navigations managed by Go.
-  // Do not create shell panels/iframes for external pages.
-  if (window.womprat_newBrowser) {
-    womprat_newBrowser(navUrl);
-  } else {
-    location.href = navUrl;
-  }
+  if (window.womprat_newBrowser) womprat_newBrowser(navUrl);
+  else showBrowserTab(`browser-${Date.now()}`, navUrl, name || navUrl);
 };
 
 window.closeTab = function(id, e) {
@@ -737,29 +721,37 @@ function activateTab(id) {
   const tab = state.tabs.find(t => t.id === id);
   if (!tab) return;
 
-  // External browser tabs must never be represented as shell iframes. Switching
-  // to an existing browser tab must preserve its Go-side tab ID; creating a new
-  // browser tab here duplicates state and makes failures look like tab loss.
-  if (tab.type === 'browser') {
-    if (window.womprat_switchTab) womprat_switchTab(tab.id);
-    else location.href = tab.url || tab.title || 'about:blank';
-    return;
-  }
-
-  // Update URL bar with active local tab's address
+  // Update URL bar with active tab's address
   const urlInput = document.getElementById('url-input');
   if (urlInput) {
-    if (tab.type === 'terminal') urlInput.value = 'ssh://' + (tab.user||'root') + '@' + (tab.host||'') + ':' + (tab.port||22);
+    if (tab.type === 'browser') urlInput.value = tab.url || '';
+    else if (tab.type === 'terminal') urlInput.value = 'ssh://' + (tab.user||'root') + '@' + (tab.host||'') + ':' + (tab.port||22);
     else if (tab.type === 'settings') urlInput.value = 'settings:';
     else urlInput.value = '';
   }
 
   const panels = document.getElementById('panels');
-  // Create panel if it doesn't exist. Only local content is allowed here.
   if (!document.getElementById(`panel-${id}`)) {
     const panel = document.createElement('div');
     panel.id = `panel-${id}`;
-    if (tab.type === 'terminal') {
+    if (tab.type === 'browser') {
+      panel.className = 'panel browser-panel';
+      const frame = document.createElement('iframe');
+      frame.className = 'browser-frame';
+      frame.referrerPolicy = 'no-referrer-when-downgrade';
+      frame.src = tab.url || 'about:blank';
+      frame.addEventListener('load', () => {
+        setURLProgress(false);
+        const active = state.tabs.find(t => t.id === id);
+        if (active) {
+          try { active.url = frame.contentWindow.location.href || active.url; } catch {}
+          if (state.activeTab === id) document.getElementById('url-input').value = active.url || '';
+          registerLocalTab(active);
+          saveOpenTabs();
+        }
+      });
+      panel.appendChild(frame);
+    } else if (tab.type === 'terminal') {
       panel.className = 'panel term-panel';
       panel.innerHTML = '<div class="term-container" style="flex:1"></div>';
     } else if (tab.type === 'settings') {
@@ -777,11 +769,41 @@ function activateTab(id) {
   updateHomeVisibility();
   renderTabs();
   if (tab.type === 'terminal') terminalSessions.get(id)?.term?.focus?.();
+  else focusContentArea();
 }
 
-window.historyBack = function() { history.back(); };
-window.historyForward = function() { history.forward(); };
-window.historyReload = function() { location.reload(); };
+window.showBrowserTab = function(id, url, title) {
+  let navUrl = url || 'about:blank';
+  if (!/^https?:\/\//i.test(navUrl) && navUrl !== 'about:blank') navUrl = 'http://' + navUrl;
+  let tab = state.tabs.find(t => t.id === id);
+  if (!tab) {
+    tab = { id, type: 'browser', title: title || navUrl, url: navUrl };
+    state.tabs.push(tab);
+  } else {
+    tab.type = 'browser';
+    tab.url = navUrl;
+    tab.title = title || navUrl;
+  }
+  renderTabs();
+  activateTab(id);
+  const frame = document.querySelector(`#panel-${CSS.escape(id)} .browser-frame`);
+  if (frame && frame.src !== navUrl) {
+    setURLProgress(true);
+    frame.src = navUrl;
+  }
+  saveURLHistory(navUrl);
+  registerLocalTab(tab);
+  saveOpenTabs();
+};
+
+function activeBrowserFrame() {
+  const tab = state.tabs.find(t => t.id === state.activeTab);
+  if (!tab || tab.type !== 'browser') return null;
+  return document.querySelector(`#panel-${CSS.escape(tab.id)} .browser-frame`);
+}
+window.historyBack = function() { try { activeBrowserFrame()?.contentWindow?.history?.back(); } catch {} };
+window.historyForward = function() { try { activeBrowserFrame()?.contentWindow?.history?.forward(); } catch {} };
+window.historyReload = function() { const f = activeBrowserFrame(); if (f) { setURLProgress(true); f.src = f.src; } else location.reload(); };
 
 function focusAddress(selectAll = true) {
   const input = document.getElementById('url-input');
@@ -867,9 +889,9 @@ function installBrowserHotkeys() {
       if (ctrl && e.shiftKey && /^[1-9]$/.test(key)) { e.preventDefault(); switchTabAt(key === '9' ? 8 : Number(key) - 1); return; }
       return;
     }
-    if (e.altKey && !ctrl && key === 'arrowleft') { e.preventDefault(); history.back(); return; }
-    if (e.altKey && !ctrl && key === 'arrowright') { e.preventDefault(); history.forward(); return; }
-    if (key === 'f5' || (ctrl && key === 'r')) { e.preventDefault(); location.reload(); return; }
+    if (e.altKey && !ctrl && key === 'arrowleft') { e.preventDefault(); historyBack(); return; }
+    if (e.altKey && !ctrl && key === 'arrowright') { e.preventDefault(); historyForward(); return; }
+    if (key === 'f5' || (ctrl && key === 'r')) { e.preventDefault(); historyReload(); return; }
     if (ctrl && (key === '+' || key === '=')) { e.preventDefault(); adjustActiveContentZoom(0.1); return; }
     if (ctrl && (key === '-' || key === '_')) { e.preventDefault(); adjustActiveContentZoom(-0.1); return; }
     if (ctrl && key === '0') { e.preventDefault(); resetActiveContentZoom(); return; }
@@ -905,13 +927,11 @@ window.navigateFromBar = function() {
   updateNetworkIndicator();
   setURLProgress(true);
   saveURLHistory(navUrl);
-  focusContentArea();
-  // External browsing is direct WebView2 navigation, never a shell iframe.
   const active = state.tabs.find(t => t.id === state.activeTab);
   const shouldCreateBrowserTab = !active || active.type !== 'browser';
   if (shouldCreateBrowserTab && window.womprat_newBrowser) womprat_newBrowser(navUrl);
-  else if (window.womprat_navigate) womprat_navigate(navUrl);
-  else location.href = navUrl;
+  else if (!shouldCreateBrowserTab && window.womprat_navigate) womprat_navigate(navUrl);
+  else showBrowserTab(active?.id || `browser-${Date.now()}`, navUrl);
 };
 
 window.navigateTab = function(id) {
@@ -997,7 +1017,7 @@ async function hydrateNativeTabs() {
     const native = JSON.parse(await womprat_getTabs());
     const localTabs = (native.tabs || []).filter(t => t.type === 'terminal' || t.type === 'settings' || t.type === 'browser');
     const requested = new URLSearchParams(location.search).get('tab') || '';
-    const target = localTabs.find(t => t.id === requested && (t.type === 'terminal' || t.type === 'settings'));
+    const target = localTabs.find(t => t.id === requested) || localTabs[0] || null;
     state.tabs = localTabs;
     state.activeTab = target ? target.id : null;
     renderTabs();
@@ -1007,6 +1027,8 @@ async function hydrateNativeTabs() {
     } else if (target?.type === 'settings') {
       if (!state.tabs.find(t => t.id === 'settings')) state.tabs.push(target);
       activateTab('settings');
+    } else if (target?.type === 'browser') {
+      showBrowserTab(target.id, target.url || target.title || 'about:blank', target.title || target.url);
     }
   } catch {}
 }

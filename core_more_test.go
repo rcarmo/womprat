@@ -28,8 +28,8 @@ func TestLocalTabStateHelpers(t *testing.T) {
 	if len(app.tabs) != 1 || app.tabs[0].User != "root" || app.tabs[0].Port != 22 || app.activeTab != app.tabs[0].ID {
 		t.Fatalf("terminal tab = %+v active=%q", app.tabs, app.activeTab)
 	}
-	if got := app.webview.(*fakeWebView).urls[0]; !strings.Contains(got, "tab=term-") {
-		t.Fatalf("terminal navigate = %q", got)
+	if got := app.webview.(*fakeWebView).evals[0]; !strings.Contains(got, "activateTab") || !strings.Contains(got, "term-") {
+		t.Fatalf("terminal shell eval = %q", got)
 	}
 
 	app.openSettingsTab()
