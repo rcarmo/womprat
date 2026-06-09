@@ -103,8 +103,8 @@ func runGUI(app *App, shellURL string) {
 		app.clearActiveTab()
 	})
 
-	// Browser chrome lives in the local shell, not inside external page DOM.
-	// External pages must not receive Womprat layout CSS or tab/url controls.
+	// Inject floating chrome overlay into every page
+	w.Init(chromeOverlayJS(app.serverPort, app.sessionToken))
 
 	// Navigate to shell with a cache-buster so stale WebView2 shell HTML/JS
 	// cannot resurrect removed iframe code paths.
