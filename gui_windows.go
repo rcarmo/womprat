@@ -15,6 +15,8 @@ import (
 
 var (
 	hostUser32              = windows.NewLazySystemDLL("user32.dll")
+	hostGdi32               = windows.NewLazySystemDLL("gdi32.dll")
+	procCreateSolidBrush    = hostGdi32.NewProc("CreateSolidBrush")
 	procRegisterClassExW    = hostUser32.NewProc("RegisterClassExW")
 	procCreateWindowExWHost = hostUser32.NewProc("CreateWindowExW")
 	procDefWindowProcW      = hostUser32.NewProc("DefWindowProcW")
@@ -25,6 +27,37 @@ var (
 	procDispatchMessageW    = hostUser32.NewProc("DispatchMessageW")
 	procPostQuitMessage     = hostUser32.NewProc("PostQuitMessage")
 )
+
+// wompratDarkColor is the Fluent dark surface used so the native host/child
+// windows do not flash white before WebView2 paints.
+const wompratDarkColor = 0x00202020 // COLORREF 0x00BBGGRR for #202020
+
+func darkBrush() windows.Handle {
+	h, _, _ := procCreateSolidBrush.Call(uintptr(wompratDarkColor))
+	return windows.Handle(h)
+}
+
+var childClassName *uint16
+
+func registerChildClass() {
+	if childClassName != nil {
+		return
+	}
+	var hinstance windows.Handle
+	_ = windows.GetModuleHandleEx(0, nil, &hinstance)
+	childClassName, _ = windows.UTF16PtrFromString("womprat-child")
+	wc := wndClassExW{
+		CbSize:        uint32(unsafe.Sizeof(wndClassExW{})),
+		HInstance:     hinstance,
+		LpszClassName: childClassName,
+		LpfnWndProc: windows.NewCallback(func(hwnd, msg, wParam, lParam uintptr) uintptr {
+			r, _, _ := procDefWindowProcW.Call(hwnd, msg, wParam, lParam)
+			return r
+		}),
+		HbrBackground: darkBrush(),
+	}
+	procRegisterClassExW.Call(uintptr(unsafe.Pointer(&wc)))
+}
 
 const (
 	wmDestroy          = 0x0002
@@ -78,7 +111,7 @@ func createHostWindow(title string, width, height int) (uintptr, error) {
 	var hinstance windows.Handle
 	_ = windows.GetModuleHandleEx(0, nil, &hinstance)
 	className, _ := windows.UTF16PtrFromString("womprat-host")
-	wc := wndClassExW{CbSize: uint32(unsafe.Sizeof(wndClassExW{})), HInstance: hinstance, LpszClassName: className, LpfnWndProc: windows.NewCallback(hostWndProc)}
+	wc := wndClassExW{CbSize: uint32(unsafe.Sizeof(wndClassExW{})), HInstance: hinstance, LpszClassName: className, LpfnWndProc: windows.NewCallback(hostWndProc), HbrBackground: darkBrush()}
 	procRegisterClassExW.Call(uintptr(unsafe.Pointer(&wc)))
 	windowName, _ := windows.UTF16PtrFromString(title)
 	hwnd, _, err := procCreateWindowExWHost.Call(0, uintptr(unsafe.Pointer(className)), uintptr(unsafe.Pointer(windowName)), wsOverlappedWindow,
@@ -86,9 +119,12 @@ func createHostWindow(title string, width, height int) (uintptr, error) {
 	if hwnd == 0 {
 		return 0, fmt.Errorf("create host window: %w", err)
 	}
+	return hwnd, nil
+}
+
+func showHostWindow(hwnd uintptr) {
 	procShowWindowHost.Call(hwnd, swShow)
 	procUpdateWindow.Call(hwnd)
-	return hwnd, nil
 }
 
 func resizeChildToClient(parent, child uintptr, top, bottomInset int32) {
@@ -103,8 +139,8 @@ func resizeChildToClient(parent, child uintptr, top, bottomInset int32) {
 }
 
 func createHostChild(parent uintptr) (uintptr, error) {
-	className, _ := windows.UTF16PtrFromString("STATIC")
-	hwnd, _, err := procCreateWindowExWHost.Call(0, uintptr(unsafe.Pointer(className)), 0,
+	registerChildClass()
+	hwnd, _, err := procCreateWindowExWHost.Call(0, uintptr(unsafe.Pointer(childClassName)), 0,
 		wsChild|wsVisible|wsClipChildren|wsClipSiblings, 0, 0, 100, 100, parent, 0, 0, 0)
 	if hwnd == 0 {
 		return 0, fmt.Errorf("create child window: %w", err)
@@ -185,6 +221,9 @@ func runGUI(app *App, shellURL string) {
 	if contentViews != nil {
 		contentViews.HideAll()
 	}
+	// Show the host only after the shell WebView exists and is navigating, so the
+	// dark child surface is up before the window becomes visible (no white flash).
+	showHostWindow(host)
 	// Use the wrapper run loop: it pumps all thread messages (including the host
 	// window proc for WM_SIZE) and, critically, drains the dispatch queue that
 	// resolves JS<->Go bound-function promises. A custom GetMessage loop that does

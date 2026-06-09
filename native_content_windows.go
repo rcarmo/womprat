@@ -194,8 +194,8 @@ type nativeContentView struct {
 }
 
 func newNativeContentView(parent uintptr, dataPath, tabID string, shell shellWebView) (*nativeContentView, error) {
-	className, _ := windows.UTF16PtrFromString("STATIC")
-	hwnd, _, err := procCreateWindowExW.Call(0, uintptr(unsafe.Pointer(className)), 0,
+	registerChildClass()
+	hwnd, _, err := procCreateWindowExW.Call(0, uintptr(unsafe.Pointer(childClassName)), 0,
 		wsChild|wsVisible|wsClipChildren|wsClipSiblings, 0, browserChromeHeight, 100, 100, parent, 0, 0, 0)
 	if hwnd == 0 {
 		return nil, fmt.Errorf("create content child window: %w", err)
