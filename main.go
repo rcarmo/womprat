@@ -685,6 +685,7 @@ func chromeOverlayJS(port int, token string) string {
       back: '<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M9.78 4.22a.75.75 0 0 1 0 1.06L5.56 9.5h10.69a.75.75 0 0 1 0 1.5H5.56l4.22 4.22a.75.75 0 1 1-1.06 1.06l-5.5-5.5a.75.75 0 0 1 0-1.06l5.5-5.5a.75.75 0 0 1 1.06 0Z"/></svg>',
       forward: '<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M10.22 4.22a.75.75 0 0 1 1.06 0l5.5 5.5a.75.75 0 0 1 0 1.06l-5.5 5.5a.75.75 0 1 1-1.06-1.06L14.44 11H3.75a.75.75 0 0 1 0-1.5h10.69l-4.22-4.22a.75.75 0 0 1 0-1.06Z"/></svg>',
       reload: '<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M15.65 6.35A6.5 6.5 0 1 0 16.5 10a.75.75 0 0 1 1.5 0 8 8 0 1 1-2.34-5.66V3.25a.75.75 0 0 1 1.5 0v3.5c0 .41-.34.75-.75.75h-3.5a.75.75 0 0 1 0-1.5h2.74Z"/></svg>',
+      close: '<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M4.22 4.22a.75.75 0 0 1 1.06 0L10 8.94l4.72-4.72a.75.75 0 1 1 1.06 1.06L11.06 10l4.72 4.72a.75.75 0 1 1-1.06 1.06L10 11.06l-4.72 4.72a.75.75 0 0 1-1.06-1.06L8.94 10 4.22 5.28a.75.75 0 0 1 0-1.06Z"/></svg>',
       home: '<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M9.28 2.78a1 1 0 0 1 1.44 0l6.5 6.78a.75.75 0 0 1-1.08 1.04l-.64-.67V16a2 2 0 0 1-2 2h-2.25a.75.75 0 0 1-.75-.75V13h-1v4.25a.75.75 0 0 1-.75.75H6.5a2 2 0 0 1-2-2V9.93l-.64.67a.75.75 0 1 1-1.08-1.04l6.5-6.78Z"/></svg>'
     };
     const i = (name) => '<span class="womprat-icon">' + icons[name] + '</span>';
@@ -791,10 +792,20 @@ func chromeOverlayJS(port int, token string) string {
         const tabs = document.getElementById('womprat-tabs');
         tabs.textContent = '';
         state.tabs.forEach((t) => {
-          const item = document.createElement('button');
+          const item = document.createElement('div');
           item.className = 'wt' + (t.id === state.activeTab ? ' active' : '');
-          item.textContent = (t.title || t.url || t.host || 'tab').slice(0, 24);
-          item.addEventListener('click', () => womprat_switchTab(t.id));
+          const title = document.createElement('button');
+          title.className = 'wt-title';
+          title.textContent = (t.title || t.url || t.host || 'tab').slice(0, 24);
+          title.addEventListener('click', () => womprat_switchTab(t.id));
+          const close = document.createElement('button');
+          close.className = 'wt-close';
+          close.title = 'Close tab';
+          close.setAttribute('aria-label', 'Close tab');
+          close.innerHTML = i('close');
+          close.addEventListener('click', (e) => { e.stopPropagation(); womprat_closeTab(t.id); });
+          item.appendChild(title);
+          item.appendChild(close);
           tabs.appendChild(item);
         });
         if (document.activeElement !== input) input.value = location.href;
@@ -821,11 +832,16 @@ var chromeOverlayCSS = "`" + `
 #womprat-chrome *,#womprat-chrome *::before,#womprat-chrome *::after{box-sizing:border-box!important;font-family:'Segoe UI Variable','Segoe UI',system-ui,sans-serif!important}
 #womprat-tab-row{height:40px!important;display:flex!important;align-items:center!important;gap:6px!important;padding:4px 8px!important;min-width:0!important}
 #womprat-tabs{display:flex!important;align-items:center!important;gap:4px!important;min-width:0!important;overflow:hidden!important;flex:1!important}
-#womprat-chrome .wt{height:32px!important;max-width:220px!important;padding:0 12px!important;border:1px solid transparent!important;border-radius:4px!important;
+#womprat-chrome .wt{height:32px!important;max-width:240px!important;padding:0 4px 0 10px!important;border:1px solid transparent!important;border-radius:4px!important;
   background:transparent!important;color:#cfcfcf!important;cursor:pointer!important;opacity:.85!important;font-size:14px!important;line-height:30px!important;
-  white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;flex:0 1 auto!important}
+  white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;flex:0 1 auto!important;display:inline-flex!important;align-items:center!important;gap:4px!important;min-width:0!important}
 #womprat-chrome .wt:hover{background:rgba(255,255,255,.08)!important;color:#fff!important}
 #womprat-chrome .wt.active{background:rgba(255,255,255,.12)!important;color:#fff!important;font-weight:600!important}
+#womprat-chrome .wt-title{height:30px!important;min-width:0!important;max-width:190px!important;flex:1 1 auto!important;padding:0!important;border:0!important;background:transparent!important;color:inherit!important;justify-content:flex-start!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important;font-weight:inherit!important}
+#womprat-chrome .wt-title:hover{background:transparent!important;color:inherit!important}
+#womprat-chrome .wt-close{width:24px!important;height:24px!important;min-width:24px!important;padding:0!important;border:0!important;border-radius:4px!important;background:transparent!important;color:#cfcfcf!important;opacity:.65!important;flex:0 0 24px!important}
+#womprat-chrome .wt-close:hover{background:rgba(255,255,255,.10)!important;color:#fff!important;opacity:1!important}
+#womprat-chrome .wt-close .womprat-icon{width:16px!important;height:16px!important;flex-basis:16px!important}
 #womprat-url-row{height:44px!important;display:flex!important;align-items:center!important;gap:6px!important;padding:6px 8px!important;min-width:0!important}
 #womprat-chrome button{height:32px!important;min-width:32px!important;border:1px solid transparent!important;border-radius:4px!important;background:transparent!important;
   color:#d6d6d6!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;cursor:pointer!important;font-size:14px!important;padding:0 10px!important}
