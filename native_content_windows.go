@@ -387,18 +387,18 @@ func (v *nativeContentView) Reload() {
 }
 func (v *nativeContentView) Show() {
 	if v != nil && v.hwnd != 0 {
-		v.resize()
 		var r winRect
 		procGetClientRect.Call(v.parent, uintptr(unsafe.Pointer(&r)))
+		chrome := chromePx(v.parent)
 		width := r.Right - r.Left
-		height := r.Bottom - r.Top - browserChromeHeight
+		height := r.Bottom - r.Top - chrome
 		if height < 0 {
 			height = 0
 		}
-		// Raise the active browser child above the shell WebView's content area.
-		// Without this, WebView2's shell controller can remain above the child HWND,
-		// making browser tabs look blank and settings/terminal visibility inconsistent.
-		procSetWindowPos.Call(v.hwnd, hwndTop, 0, browserChromeHeight, uintptr(width), uintptr(height), swpNoActivate)
+		// Position with the DPI-correct chrome offset (same as resize) and raise the
+		// active browser child above the shell WebView content area. Using the raw
+		// CSS constant here previously made the content jump on every tab switch.
+		procSetWindowPos.Call(v.hwnd, hwndTop, 0, uintptr(chrome), uintptr(width), uintptr(height), swpNoActivate)
 		procShowWindow.Call(v.hwnd, swShow)
 		if v.edge != nil {
 			v.edge.Resize()
