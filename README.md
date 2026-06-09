@@ -2,28 +2,19 @@
 
 ![womprat icon](docs/icon-256.png)
 
-`womprat` is a portable Windows ARM64 SSH terminal and browser for your tailnet. It embeds Tailscale with `tsnet`, opens SSH sessions in tabbed terminals, and navigates WebView2 browser tabs through the same Tailscale path, so you can reach machines and web UIs on your tailnet from anywhere without installing the full Tailscale client on the host.
+`womprat` is a portable Windows (ARM64 and Intel) SSH terminal and browser for your tailnet. It embeds Tailscale with `tsnet`, opens SSH sessions in tabbed terminals, and navigates WebView2 browser tabs through the same Tailscale path, so you can reach machines and web UIs on your tailnet from anywhere without installing the full Tailscale client on the host.
 
-The intended shape is deliberately small: copy one executable, launch it, unlock your saved configuration, and get to the things that normally require a VPN client, a browser, an SSH client, and a pile of local setup.
+This is meant to be dead simple: copy one executable, launch it, unlock your saved configuration, and get to the things that normally require a VPN client, a browser, an SSH client, and a pile of local setup.
 
-## What it is for
+## Why
 
-`womprat` is meant for the awkward machine you still want to use as a real terminal/browser endpoint -- a Windows on ARM tablet, a borrowed device, a locked-down desktop where installing the full Tailscale client is undesirable, or just a small portable admin tool you can keep around.
+I kept finding myself in places I couldn't install the full Tailscale client but needed it to access my own stuff. And sometimes you want access to a handful of machines without adding another persistent system service, changing the host network stack, or asking Windows to remember one more thing at boot.
 
-It gives you two integrated views of the same private network:
-
-* SSH tabs for shell access to tailnet hosts, using xterm.js for the terminal UI and Go's SSH client underneath.
-* Browser tabs for web applications running on tailnet nodes -- dashboards, Proxmox, Gitea, PiClaw, router pages, internal tools, and whatever else you expose privately.
-
-Both are driven from the same embedded Tailscale node. The browser is not an iframe trick and it does not strip CSP headers; WebView2 navigates pages directly, with traffic sent through a local SOCKS endpoint backed by `tsnet`.
-
-## Why this exists
-
-Tailscale is excellent, but the full client is not always the right answer. Sometimes you want access to a handful of machines without adding another persistent system service, changing the host network stack, or asking Windows to remember one more thing at boot.
-
-`womprat` takes the opposite approach: the tailnet identity belongs to the app, not the machine. When it is running, it can reach your tailnet. When it is closed, there is no resident VPN client left behind.
+`womprat` takes the opposite approach: the tailnet identity belongs to the app, not the machine. When it is running, it can reach your tailnet. When it is closed, there is no VPN client left behind.
 
 That makes it useful for portable operations work, especially when SSH and internal web UIs are the only things you need.
+
+> **Note:** Right now, configuration is encrypted but stored in %APPDATA%. Future passes will tackle running this straight off a USB stick, once the UX is a bit more stable.
 
 ## How networking works
 
@@ -31,27 +22,25 @@ The app starts an embedded Tailscale node through `tailscale.com/tsnet` and uses
 
 * SSH connections are dialled through `tsnet`.
 * Browser traffic is sent to a local SOCKS5 endpoint.
-* The SOCKS5 endpoint resolves and dials through `tsnet`, including public names, MagicDNS names, `.ts.net` names, `.local` aliases, LAN names, and raw IPs.
-* If exit-node routing is configured, `tsnet` applies it. If routing cannot resolve or reach the destination, traffic fails closed instead of escaping through local DNS or the local network.
-
-The local WebView2 shell and API still use loopback for the application UI. External browser content is expected to go through the Tailscale-backed SOCKS path.
+* The SOCKS5 endpoint resolves and dials through `tsnet`, including public names, MagicDNS names, `.ts.net` names, `.local` aliases (if you use [`mdnsbridge`](https://github.com/rcarmo/mdnsbridge)), LAN names, and raw IPs.
+* If exit-node routing is configured, `tsnet` lets you reach the open internet (also very handy if you end up on a restricted network).
 
 ## What is in the binary
 
-The executable contains the app shell, settings UI, tab manager, SSH terminal plumbing, SOCKS bridge, embedded Tailscale client, resource icon, and the WebView2 integration code. It does not bundle a browser engine -- it uses the Microsoft Edge WebView2 runtime already present on current Windows systems.
+The executable contains the app shell, settings UI, tab manager, SSH terminal plumbing, SOCKS bridge, embedded Tailscale client, and system WebView2 integration code. It does not bundle a browser engine -- it uses the Microsoft Edge WebView2 runtime already present on current Windows systems.
 
 The main pieces are:
 
 * `tsnet` for joining and routing over the tailnet.
 * WebView2 for the native Windows browser window.
-* xterm.js for SSH terminal tabs.
+* `xterm.js` for SSH terminal tabs.
 * Go's SSH stack for terminal sessions.
 * Windows DPAPI for encrypting local configuration and credentials.
 * A local HTTP API for the app shell, settings, tab state, and terminal WebSockets.
 
 ## Configuration and secrets
 
-User data lives under:
+User data lives (for now) under:
 
 ```text
 %APPDATA%\womprat\
@@ -68,7 +57,7 @@ SSH host keys are pinned on first use rather than accepted blindly every time, w
 
 `womprat` is not trying to replace the full Tailscale client for general-purpose system networking. It will not make every application on the machine see the tailnet, advertise routes, or act as a machine-wide VPN.
 
-It also does not proxy browser pages through an HTTP rewriting layer. There is no CSP stripping and no URL rewriting to make hostile pages fit inside an iframe. Browser tabs are real WebView2 navigations, and SOCKS is only the transport path.
+It also does not provide a generic proxy service--the entire point of this is that this is a single-purpose, self contained app.
 
 ## Building
 
@@ -110,7 +99,7 @@ You need:
 * `llvm-windres`, used to generate the Windows ARM64 resource object.
 * Python 3, currently used as a general project scripting dependency.
 
-The Makefile checks these with `make doctor` and regenerates the ARM64 `.syso` resource from the checked-in icon and manifest.
+The `Makefile` checks these with `make doctor` and regenerates the ARM64 `.syso` resource from the checked-in icon and manifest.
 
 ## Repository layout
 
@@ -130,3 +119,9 @@ Makefile                  Full setup/check/resource/build pipeline
 ## Current target
 
 The current target platform is Windows ARM64. Other build targets exist mostly as compile checks; the useful artefact is the single Windows ARM64 `womprat.exe`.
+
+## Roadmap
+
+* Make this a fully portable, USB keychain-style app
+* Embed VNC and [`go-rdp`](https://github.com/rcarmo/go-rdp) clients
+* Possibly do a Mac version
