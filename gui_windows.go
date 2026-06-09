@@ -112,18 +112,6 @@ func createHostChild(parent uintptr) (uintptr, error) {
 	return hwnd, nil
 }
 
-func runHostMessageLoop() {
-	var m msg
-	for {
-		r, _, _ := procGetMessageW.Call(uintptr(unsafe.Pointer(&m)), 0, 0, 0)
-		if int32(r) <= 0 {
-			return
-		}
-		procTranslateMessage.Call(uintptr(unsafe.Pointer(&m)))
-		procDispatchMessageW.Call(uintptr(unsafe.Pointer(&m)))
-	}
-}
-
 func runGUI(app *App, shellURL string) {
 	host, err := createHostWindow("womprat", 1200, 800)
 	if err != nil {
@@ -197,5 +185,10 @@ func runGUI(app *App, shellURL string) {
 	if contentViews != nil {
 		contentViews.HideAll()
 	}
-	runHostMessageLoop()
+	// Use the wrapper run loop: it pumps all thread messages (including the host
+	// window proc for WM_SIZE) and, critically, drains the dispatch queue that
+	// resolves JS<->Go bound-function promises. A custom GetMessage loop that does
+	// not handle WMApp leaves every bound call's promise unresolved, which hangs
+	// any awaited womprat_* call (settings/browser activation).
+	w.Run()
 }
