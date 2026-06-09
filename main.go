@@ -846,6 +846,7 @@ func chromeOverlayJS(port int, token string) string {
       forward: '<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M10.22 4.22a.75.75 0 0 1 1.06 0l5.5 5.5a.75.75 0 0 1 0 1.06l-5.5 5.5a.75.75 0 1 1-1.06-1.06L14.44 11H3.75a.75.75 0 0 1 0-1.5h10.69l-4.22-4.22a.75.75 0 0 1 0-1.06Z"/></svg>',
       reload: '<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M15.65 6.35A6.5 6.5 0 1 0 16.5 10a.75.75 0 0 1 1.5 0 8 8 0 1 1-2.34-5.66V3.25a.75.75 0 0 1 1.5 0v3.5c0 .41-.34.75-.75.75h-3.5a.75.75 0 0 1 0-1.5h2.74Z"/></svg>',
       close: '<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M4.22 4.22a.75.75 0 0 1 1.06 0L10 8.94l4.72-4.72a.75.75 0 1 1 1.06 1.06L11.06 10l4.72 4.72a.75.75 0 1 1-1.06 1.06L10 11.06l-4.72 4.72a.75.75 0 0 1-1.06-1.06L8.94 10 4.22 5.28a.75.75 0 0 1 0-1.06Z"/></svg>',
+      add: '<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M10 3.5a.75.75 0 0 1 .75.75v5h5a.75.75 0 0 1 0 1.5h-5v5a.75.75 0 0 1-1.5 0v-5h-5a.75.75 0 0 1 0-1.5h5v-5A.75.75 0 0 1 10 3.5Z"/></svg>',
       home: '<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M9.28 2.78a1 1 0 0 1 1.44 0l6.5 6.78a.75.75 0 0 1-1.08 1.04l-.64-.67V16a2 2 0 0 1-2 2h-2.25a.75.75 0 0 1-.75-.75V13h-1v4.25a.75.75 0 0 1-.75.75H6.5a2 2 0 0 1-2-2V9.93l-.64.67a.75.75 0 1 1-1.08-1.04l6.5-6.78Z"/></svg>'
     };
     const i = (name) => '<span class="womprat-icon">' + icons[name] + '</span>';
@@ -854,6 +855,7 @@ func chromeOverlayJS(port int, token string) string {
     bar.innerHTML = `+"`"+`
       <div id="womprat-tab-row">
         <div id="womprat-tabs"></div>
+        <button id="womprat-new-tab" title="New tab" aria-label="New tab">${i('add')}</button>
         <button id="womprat-home" title="Home" aria-label="Home">${i('home')}</button>
       </div>
       <div id="womprat-url-row">
@@ -997,6 +999,7 @@ func chromeOverlayJS(port int, token string) string {
     document.getElementById('womprat-forward').addEventListener('click', () => history.forward());
     document.getElementById('womprat-reload').addEventListener('click', () => location.reload());
     document.getElementById('womprat-go').addEventListener('click', navigateFromInput);
+    document.getElementById('womprat-new-tab').addEventListener('click', () => womprat_goHome());
     document.getElementById('womprat-home').addEventListener('click', () => womprat_goHome());
     input.addEventListener('keydown', (e) => { if (e.key === 'Enter') navigateFromInput(); });
 
@@ -1128,7 +1131,7 @@ var chromeOverlayCSS = "`" + `
 #womprat-chrome .womprat-icon{width:20px!important;height:20px!important;display:inline-block!important;flex:0 0 20px!important;color:currentColor!important}
 #womprat-chrome .womprat-icon svg{width:100%!important;height:100%!important;display:block!important}
 #womprat-chrome #womprat-back,#womprat-chrome #womprat-forward,#womprat-chrome #womprat-reload{padding:0!important;line-height:32px!important}
-#womprat-chrome #womprat-home{margin-left:auto!important;flex:0 0 auto!important}
+#womprat-chrome #womprat-new-tab,#womprat-chrome #womprat-home{flex:0 0 auto!important}
 #womprat-chrome #womprat-url{height:32px!important;min-width:0!important;flex:1 1 auto!important;border:1px solid rgba(255,255,255,.16)!important;
   border-radius:4px!important;background:rgba(255,255,255,.06)!important;color:#f3f3f3!important;padding:0 10px!important;font-size:14px!important;
   line-height:32px!important;outline:none!important;color-scheme:dark!important}
