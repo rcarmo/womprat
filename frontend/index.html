@@ -113,12 +113,6 @@ button,a,.tab,.recent-item,.option{
 
 #url-bar{display:flex;gap:6px;height:var(--url-h);padding:6px 8px;background:var(--surface-solid);
   border-bottom:1px solid var(--border);align-items:center;position:relative;z-index:10}
-#url-progress{position:absolute;left:0;right:0;bottom:-1px;height:2px;overflow:hidden;opacity:0;pointer-events:none;background:transparent;transition:opacity .15s}
-#url-progress.active{opacity:1}
-#url-progress .bar{height:100%;width:30%;background:var(--accent);border-radius:999px;box-shadow:0 0 8px rgba(96,205,255,.45);transform:translateX(-120%)}
-#url-progress.active .bar{animation:urlProgressIndeterminate 1.15s ease-in-out infinite}
-#url-progress.done .bar{width:100%;transform:translateX(0);animation:none;transition:width .18s,transform .18s}
-@keyframes urlProgressIndeterminate{0%{transform:translateX(-120%);width:28%}50%{width:48%}100%{transform:translateX(360%);width:28%}}
 #url-bar input{flex:1;min-width:0;height:var(--control-h);background:var(--layer);border:1px solid var(--border);border-radius:var(--radius);
   padding:0 10px;color:var(--text);font-family:var(--font);font-size:14px;line-height:var(--control-h);outline:none;color-scheme:dark}
 #url-bar input:focus{border-color:var(--accent);background:var(--bg)}
@@ -174,7 +168,6 @@ button,a,.tab,.recent-item,.option{
   <datalist id="url-history"></datalist>
   <span id="route-pill" class="route-pill" title="Exit node route status"></span>
   <button class="icon-button text-button" onclick="navigateFromBar()">Go</button>
-  <div id="url-progress" aria-hidden="true"><div class="bar"></div></div>
 </div>
 
 <div id="panels">
@@ -248,22 +241,9 @@ const terminalSessions = new Map();
 const failedFavicons = new Set();
 const TERMINAL_FONT_SIZE = 14;
 let shellContentZoom = Number(sessionStorage.getItem('wompratShellContentZoom') || '1') || 1;
-let urlProgressTimer = null;
-function setURLProgress(active, done = false) {
-  const el = document.getElementById('url-progress');
-  if (!el) return;
-  clearTimeout(urlProgressTimer);
-  el.classList.toggle('active', !!active || !!done);
-  el.classList.toggle('done', !!done);
-  if (done) {
-    urlProgressTimer = setTimeout(() => {
-      el.classList.remove('active', 'done');
-    }, 450);
-  } else if (active) {
-    urlProgressTimer = setTimeout(() => {
-      el.classList.remove('active', 'done');
-    }, 15000);
-  }
+function setURLProgress(_active, _done = false) {
+  // Disabled for now: native WebView2 navigation events can arrive out of phase
+  // with shell state, and a stuck strip is worse than no progress indicator.
 }
 window.wompratNavigationDone = function(tabId, url) {
   const tab = state.tabs.find(t => t.id === tabId);

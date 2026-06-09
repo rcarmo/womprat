@@ -121,7 +121,7 @@ func TestFrontendSplitWebViewShellContracts(t *testing.T) {
 		"womprat_browserBack",
 		"womprat_browserReload",
 		"browser-placeholder",
-		"}, 15000);",
+		"function setURLProgress(_active, _done = false)",
 	} {
 		if !strings.Contains(s, want) {
 			t.Fatalf("frontend missing %q", want)
