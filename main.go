@@ -110,8 +110,9 @@ func main() {
 	defer w.Destroy()
 	app.webview = w
 
-	// Set dark title bar
+	// Set native title bar appearance
 	applyDarkMode(w)
+	applyAppIcon(w)
 
 	// Bind Go functions callable from JS in any page
 	w.Bind("womprat_getTabs", func() string {
