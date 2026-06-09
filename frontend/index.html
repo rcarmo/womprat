@@ -62,7 +62,7 @@ button,a,.tab,.recent-item,.peer-item,.option{
 #new-tab:hover{background:rgba(255,255,255,.06);color:var(--text)}
 
 /* Panels */
-#panels{position:absolute;inset:var(--tab-h) 0 0 0}
+#panels{position:absolute;inset:calc(var(--tab-h) + 2.4em) 0 0 0}
 .panel{position:absolute;inset:0;display:none}
 .panel.active{display:flex;flex-direction:column}
 
@@ -95,6 +95,17 @@ button,a,.tab,.recent-item,.peer-item,.option{
 .setup-card .status{margin-top:.8rem;font-size:.82rem;color:var(--dim)}
 
 /* Peer list (new tab menu) */
+
+#url-bar{display:flex;gap:.3rem;padding:.3rem .5rem;background:var(--surface-solid);
+  border-bottom:1px solid var(--border);align-items:center}
+#url-bar input{flex:1;background:var(--layer);border:1px solid var(--border);border-radius:var(--radius);
+  padding:.35rem .6rem;color:var(--text);font-family:var(--font);outline:none;color-scheme:dark}
+#url-bar input:focus{border-color:var(--accent);background:var(--bg)}
+#url-bar button{background:transparent;color:var(--text-secondary);border:1px solid transparent;
+  border-radius:var(--radius);width:2em;height:2em;display:inline-flex;align-items:center;
+  justify-content:center;font-size:1em;cursor:pointer}
+#url-bar button:hover{background:var(--subtle-hover);color:var(--text)}
+
 #peer-menu{position:absolute;top:var(--tab-h);right:.5rem;background:var(--card);
   border:1px solid var(--border-strong);border-radius:var(--radius-lg);padding:.4rem;z-index:50;
   min-width:240px;display:none;max-height:60vh;overflow-y:auto;
@@ -143,6 +154,14 @@ button,a,.tab,.recent-item,.peer-item,.option{
 </div>
 
 <div id="peer-menu"></div>
+<div id="url-bar">
+  <button onclick="historyBack(state.activeTab)" title="Back"><svg width="1em" height="1em" viewBox="0 0 20 20" fill="currentColor"><path d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z"/></svg></button>
+  <button onclick="historyForward(state.activeTab)" title="Forward"><svg width="1em" height="1em" viewBox="0 0 20 20" fill="currentColor"><path d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"/></svg></button>
+  <button onclick="historyReload(state.activeTab)" title="Reload"><svg width="1em" height="1em" viewBox="0 0 20 20" fill="currentColor"><path d="M10 3a7 7 0 00-5.47 2.63.5.5 0 00.03.66l.06.05a.5.5 0 00.66-.03A6 6 0 0116 10a6 6 0 01-9.55 4.84.5.5 0 00-.7.08l-.04.06a.5.5 0 00.08.66A7 7 0 1010 3zm-.5 2a.5.5 0 01.5.5V9h2.5a.5.5 0 010 1H10a1 1 0 01-1-1V5.5a.5.5 0 01.5-.5z"/></svg></button>
+  <input id="url-input" placeholder="Enter URL or ssh://user@host" onkeydown="if(event.key==='Enter')navigateFromBar()">
+  <button onclick="navigateFromBar()">Go</button>
+</div>
+
 <div id="panels">
 <!-- Home panel (shown when no tabs active) -->
 <div class="panel active" id="panel-home">
@@ -453,6 +472,14 @@ function renderTabs() {
 
 function activateTab(id) {
   state.activeTab = id;
+  // Update URL bar with active tab's URL
+  const tab = state.tabs.find(t => t.id === id);
+  const urlInput = document.getElementById('url-input');
+  if (urlInput && tab) {
+    if (tab.type === 'browser') urlInput.value = tab.url || '';
+    else if (tab.type === 'terminal') urlInput.value = 'ssh://' + (tab.user||'root') + '@' + (tab.host||'') + ':' + (tab.port||22);
+    else urlInput.value = '';
+  }
   const panels = document.getElementById('panels');
   // Create panel if it doesn't exist
   if (!document.getElementById(`panel-${id}`)) {
@@ -494,6 +521,32 @@ window.historyForward = function(id) {
 window.historyReload = function(id) {
   const iframe = document.querySelector(`#panel-${id} iframe`);
   if (iframe?.contentWindow) try { iframe.contentWindow.location.reload(); } catch {}
+};
+
+window.navigateFromBar = function() {
+  const url = document.getElementById('url-input').value.trim();
+  if (!url) return;
+  const sshMatch = url.match(/^ssh:\/\/(?:([^@]+)@)?([^:\/]+)(?::(\d+))?/);
+  if (sshMatch) {
+    const user = sshMatch[1] || 'root';
+    const host = sshMatch[2];
+    const port = sshMatch[3] ? parseInt(sshMatch[3]) : 22;
+    openTerminal(host, host, user, port);
+    return;
+  }
+  let navUrl = url;
+  if (!/^https?:\/\//.test(navUrl)) navUrl = 'http://' + navUrl;
+  // If active tab is a browser tab, navigate it
+  const active = state.tabs.find(t => t.id === state.activeTab);
+  if (active && active.type === 'browser') {
+    active.url = navUrl;
+    const iframe = document.querySelector('#panel-' + active.id + ' iframe');
+    if (iframe) iframe.src = navUrl;
+    saveOpenTabs();
+  } else {
+    // Open a new browser tab
+    openBrowser(navUrl, new URL(navUrl).hostname || 'page');
+  }
 };
 
 window.navigateTab = function(id) {
