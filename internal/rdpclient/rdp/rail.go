@@ -421,14 +421,14 @@ func NewRailClientExecutePDU(app, workDir, args string) *RailPDU {
 
 // Serialize encodes the RailPDUClientExecute to wire format.
 func (pdu *RailPDUClientExecute) Serialize() []byte {
-	exeOrFile := codec.Encode(pdu.ExeOrFile)
-	exeOrFileLength := uint16(len(exeOrFile)) // #nosec G115
+	exeOrFile := boundRAILField(codec.Encode(pdu.ExeOrFile))
+	exeOrFileLength := uint16(len(exeOrFile))
 
-	workingDir := codec.Encode(pdu.WorkingDir)
-	workingDirLength := uint16(len(workingDir)) // #nosec G115
+	workingDir := boundRAILField(codec.Encode(pdu.WorkingDir))
+	workingDirLength := uint16(len(workingDir))
 
-	arguments := codec.Encode(pdu.Arguments)
-	argumentsLen := uint16(len(arguments)) // #nosec G115
+	arguments := boundRAILField(codec.Encode(pdu.Arguments))
+	argumentsLen := uint16(len(arguments))
 
 	buf := new(bytes.Buffer)
 
@@ -441,6 +441,14 @@ func (pdu *RailPDUClientExecute) Serialize() []byte {
 	_ = binary.Write(buf, binary.LittleEndian, arguments)
 
 	return buf.Bytes()
+}
+
+func boundRAILField(data []byte) []byte {
+	if len(data) <= 0xffff {
+		return data
+	}
+	// UTF-16LE payloads must remain even-length.
+	return data[:0xfffe]
 }
 
 func (c *Client) railStartRemoteApp() error {
