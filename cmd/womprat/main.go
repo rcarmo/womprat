@@ -838,7 +838,7 @@ func (a *App) handleAuthStatus(w http.ResponseWriter, r *http.Request) {
 	a.mu.Lock()
 	unlockMethod := a.config.UnlockMethod
 	a.mu.Unlock()
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"hasKey":       err == nil,
 		"connected":    a.ts() != nil,
 		"locked":       a.isLocked(),
@@ -901,20 +901,20 @@ func (a *App) handleSaveKey(w http.ResponseWriter, r *http.Request) {
 func (a *App) handleTSStatus(w http.ResponseWriter, r *http.Request) {
 	ts := a.ts()
 	if ts == nil {
-		json.NewEncoder(w).Encode(map[string]string{"status": "disconnected"})
+		writeJSON(w, http.StatusOK, map[string]string{"status": "disconnected"})
 		return
 	}
 	lc, err := ts.LocalClient()
 	if err != nil {
-		json.NewEncoder(w).Encode(map[string]string{"status": "error", "error": err.Error()})
+		writeJSON(w, http.StatusOK, map[string]string{"status": "error", "error": err.Error()})
 		return
 	}
 	status, err := lc.Status(r.Context())
 	if err != nil {
-		json.NewEncoder(w).Encode(map[string]string{"status": "error", "error": err.Error()})
+		writeJSON(w, http.StatusOK, map[string]string{"status": "error", "error": err.Error()})
 		return
 	}
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"status":   "connected",
 		"hostname": status.Self.HostName,
 		"ip":       status.TailscaleIPs,
@@ -924,7 +924,7 @@ func (a *App) handleTSStatus(w http.ResponseWriter, r *http.Request) {
 func (a *App) handleTSPeers(w http.ResponseWriter, r *http.Request) {
 	ts := a.ts()
 	if ts == nil {
-		json.NewEncoder(w).Encode([]string{})
+		writeJSON(w, http.StatusOK, []string{})
 		return
 	}
 	lc, err := ts.LocalClient()
@@ -958,7 +958,7 @@ func (a *App) handleTSPeers(w http.ResponseWriter, r *http.Request) {
 			ExitNodeOption: p.ExitNodeOption,
 		})
 	}
-	json.NewEncoder(w).Encode(peers)
+	writeJSON(w, http.StatusOK, peers)
 }
 
 func (a *App) handleAbout(w http.ResponseWriter, r *http.Request) {

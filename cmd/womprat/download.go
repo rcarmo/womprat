@@ -147,11 +147,11 @@ func (a *App) handleDownloadStatus(w http.ResponseWriter, r *http.Request) {
 	downloadMu.Lock()
 	defer downloadMu.Unlock()
 	if currentDownload == nil {
-		json.NewEncoder(w).Encode(map[string]string{"status": "idle"})
+		writeJSON(w, http.StatusOK, map[string]string{"status": "idle"})
 		return
 	}
 	copy := *currentDownload
-	json.NewEncoder(w).Encode(&copy)
+	writeJSON(w, http.StatusOK, &copy)
 }
 
 func parseDownloadURL(raw string) (*url.URL, error) {
