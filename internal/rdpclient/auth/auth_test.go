@@ -226,6 +226,16 @@ func TestParseChallengeMessage(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name:    "bad signature",
+			data:    append([]byte("BADSSP!!\x00\x00\x00\x02"), make([]byte, 44)...),
+			wantErr: true,
+		},
+		{
+			name:    "bad message type",
+			data:    append(append([]byte{}, ntlmSignature...), append([]byte{1, 0, 0, 0}, make([]byte, 44)...)...),
+			wantErr: true,
+		},
+		{
 			name: "valid challenge without target info",
 			data: func() []byte {
 				buf := &bytes.Buffer{}

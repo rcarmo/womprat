@@ -123,6 +123,12 @@ func ParseChallengeMessage(data []byte) (*ChallengeMessage, error) {
 	if len(data) < 56 {
 		return nil, bytes.ErrTooLarge
 	}
+	if !bytes.Equal(data[:8], ntlmSignature) {
+		return nil, fmt.Errorf("invalid NTLM challenge signature")
+	}
+	if binary.LittleEndian.Uint32(data[8:12]) != ntlmMessageChallenge {
+		return nil, fmt.Errorf("not an NTLM challenge message")
+	}
 
 	// Store raw data for MIC computation
 	rawData := make([]byte, len(data))
