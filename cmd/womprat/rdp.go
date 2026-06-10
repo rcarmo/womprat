@@ -256,8 +256,11 @@ func sendRDPCapabilities(ctx context.Context, ws *websocket.Conn, mu *sync.Mutex
 	}
 	msg := append([]byte{0xff}, payload...)
 	mu.Lock()
-	_ = ws.Write(ctx, websocket.MessageBinary, msg)
+	err = ws.Write(ctx, websocket.MessageBinary, msg)
 	mu.Unlock()
+	if err != nil {
+		log.Printf("rdp capabilities send failed: %v", err)
+	}
 }
 
 func sendRDPAudio(ctx context.Context, ws *websocket.Conn, mu *sync.Mutex, data []byte, format *audio.AudioFormat, timestamp uint16) {
@@ -284,6 +287,9 @@ func sendRDPAudio(ctx context.Context, ws *websocket.Conn, mu *sync.Mutex, data 
 	}
 	copy(msg[off:], data)
 	mu.Lock()
-	_ = ws.Write(ctx, websocket.MessageBinary, msg)
+	err := ws.Write(ctx, websocket.MessageBinary, msg)
 	mu.Unlock()
+	if err != nil {
+		log.Printf("rdp audio send failed: %v", err)
+	}
 }

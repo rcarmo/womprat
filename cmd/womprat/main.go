@@ -291,7 +291,9 @@ func (a *App) persistOpenTabs() {
 	a.config.OpenTabs = saved
 	cfg := a.config
 	a.mu.Unlock()
-	_ = SaveConfig(cfg)
+	if err := SaveConfig(cfg); err != nil {
+		log.Printf("persist open tabs failed: %v", err)
+	}
 }
 
 func (a *App) switchTab(tabID string) {
