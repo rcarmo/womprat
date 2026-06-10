@@ -283,6 +283,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
       <span>Enable debug logging</span>
     </label>
     <div id="debug-log-path" class="mono" style="margin-top:.5rem;color:var(--dim);font-size:.78rem;word-break:break-all"></div>
+    <div id="debug-status" style="margin-top:.5rem"></div>
   </div>
   <div class="section">
     <h3>Runtime</h3>
@@ -387,13 +388,14 @@ async function setMasterPassword() {
 
 async function saveTailscale() {
   const key = document.getElementById('ts-key').value.trim();
-  if (!key) return;
+  if (!key) { setStatus('ts-status', 'error', 'Enter an auth key'); return; }
   const res = await fetch('/api/settings/tailscale-key', {
     method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({key})
   });
   const data = await res.json().catch(()=>({}));
   document.getElementById('ts-key').value = '';
+  if (!res.ok) { setStatus('ts-status', 'error', data.error || data.message || 'Failed to save key'); return; }
   await checkTailscale();
   await loadExitNodes();
   if (data.error) setStatus('exit-status', 'warn', data.error);
@@ -446,10 +448,11 @@ function setExitStatus(node) {
   setStatus('exit-status', node ? 'ok' : 'warn', node ? `Internet via ${node}` : 'Tailnet only');
 }
 async function setExitNode(node) {
-  await fetch('/api/settings/exit-node', {
+  const res = await fetch('/api/settings/exit-node', {
     method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({exitNode: node})
   });
+  if (!res.ok) { setStatus('exit-status', 'error', await res.text()); await loadExitNodes(); return; }
   setExitStatus(node);
 }
 
@@ -650,13 +653,16 @@ async function loadDebugLog() {
 }
 async function setDebugLog(enabled) {
   try {
-    const d = await fetch('/api/settings/debug-log', {
+    const res = await fetch('/api/settings/debug-log', {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({enabled})
-    }).then(r=>r.json());
+    });
+    if (!res.ok) { setStatus('debug-status', 'error', await res.text()); return; }
+    const d = await res.json();
     const p = document.getElementById('debug-log-path');
     if (p) p.textContent = d.enabled ? (d.logPath || '') : '';
-  } catch {}
+    setStatus('debug-status', 'ok', d.enabled ? 'Debug logging enabled' : 'Debug logging disabled');
+  } catch (err) { setStatus('debug-status', 'error', err.message); }
 }
 async function loadAbout() {
   try {

@@ -15,6 +15,20 @@ func readFileForRegression(t *testing.T, path string) string {
 	return string(b)
 }
 
+func TestSettingsReportsAsyncOperationFailures(t *testing.T) {
+	s := readFileForRegression(t, "frontend/settings.html")
+	for _, want := range []string{
+		"setStatus('ts-status', 'error', 'Enter an auth key')",
+		"if (!res.ok) { setStatus('exit-status', 'error', await res.text()); await loadExitNodes(); return; }",
+		"if (!res.ok) { setStatus('debug-status', 'error', await res.text()); return; }",
+		"id=\"debug-status\"",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("settings async error reporting missing %q", want)
+		}
+	}
+}
+
 func TestSettingsValidatesKeyAndHostInputs(t *testing.T) {
 	s := readFileForRegression(t, "frontend/settings.html")
 	for _, want := range []string{
