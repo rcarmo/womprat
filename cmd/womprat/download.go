@@ -113,7 +113,16 @@ func (a *App) downloadToFile(targetURL, savePath string, st *downloadState) {
 		setDownloadError(st, err)
 		return
 	}
-	defer f.Close()
+	completed := false
+	defer func() {
+		if err := f.Close(); err != nil && completed {
+			setDownloadError(st, err)
+			completed = false
+		}
+		if !completed {
+			_ = os.Remove(savePath)
+		}
+	}()
 
 	buf := make([]byte, 32*1024)
 	for {
@@ -132,6 +141,7 @@ func (a *App) downloadToFile(targetURL, savePath string, st *downloadState) {
 				downloadMu.Lock()
 				st.Status = "complete"
 				downloadMu.Unlock()
+				completed = true
 			} else {
 				setDownloadError(st, err)
 			}
