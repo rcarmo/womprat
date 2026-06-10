@@ -20,6 +20,8 @@ import (
 	"tailscale.com/ipn"
 )
 
+const maxSSHKeyBytes = 64 * 1024
+
 // SSHKeyEntry stored in credential manager
 type SSHKeyEntry struct {
 	Name        string   `json:"name"`
@@ -426,6 +428,13 @@ func (a *App) importSSHKey(name, content string) error {
 	name, err := safeSSHKeyName(name)
 	if err != nil {
 		return err
+	}
+	content = strings.TrimSpace(content)
+	if content == "" {
+		return fmt.Errorf("empty SSH key")
+	}
+	if len(content) > maxSSHKeyBytes {
+		return fmt.Errorf("SSH key too large")
 	}
 	// Validate it's a valid key
 	_, err = ssh.ParseRawPrivateKey([]byte(content))

@@ -31,6 +31,13 @@ func TestSSHConnectValidationBranches(t *testing.T) {
 	}
 }
 
+func TestSSHKeyImportRejectsOversizedContent(t *testing.T) {
+	app := newTestApp(t)
+	if err := app.importSSHKey("big", strings.Repeat("x", maxSSHKeyBytes+1)); err == nil {
+		t.Fatal("oversized SSH key import succeeded")
+	}
+}
+
 func TestValidSSHKeyImportAndFingerprint(t *testing.T) {
 	app := newTestApp(t)
 	_, priv, err := ed25519.GenerateKey(rand.Reader)
