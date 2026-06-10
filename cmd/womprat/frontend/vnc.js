@@ -1187,7 +1187,9 @@ var tds = 0;
 try {
   td.decode(et, { stream: true });
   tds = 1;
-} catch (e) {}
+} catch (e) {
+  // TextDecoder streaming is optional; keep the fallback path selected.
+}
 
 // cmd/womprat/frontend/vnc-piclaw/vnc-auth.ts
 var IP_TABLE = [
@@ -2577,7 +2579,11 @@ class VncRemoteDisplayProtocol {
                 break;
               }
               const nameBytes = this.buffer.slice(offset + 4, offset + 4 + nameLength);
-              try { this.serverName = boundedVncDesktopName(new TextDecoder().decode(nameBytes)); } catch {}
+              try {
+                this.serverName = boundedVncDesktopName(new TextDecoder().decode(nameBytes));
+              } catch (error) {
+                reportVncNonFatalError("desktop name decode", error);
+              }
               rects.push({ kind: "desktop-name", name: this.serverName });
               offset += 4 + nameLength;
               continue;
@@ -2860,6 +2866,9 @@ function setStatus(root, text) {
 function setBusy(root, busy) {
   root.toggleAttribute("data-busy", busy);
 }
+function reportVncNonFatalError(context, error) {
+  console.debug(`[vnc] ${context} failed`, error);
+}
 function query(root, selector) {
   const el = root.querySelector(selector);
   if (!el)
@@ -2912,7 +2921,7 @@ class WompratVncViewer {
   async reconnect() {
     if (this.disposed) return;
     this.closedByReconnect = true;
-    try { this.ws?.close(1000, "reconnect"); } catch {}
+    try { this.ws?.close(1000, "reconnect"); } catch (error) { reportVncNonFatalError("reconnect close", error); }
     this.ws = null;
     this.framebuffer = null;
     this.buttons = 0;
@@ -2924,8 +2933,8 @@ class WompratVncViewer {
   dispose() {
     this.disposed = true;
     this.closedByReconnect = true;
-    try { this.ws?.close(1000, "tab closed"); } catch {}
-    try { this.resizeObserver?.disconnect?.(); } catch {}
+    try { this.ws?.close(1000, "tab closed"); } catch (error) { reportVncNonFatalError("dispose close", error); }
+    try { this.resizeObserver?.disconnect?.(); } catch (error) { reportVncNonFatalError("resize observer disconnect", error); }
     this.ws = null;
     this.framebuffer = null;
     this.activeKeys.clear();
@@ -2968,7 +2977,9 @@ class WompratVncViewer {
       }
       try {
         this.ws?.close();
-      } catch {}
+      } catch (closeError) {
+        reportVncNonFatalError("error close", closeError);
+      }
     }
   }
   handleEvent(event) {
@@ -3137,7 +3148,9 @@ class WompratVncViewer {
       this.canvas.focus();
       try {
         this.canvas.setPointerCapture(event.pointerId);
-      } catch {}
+      } catch (error) {
+        reportVncNonFatalError("pointer capture", error);
+      }
       this.buttons |= resolveVncPointerPressMask(event);
       const p = this.point(event);
       this.send(encodeVncPointerEvent(this.buttons, p.x, p.y));

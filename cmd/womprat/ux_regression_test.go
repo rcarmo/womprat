@@ -475,6 +475,18 @@ func TestNativeWebViewBridgeHasNoEmptyCatchBlocks(t *testing.T) {
 	}
 }
 
+func TestVNCViewerHasNoEmptyCatchBlocks(t *testing.T) {
+	s := readFileForRegression(t, "frontend/vnc.js")
+	for _, forbidden := range []string{"catch {}", "catch(e){}", "catch (e) {}"} {
+		if strings.Contains(s, forbidden) {
+			t.Fatalf("VNC viewer must not contain empty catch block %q", forbidden)
+		}
+	}
+	if !strings.Contains(s, "reportVncNonFatalError") {
+		t.Fatal("VNC viewer should report non-fatal swallowed failures")
+	}
+}
+
 func TestSetupAuthReportsFailures(t *testing.T) {
 	s := readFileForRegression(t, "frontend/index.html")
 	for _, want := range []string{
