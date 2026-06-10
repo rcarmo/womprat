@@ -18,6 +18,9 @@ func TestSSHAuthPasswordPendingNoTailscale(t *testing.T) {
 	if rr.Code != http.StatusServiceUnavailable {
 		t.Fatalf("pending no tailscale = %d %s", rr.Code, rr.Body.String())
 	}
+	if app.pendingAuth["p"] == nil {
+		t.Fatal("pending auth should survive retryable no-tailscale failure")
+	}
 }
 
 func TestSSHConnectValidationBranches(t *testing.T) {

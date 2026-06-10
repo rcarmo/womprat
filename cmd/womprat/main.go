@@ -1170,7 +1170,6 @@ func (a *App) handleSSHAuthPassword(w http.ResponseWriter, r *http.Request) {
 	}
 	a.mu.Lock()
 	pending := a.pendingAuth[body.TabId]
-	delete(a.pendingAuth, body.TabId)
 	a.mu.Unlock()
 	if pending == nil {
 		httpError(w, 404, "No pending auth", "")
@@ -1209,6 +1208,7 @@ func (a *App) handleSSHAuthPassword(w http.ResponseWriter, r *http.Request) {
 	}
 	client := ssh.NewClient(sshConn, chans, reqs)
 	a.mu.Lock()
+	delete(a.pendingAuth, body.TabId)
 	a.sshConns[body.TabId] = client
 	a.mu.Unlock()
 	json.NewEncoder(w).Encode(map[string]string{"status": "connected", "tabId": body.TabId})
