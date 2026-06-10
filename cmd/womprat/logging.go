@@ -80,7 +80,9 @@ func (a *App) handleLogs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	data = tailBytesAtLineBoundary(data, 64*1024)
-	_, _ = w.Write(data)
+	if _, err := w.Write(data); err != nil {
+		log.Printf("log response write failed: %v", err)
+	}
 }
 
 func tailBytesAtLineBoundary(data []byte, maxBytes int) []byte {
