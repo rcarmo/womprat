@@ -221,8 +221,11 @@ func (c *Client) handleSlowPathGraphicsUpdate(wire io.Reader) (*Update, error) {
 	// Build fastpath-style data for the browser
 	// Format: [updateHeader (1 byte)] [size (2 bytes LE)] [updateType (2 bytes LE)] [bitmap data...]
 	// The size field should be the size of everything after the updateHeader+size, i.e. updateType + bitmapData
-	updateHeader := fastpathCode                 // fragmentation=0 (single), compression=0 (none)
-	totalDataSize := uint16(2 + len(updateData)) // #nosec G115
+	if len(updateData) > 0xffff-2 {
+		return nil, fmt.Errorf("slow-path update too large: %d bytes", len(updateData))
+	}
+	updateHeader := fastpathCode // fragmentation=0 (single), compression=0 (none)
+	totalDataSize := uint16(2 + len(updateData))
 
 	fpData := make([]byte, 3+2+len(updateData))
 	fpData[0] = updateHeader
