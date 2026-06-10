@@ -19,6 +19,8 @@ func TestParseRDPURL(t *testing.T) {
 		{name: "explicit user and port", raw: "rdp://alice@host.example:3390", host: "host.example", port: 3390, user: "alice"},
 		{name: "user colon placeholder", raw: "rdp://alice:@host.example:3390", host: "host.example", port: 3390, user: "alice"},
 		{name: "default port", raw: "rdp://host.example", host: "host.example", port: 3389},
+		{name: "user and default port", raw: "rdp://me@platinum", host: "platinum", port: 3389, user: "me"},
+		{name: "uppercase scheme", raw: "RDP://me@platinum", host: "platinum", port: 3389, user: "me"},
 		{name: "bare hostport", raw: "host.example:3391", host: "host.example", port: 3391},
 		{name: "ipv6", raw: "rdp://bob@[fd7a:115c:a1e0::2]:3389", host: "fd7a:115c:a1e0::2", port: 3389, user: "bob"},
 	}
@@ -86,6 +88,21 @@ func TestRDPDefaultsEnableWASMBackedRFX(t *testing.T) {
 	}
 	if got := rdpRFXEnabled("false"); got {
 		t.Fatal("explicit rfx=false should disable RFX")
+	}
+}
+
+func TestNewRDPTabAcceptsUserAtHostWithoutPort(t *testing.T) {
+	app := newTestApp(t)
+	app.newRDPTab("rdp://me@platinum")
+	if len(app.tabs) != 1 {
+		t.Fatalf("tabs = %d, want 1", len(app.tabs))
+	}
+	tab := app.tabs[0]
+	if tab.Type != "rdp" || tab.Host != "platinum" || tab.User != "me" || tab.Port != 3389 || tab.URL != "rdp://me@platinum:3389" {
+		t.Fatalf("rdp tab = %+v", tab)
+	}
+	if app.activeTab != tab.ID {
+		t.Fatalf("activeTab = %q, want %q", app.activeTab, tab.ID)
 	}
 }
 

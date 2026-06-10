@@ -199,7 +199,7 @@ button,a,.tab,.recent-item,.option{
   <button class="icon-button" onclick="historyBack(state.activeTab)" title="Back" aria-label="Back" data-icon="arrowLeft"></button>
   <button class="icon-button" onclick="historyForward(state.activeTab)" title="Forward" aria-label="Forward" data-icon="arrowRight"></button>
   <button class="icon-button" onclick="historyReload(state.activeTab)" title="Reload" aria-label="Reload" data-icon="arrowClockwise"></button>
-  <input id="url-input" list="url-history" placeholder="Enter URL or ssh://user@host" onkeydown="if(event.key==='Enter')navigateFromBar()">
+  <input id="url-input" list="url-history" placeholder="Enter URL, ssh://user@host, vnc://host or rdp://user@host" onkeydown="if(event.key==='Enter')navigateFromBar()">
   <datalist id="url-history"></datalist>
   <span id="route-pill" class="route-pill" title="Exit node route status"></span>
   <button class="icon-button text-button" onclick="navigateFromBar()">Go</button>

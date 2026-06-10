@@ -10,6 +10,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"sync"
@@ -41,23 +42,23 @@ type rdpResizeRequest struct {
 
 func parseRDPURL(raw string) (rdpTarget, error) {
 	text := strings.TrimSpace(raw)
-	text = strings.TrimPrefix(text, "rdp://")
 	if text == "" {
 		return rdpTarget{}, fmt.Errorf("missing RDP target")
 	}
-	var user string
-	if at := strings.LastIndex(text, "@"); at >= 0 {
-		user = strings.TrimSuffix(text[:at], ":")
-		text = text[at+1:]
+	if !strings.Contains(text, "://") {
+		text = "rdp://" + text
 	}
-	host, portText, err := net.SplitHostPort(text)
-	if err != nil {
-		if strings.Count(text, ":") == 0 {
-			host = text
-			portText = "3389"
-		} else {
-			return rdpTarget{}, fmt.Errorf("invalid RDP target %q", raw)
-		}
+	parsed, err := url.Parse(text)
+	if err != nil || !strings.EqualFold(parsed.Scheme, "rdp") {
+		return rdpTarget{}, fmt.Errorf("invalid RDP target %q", raw)
+	}
+	if parsed.Path != "" || parsed.RawQuery != "" || parsed.Fragment != "" {
+		return rdpTarget{}, fmt.Errorf("invalid RDP target %q", raw)
+	}
+	host := parsed.Hostname()
+	portText := parsed.Port()
+	if portText == "" {
+		portText = "3389"
 	}
 	port, err := strconv.Atoi(portText)
 	if err != nil || port <= 0 || port > 65535 {
@@ -66,6 +67,10 @@ func parseRDPURL(raw string) (rdpTarget, error) {
 	host = strings.TrimSpace(strings.Trim(host, "[]"))
 	if host == "" || strings.ContainsAny(host, " /?#\\") {
 		return rdpTarget{}, fmt.Errorf("invalid RDP host %q", host)
+	}
+	user := ""
+	if parsed.User != nil {
+		user = strings.TrimSuffix(parsed.User.Username(), ":")
 	}
 	if len(user) > 256 {
 		return rdpTarget{}, fmt.Errorf("invalid RDP user")
