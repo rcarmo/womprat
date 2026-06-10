@@ -240,8 +240,6 @@ func newNativeContentView(parent uintptr, dataPath, tabID string, shell shellWeb
 		// Browser content reports its document title and favicon via postMessage so
 		// the shell tab can display the page title and icon instead of the raw URL.
 		title, favicon := parseTitleMessage(raw)
-		title = strings.TrimSpace(title)
-		favicon = strings.TrimSpace(favicon)
 		if (title != "" || favicon != "") && cv.shell != nil {
 			cv.shell.Eval(fmt.Sprintf("window.wompratSetTabMeta(%s,%s,%s)", jsString(cv.tabID), jsString(title), jsString(favicon)))
 		}
@@ -311,6 +309,9 @@ const browserTitleReporterJS = `(function(){
 })();`
 
 func parseTitleMessage(raw string) (string, string) {
+	if len(raw) > maxWebViewMessage {
+		return "", ""
+	}
 	var m struct {
 		WompratTitle   string `json:"wompratTitle"`
 		WompratFavicon string `json:"wompratFavicon"`
@@ -318,7 +319,7 @@ func parseTitleMessage(raw string) (string, string) {
 	if err := json.Unmarshal([]byte(raw), &m); err != nil {
 		return "", ""
 	}
-	return m.WompratTitle, m.WompratFavicon
+	return sanitizeBrowserTitle(m.WompratTitle), sanitizeFaviconURL(m.WompratFavicon)
 }
 
 func parseHotkeyMessage(raw string) string {

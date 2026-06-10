@@ -63,6 +63,18 @@ func TestNavigateAndNewBrowserNormalizeURL(t *testing.T) {
 	}
 }
 
+func TestBrowserMetadataSanitizers(t *testing.T) {
+	if got := sanitizeBrowserTitle(strings.Repeat("x", maxBrowserTitleRunes+20)); len([]rune(got)) != maxBrowserTitleRunes {
+		t.Fatalf("title length = %d", len([]rune(got)))
+	}
+	if got := sanitizeFaviconURL("javascript:alert(1)"); got != "" {
+		t.Fatalf("javascript favicon accepted: %q", got)
+	}
+	if got := sanitizeFaviconURL("https://example.com/favicon.ico"); got == "" {
+		t.Fatal("https favicon rejected")
+	}
+}
+
 func TestUpdateActiveBrowserTitleIgnoresChromeErrorURL(t *testing.T) {
 	app := newTestApp(t)
 	app.tabs = []Tab{{ID: "b", Type: "browser", Title: "old", URL: "http://example.com", Favicon: "https://example.com/icon.png"}}
@@ -73,6 +85,10 @@ func TestUpdateActiveBrowserTitleIgnoresChromeErrorURL(t *testing.T) {
 	}
 	if got := app.tabs[0].Title; got != "Error" {
 		t.Fatalf("title = %q", got)
+	}
+	app.updateActiveBrowserTitle("Good", "https://example.com", "javascript:alert(1)")
+	if got := app.tabs[0].Favicon; got != "https://example.com/icon.png" {
+		t.Fatalf("unsafe favicon changed tab favicon: %q", got)
 	}
 }
 

@@ -238,8 +238,9 @@ func (a *App) activeContentView() browserContentView {
 }
 
 func (a *App) updateActiveBrowserTitle(title, url, favicon string) {
-	title = strings.TrimSpace(title)
+	title = sanitizeBrowserTitle(title)
 	url = strings.TrimSpace(url)
+	favicon = sanitizeFaviconURL(favicon)
 	// Chromium's internal error pages report chrome-error://chromewebdata/ as the
 	// current URL. Never persist that over the user's requested URL: a transient
 	// routing/DNS failure should not destroy the tab's navigable address.
