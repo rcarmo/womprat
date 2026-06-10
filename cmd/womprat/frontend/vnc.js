@@ -410,6 +410,7 @@ async function loadRemoteDisplayWasmDecoder() {
         "processRawRect",
         "processCopyRect",
         "processRreRect",
+        "processCoRreRect",
         "processHextileRect",
         "processZrleTileData",
         "decodeRawRectToRgba"
@@ -440,6 +441,9 @@ async function loadRemoteDisplayWasmDecoder() {
         },
         processRreRect(data, x, y, w, h, pf) {
           return callProcess("processRreRect", data, x, y, w, h, pf);
+        },
+        processCoRreRect(data, x, y, w, h, pf) {
+          return callProcess("processCoRreRect", data, x, y, w, h, pf);
         },
         processHextileRect(data, x, y, w, h, pf) {
           return callProcess("processHextileRect", data, x, y, w, h, pf);
@@ -1694,7 +1698,7 @@ function normalizeEncodings(encodings) {
   }
   if (values.length > 0)
     return values;
-  return [16, 5, 2, 1, 0, -239, -224, -223];
+  return [16, 5, 2, 4, 1, 0, -239, -224, -223, -307, -308];
 }
 function toUint8Array2(chunk) {
   if (chunk instanceof Uint8Array)
@@ -2128,6 +2132,36 @@ function parseRreRect(bytes, offset, width, height, pixelFormat) {
     rgba
   };
 }
+function parseCoRreRect(bytes, offset, width, height, pixelFormat) {
+  const format = pixelFormat || DEFAULT_CLIENT_PIXEL_FORMAT;
+  const bytesPerPixel = Math.max(1, Math.floor(Number(format.bitsPerPixel || 0) / 8));
+  if (bytes.byteLength < offset + 4 + bytesPerPixel)
+    return null;
+  const view = new DataView(bytes.buffer, bytes.byteOffset + offset, bytes.byteLength - offset);
+  const subrects = view.getUint32(0, false);
+  let cursor = offset + 4;
+  const background = decodePixelToRgba(bytes, cursor, format);
+  if (!background)
+    return null;
+  cursor += background.bytesPerPixel;
+  const needed = cursor + subrects * (bytesPerPixel + 4);
+  if (bytes.byteLength < needed)
+    return null;
+  const rgba = new Uint8ClampedArray(Math.max(0, width || 0) * Math.max(0, height || 0) * 4);
+  fillRgbaRect(rgba, width, 0, 0, width, height, background.rgba);
+  for (let i2 = 0;i2 < subrects; i2 += 1) {
+    const color = decodePixelToRgba(bytes, cursor, format);
+    if (!color)
+      return null;
+    cursor += color.bytesPerPixel;
+    const sx = bytes[cursor++];
+    const sy = bytes[cursor++];
+    const sw = bytes[cursor++];
+    const sh = bytes[cursor++];
+    fillRgbaRect(rgba, width, sx, sy, sw, sh, color.rgba);
+  }
+  return { consumed: cursor - offset, rgba };
+}
 function parseHextileRect(bytes, offset, width, height, pixelFormat, decodeRawRect) {
   const format = pixelFormat || DEFAULT_CLIENT_PIXEL_FORMAT;
   const bytesPerPixel = Math.max(1, Math.floor(Number(format.bitsPerPixel || 0) / 8));
@@ -2479,6 +2513,22 @@ class VncRemoteDisplayProtocol {
               }
               continue;
             }
+            if (encoding === 4) {
+              const corre = parseCoRreRect(this.buffer, offset, width, height, this.clientPixelFormat);
+              if (!corre) {
+                incomplete = true;
+                break;
+              }
+              if (usePipeline && typeof this.pipeline.processCoRreRect === "function") {
+                const correData = this.buffer.slice(offset, offset + corre.consumed);
+                this.pipeline.processCoRreRect(correData, x2, y, width, height, this.clientPixelFormat);
+                rects.push({ kind: "pipeline", x: x2, y, width, height });
+              } else {
+                rects.push({ kind: "rgba", x: x2, y, width, height, rgba: corre.rgba });
+              }
+              offset += corre.consumed;
+              continue;
+            }
             if (encoding === 16) {
               const zrle = parseZrleRect(this.buffer, offset, width, height, this.clientPixelFormat, this.decodeRawRect, this.inflateZrle);
               if (!zrle) {
@@ -2516,6 +2566,40 @@ class VncRemoteDisplayProtocol {
               i2 = numberOfRectangles;
               continue;
             }
+            if (encoding === -307) {
+              if (this.buffer.byteLength < offset + 4) {
+                incomplete = true;
+                break;
+              }
+              const nameLength = new DataView(this.buffer.buffer, this.buffer.byteOffset + offset, 4).getUint32(0, false);
+              if (this.buffer.byteLength < offset + 4 + nameLength) {
+                incomplete = true;
+                break;
+              }
+              const nameBytes = this.buffer.slice(offset + 4, offset + 4 + nameLength);
+              try { this.serverName = new TextDecoder().decode(nameBytes); } catch {}
+              rects.push({ kind: "desktop-name", name: this.serverName });
+              offset += 4 + nameLength;
+              continue;
+            }
+            if (encoding === -308) {
+              if (this.buffer.byteLength < offset + 4) {
+                incomplete = true;
+                break;
+              }
+              const screenCount = this.buffer[offset];
+              const payloadLength = 4 + Math.max(0, screenCount) * 16;
+              if (this.buffer.byteLength < offset + payloadLength) {
+                incomplete = true;
+                break;
+              }
+              this.framebufferWidth = width;
+              this.framebufferHeight = height;
+              if (usePipeline) this.pipeline.initFramebuffer(width, height);
+              rects.push({ kind: "resize", x: x2, y, width, height });
+              offset += payloadLength;
+              continue;
+            }
             if (encoding === -239) {
               const bytesPerPixel = Math.max(1, Math.floor(Number(this.clientPixelFormat.bitsPerPixel || 0) / 8));
               const pixelLength = width * height * bytesPerPixel;
@@ -2547,7 +2631,7 @@ class VncRemoteDisplayProtocol {
               rects.push({ kind: "resize", x: x2, y, width, height });
               continue;
             }
-            throw new Error(`Unsupported VNC rectangle encoding ${encoding}. This viewer currently supports ZRLE, Hextile, RRE, CopyRect, Cursor, LastRect, raw rectangles, and DesktopSize only.`);
+            throw new Error(`Unsupported VNC rectangle encoding ${encoding}. This viewer currently supports ZRLE, Hextile, RRE, CoRRE, CopyRect, Cursor, LastRect, DesktopName, ExtendedDesktopSize, raw rectangles, and DesktopSize only.`);
           }
           if (incomplete)
             break;
@@ -2921,6 +3005,7 @@ class WompratVncViewer {
       this.ctx.putImageData(new ImageData(new Uint8ClampedArray(event.framebuffer), event.width, event.height), 0, 0);
       for (const rect of event.rects || []) {
         if (rect.kind === "cursor") this.applyCursor(rect);
+        else if (rect.kind === "desktop-name") setStatus(this.root, `${rect.name || this.target} · ${event.width}×${event.height}`);
       }
       return;
     }
@@ -2939,6 +3024,8 @@ class WompratVncViewer {
         this.framebuffer = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
       } else if (rect.kind === "cursor") {
         this.applyCursor(rect);
+      } else if (rect.kind === "desktop-name") {
+        setStatus(this.root, `${rect.name || this.target} · ${event.width}×${event.height}`);
       }
     }
     this.ctx.putImageData(this.framebuffer, 0, 0);
