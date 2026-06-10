@@ -25,9 +25,19 @@ func TestSettingsUsesFetchJSONHelper(t *testing.T) {
 	}
 }
 
+func TestSettingsHasNoInlineEventHandlers(t *testing.T) {
+	s := readFileForRegression(t, "frontend/settings.html")
+	for _, forbidden := range []string{"onclick=", "onchange=", "onerror="} {
+		if strings.Contains(s, forbidden) {
+			t.Fatalf("settings must not contain inline event handler %q", forbidden)
+		}
+	}
+}
+
 func TestSettingsRemainingActionsUseDataAttributes(t *testing.T) {
 	s := readFileForRegression(t, "frontend/settings.html")
 	for _, want := range []string{
+		"data-action=\"save-master-password\"",
 		"data-action=\"refresh-hosts\"",
 		"data-action=\"clear-cache\"",
 		"data-action=\"save-appearance\"",

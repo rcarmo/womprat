@@ -114,7 +114,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
     <label for="pw2">Confirm</label>
     <input type="password" id="pw2" placeholder="Confirm password">
     <div class="btn-row">
-      <button class="btn-primary" onclick="setMasterPassword()">Save Password</button>
+      <button class="btn-primary" data-action="save-master-password">Save Password</button>
     </div>
     <div id="pw-status"></div>
   </div>
@@ -365,6 +365,7 @@ function showTab(id) {
 
 document.querySelectorAll('.tab-btn[data-tab]').forEach(btn => btn.addEventListener('click', () => showTab(btn.dataset.tab)));
 document.querySelectorAll('.option[data-unlock]').forEach(option => option.addEventListener('click', () => selectUnlock(option.dataset.unlock)));
+document.querySelector('[data-action="save-master-password"]')?.addEventListener('click', setMasterPassword);
 document.querySelector('[data-action="toggle-ts-key"]')?.addEventListener('click', () => toggleVis('ts-key'));
 document.querySelector('[data-action="save-tailscale"]')?.addEventListener('click', saveTailscale);
 document.querySelector('[data-action="import-key"]')?.addEventListener('click', importKey);
