@@ -513,6 +513,28 @@ func TestShellControlsUseCentralHandlers(t *testing.T) {
 	}
 }
 
+func TestSecretInputFieldsAreBounded(t *testing.T) {
+	shell := readFileForRegression(t, "frontend/index.html")
+	settings := readFileForRegression(t, "frontend/settings.html")
+	for _, want := range []string{
+		"id=\"auth-key\" type=\"password\" placeholder=\"tskey-auth-...\" maxlength=\"4096\"",
+		"id=\"unlock-password\" type=\"password\" placeholder=\"Master password\" style=\"display:none\" maxlength=\"4096\"",
+	} {
+		if !strings.Contains(shell, want) {
+			t.Fatalf("shell secret field bound missing %q", want)
+		}
+	}
+	for _, want := range []string{
+		"id=\"pw1\" placeholder=\"Enter master password\" maxlength=\"4096\"",
+		"id=\"pw2\" placeholder=\"Confirm password\" maxlength=\"4096\"",
+		"id=\"ts-key\" placeholder=\"tskey-auth-...\" maxlength=\"4096\"",
+	} {
+		if !strings.Contains(settings, want) {
+			t.Fatalf("settings secret field bound missing %q", want)
+		}
+	}
+}
+
 func TestRemoteDisplayPasswordFieldsAreBounded(t *testing.T) {
 	s := readFileForRegression(t, "frontend/index.html")
 	for _, want := range []string{

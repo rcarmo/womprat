@@ -110,9 +110,9 @@ tr:hover td{background:rgba(255,255,255,.02)}
   <div class="section" id="master-pw-section" style="display:none">
     <h3>Set Master Password</h3>
     <label for="pw1">Password</label>
-    <input type="password" id="pw1" placeholder="Enter master password">
+    <input type="password" id="pw1" placeholder="Enter master password" maxlength="4096">
     <label for="pw2">Confirm</label>
-    <input type="password" id="pw2" placeholder="Confirm password">
+    <input type="password" id="pw2" placeholder="Confirm password" maxlength="4096">
     <div class="btn-row">
       <button class="btn-primary" data-action="save-master-password">Save Password</button>
     </div>
@@ -143,7 +143,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
     <h3>Auth Key</h3>
     <p style="color:var(--dim);font-size:.82rem;margin-bottom:.6rem">Replace the Tailscale auth key (re-authenticates the connection).</p>
     <div class="row">
-      <input type="password" id="ts-key" placeholder="tskey-auth-...">
+      <input type="password" id="ts-key" placeholder="tskey-auth-..." maxlength="4096">
       <button class="btn-secondary" data-action="toggle-ts-key">Show</button>
     </div>
     <div class="btn-row">
