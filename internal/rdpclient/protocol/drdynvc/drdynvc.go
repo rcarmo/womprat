@@ -204,6 +204,8 @@ func (c *CreateResponsePDU) Deserialize(r io.Reader, cbChID uint8) error {
 		if err := binary.Read(r, binary.LittleEndian, &c.ChannelID); err != nil {
 			return err
 		}
+	default:
+		return fmt.Errorf("invalid channel id size %d", cbChID)
 	}
 
 	// Creation code (HRESULT)

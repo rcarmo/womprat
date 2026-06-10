@@ -154,6 +154,12 @@ func TestCreateRequestPDU_Serialize(t *testing.T) {
 	}
 }
 
+func TestCreateResponsePDUDeserializeRejectsInvalidChannelIDSize(t *testing.T) {
+	var resp CreateResponsePDU
+	err := resp.Deserialize(bytes.NewReader([]byte{0, 0, 0, 0}), 3)
+	assert.Error(t, err)
+}
+
 func TestCreateResponsePDU_Deserialize(t *testing.T) {
 	tests := []struct {
 		name       string
