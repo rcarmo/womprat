@@ -996,7 +996,7 @@ function renderTabs() {
 }
 
 function reorderTab(fromId, beforeId) {
-  if (!fromId || fromId === beforeId) return;
+  if (!validTabID(fromId) || !validTabID(beforeId) || fromId === beforeId) return;
   const fromIndex = state.tabs.findIndex(t => t.id === fromId);
   const beforeIndex = state.tabs.findIndex(t => t.id === beforeId);
   if (fromIndex < 0 || beforeIndex < 0) return;

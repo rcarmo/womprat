@@ -477,6 +477,7 @@ func TestFrontendValidatesTabIDsBeforeDOMUse(t *testing.T) {
 		"function newLocalTabID(prefix)",
 		"const tabId = validTabID(options.id) ? options.id : newLocalTabID('term');",
 		"if (!t || t.id === 'settings' || !validTabID(t.id)) return null;",
+		"if (!validTabID(fromId) || !validTabID(beforeId) || fromId === beforeId) return;",
 		"filter(t => validTabID(t.id) &&",
 	} {
 		if !strings.Contains(s, want) {
