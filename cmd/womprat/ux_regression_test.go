@@ -56,6 +56,23 @@ func TestReadOnlyHandlersUseSharedGetMethodGuard(t *testing.T) {
 	}
 }
 
+func TestTailscaleStartupUsesBoundedContext(t *testing.T) {
+	s := readFileForRegression(t, "main.go")
+	for _, want := range []string{
+		"tailscaleUpTimeout = 30 * time.Second",
+		"context.WithTimeout(context.Background(), tailscaleUpTimeout)",
+		"ts.Up(upCtx)",
+		"defer cancelUp()",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("Tailscale startup timeout guard missing %q", want)
+		}
+	}
+	if strings.Contains(s, "ts.Up(context.Background())") {
+		t.Fatal("Tailscale startup must not use an unbounded background context")
+	}
+}
+
 func TestSOCKSConnectUsesBoundedTsnetDial(t *testing.T) {
 	s := readFileForRegression(t, "socks.go")
 	for _, want := range []string{

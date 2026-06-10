@@ -30,7 +30,10 @@ var frontendFS embed.FS
 
 var useExitNode = false
 
-const appName = "womprat"
+const (
+	appName            = "womprat"
+	tailscaleUpTimeout = 30 * time.Second
+)
 
 var (
 	version       = "0.3.0"
@@ -710,7 +713,9 @@ func (a *App) startTailscale() error {
 		Dir:       tsnetStateDir(),
 		Ephemeral: false,
 	}
-	if _, err := ts.Up(context.Background()); err != nil {
+	upCtx, cancelUp := context.WithTimeout(context.Background(), tailscaleUpTimeout)
+	defer cancelUp()
+	if _, err := ts.Up(upCtx); err != nil {
 		ts.Close()
 		return err
 	}
