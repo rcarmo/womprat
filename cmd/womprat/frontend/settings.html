@@ -330,7 +330,12 @@ function jsArg(value) { return JSON.stringify(String(value ?? '')); }
 function setStatus(id, kind, text) {
   const el = document.getElementById(id);
   if (!el) return;
-  el.innerHTML = `<span class="status ${kind}">${escapeHTML(text)}</span>`;
+  const safeKind = ['ok','error','warn','info'].includes(String(kind || '')) ? String(kind) : 'info';
+  el.textContent = '';
+  const span = document.createElement('span');
+  span.className = `status ${safeKind}`;
+  span.textContent = String(text ?? '');
+  el.appendChild(span);
 }
 
 function showTab(id) {

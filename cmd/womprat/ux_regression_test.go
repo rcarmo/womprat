@@ -15,6 +15,22 @@ func readFileForRegression(t *testing.T, path string) string {
 	return string(b)
 }
 
+func TestSettingsStatusUsesSafeDOMConstruction(t *testing.T) {
+	s := readFileForRegression(t, "frontend/settings.html")
+	for _, want := range []string{
+		"const safeKind = ['ok','error','warn','info'].includes",
+		"span.textContent = String(text ?? '');",
+		"el.appendChild(span);",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("settings status sanitizer missing %q", want)
+		}
+	}
+	if strings.Contains(s, "${kind}") {
+		t.Fatal("settings status must not interpolate raw kind into innerHTML")
+	}
+}
+
 func TestSettingsOnlyListsAdvertisedExitNodes(t *testing.T) {
 	s := readFileForRegression(t, "frontend/settings.html")
 	want := "peers.filter(p=>p.online && p.exitNodeOption)"
