@@ -103,10 +103,15 @@ func TestSSHConnectUsesRequestScopedDialTimeout(t *testing.T) {
 	}
 }
 
-func TestSavedBrowserTabsUseBrowserURLPolicy(t *testing.T) {
+func TestStoredBrowserURLsUseSharedBrowserURLPolicy(t *testing.T) {
 	s := readFileForRegression(t, "config.go")
-	if !strings.Contains(s, "normalizedURL, err := normalizeBrowserURL(tab.URL)") {
-		t.Fatal("saved browser tabs should use shared browser URL policy")
+	for _, want := range []string{
+		"normalized, err := normalizeBrowserURL(raw)",
+		"normalizedURL, err := normalizeBrowserURL(tab.URL)",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("stored browser URL policy missing %q", want)
+		}
 	}
 }
 

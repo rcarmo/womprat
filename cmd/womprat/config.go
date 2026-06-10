@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -229,11 +228,11 @@ func sanitizeHostConfigURL(raw string) string {
 	if raw == "" {
 		return ""
 	}
-	parsed, err := url.Parse(raw)
-	if err != nil || parsed.Host == "" || parsed.User != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+	normalized, err := normalizeBrowserURL(raw)
+	if err != nil {
 		return ""
 	}
-	return parsed.String()
+	return normalized
 }
 
 func sanitizeSavedTabs(tabs []SavedTab) []SavedTab {
