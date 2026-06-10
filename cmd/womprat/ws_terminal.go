@@ -2,12 +2,12 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 
 	"golang.org/x/crypto/ssh"
@@ -20,6 +20,41 @@ type termSession struct {
 	stdin      io.WriteCloser
 	stdout     io.Reader
 	cols, rows int
+}
+
+const (
+	minTerminalCols = 20
+	maxTerminalCols = 500
+	minTerminalRows = 5
+	maxTerminalRows = 200
+)
+
+func parseTerminalDimension(raw string, fallback, min, max int) int {
+	if raw == "" {
+		return fallback
+	}
+	value, err := strconv.Atoi(raw)
+	if err != nil {
+		return fallback
+	}
+	clamped := clampTerminalDimension(value, min, max)
+	if clamped == 0 {
+		return fallback
+	}
+	return clamped
+}
+
+func clampTerminalDimension(value, min, max int) int {
+	if value <= 0 || min <= 0 || max < min {
+		return 0
+	}
+	if value < min {
+		return min
+	}
+	if value > max {
+		return max
+	}
+	return value
 }
 
 // handleSSHWebSocketFull is the production WebSocket PTY handler
@@ -69,15 +104,9 @@ func (a *App) handleSSHWebSocketFull(w http.ResponseWriter, r *http.Request) {
 		ssh.TTY_OP_ISPEED: 115200,
 		ssh.TTY_OP_OSPEED: 115200,
 	}
-	// Get initial size from query params
-	cols := 80
-	rows := 24
-	if c := r.URL.Query().Get("cols"); c != "" {
-		fmt.Sscanf(c, "%d", &cols)
-	}
-	if ro := r.URL.Query().Get("rows"); ro != "" {
-		fmt.Sscanf(ro, "%d", &rows)
-	}
+	// Get initial size from query params, bounded to avoid invalid or excessive PTY requests.
+	cols := parseTerminalDimension(r.URL.Query().Get("cols"), 80, minTerminalCols, maxTerminalCols)
+	rows := parseTerminalDimension(r.URL.Query().Get("rows"), 24, minTerminalRows, maxTerminalRows)
 	if err := session.RequestPty("xterm-256color", rows, cols, modes); err != nil {
 		conn.Close(websocket.StatusInternalError, err.Error())
 		return
@@ -110,6 +139,12 @@ func (a *App) handleSSHWebSocketFull(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var wg sync.WaitGroup
+	var wsMu sync.Mutex
+	writeWS := func(msgType websocket.MessageType, data []byte) error {
+		wsMu.Lock()
+		defer wsMu.Unlock()
+		return conn.Write(ctx, msgType, data)
+	}
 
 	// SSH stdout → WebSocket
 	wg.Add(1)
@@ -119,7 +154,7 @@ func (a *App) handleSSHWebSocketFull(w http.ResponseWriter, r *http.Request) {
 		for {
 			n, err := stdout.Read(buf)
 			if n > 0 {
-				if writeErr := conn.Write(ctx, websocket.MessageBinary, buf[:n]); writeErr != nil {
+				if writeErr := writeWS(websocket.MessageBinary, buf[:n]); writeErr != nil {
 					return
 				}
 			}
@@ -137,7 +172,9 @@ func (a *App) handleSSHWebSocketFull(w http.ResponseWriter, r *http.Request) {
 		for {
 			n, err := stderr.Read(buf)
 			if n > 0 {
-				conn.Write(ctx, websocket.MessageBinary, buf[:n])
+				if writeErr := writeWS(websocket.MessageBinary, buf[:n]); writeErr != nil {
+					return
+				}
 			}
 			if err != nil {
 				return
@@ -163,8 +200,12 @@ func (a *App) handleSSHWebSocketFull(w http.ResponseWriter, r *http.Request) {
 					Rows int    `json:"rows"`
 				}
 				if json.Unmarshal(data, &msg) == nil && msg.Type == "resize" {
-					if msg.Cols > 0 && msg.Rows > 0 {
-						_ = session.WindowChange(msg.Rows, msg.Cols)
+					cols := clampTerminalDimension(msg.Cols, minTerminalCols, maxTerminalCols)
+					rows := clampTerminalDimension(msg.Rows, minTerminalRows, maxTerminalRows)
+					if cols > 0 && rows > 0 {
+						if err := session.WindowChange(rows, cols); err != nil {
+							log.Printf("ssh resize failed for tab %s: %v", tabID, err)
+						}
 					}
 					continue
 				}
