@@ -21,4 +21,7 @@ func TestRDPHandlerUsesInjectedDialerOnly(t *testing.T) {
 	if !strings.Contains(text, "return ts.Dial(ctx, network, addr)") {
 		t.Fatal("RDP handler must dial through tsnet")
 	}
+	if strings.Contains(text, "EnableMultitransport") {
+		t.Fatal("RDP handler must not enable UDP/multitransport outside tsnet TCP routing")
+	}
 }
