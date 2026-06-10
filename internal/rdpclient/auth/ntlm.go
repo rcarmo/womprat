@@ -320,6 +320,9 @@ func (n *NTLMv2) GetAuthenticateMessageWithError(challengeData []byte) ([]byte, 
 	// Build authenticate message
 	domain, user, _ := n.GetEncodedCredentials()
 	workstation := []byte{}
+	if err := validateNTLMFieldLengths(domain, user, workstation, lmChallengeResponse, ntChallengeResponse, encryptedRandomSessionKey); err != nil {
+		return nil, nil, err
+	}
 
 	authMsg := n.buildAuthenticateMessage(
 		challenge.NegotiateFlags,
@@ -389,6 +392,15 @@ func (n *NTLMv2) computeResponseV2(serverChallenge, clientChallenge, timestamp, 
 	sessionBaseKey := hmacMD5(n.respKeyNT, ntProofStr)
 
 	return ntChallengeResponse, lmChallengeResponse, sessionBaseKey
+}
+
+func validateNTLMFieldLengths(fields ...[]byte) error {
+	for _, field := range fields {
+		if len(field) > 0xffff {
+			return fmt.Errorf("NTLM field too large: %d bytes", len(field))
+		}
+	}
+	return nil
 }
 
 func (n *NTLMv2) buildAuthenticateMessage(flags uint32, domain, user, workstation, lmResponse, ntResponse, encryptedKey []byte, includeMIC bool) []byte {

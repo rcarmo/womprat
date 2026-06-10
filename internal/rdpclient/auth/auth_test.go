@@ -654,6 +654,15 @@ func TestGetAuthenticateMessageWithErrorInvalidChallenge(t *testing.T) {
 	}
 }
 
+func TestValidateNTLMFieldLengths(t *testing.T) {
+	if err := validateNTLMFieldLengths([]byte("ok"), make([]byte, 0xffff)); err != nil {
+		t.Fatalf("valid NTLM field lengths rejected: %v", err)
+	}
+	if err := validateNTLMFieldLengths(make([]byte, 0x10000)); err == nil {
+		t.Fatal("oversized NTLM field accepted")
+	}
+}
+
 func TestGetAuthenticateMessage(t *testing.T) {
 	n := NewNTLMv2("DOMAIN", "User", "Password")
 	_ = n.GetNegotiateMessage()
