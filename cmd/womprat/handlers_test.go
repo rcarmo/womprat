@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -190,6 +191,25 @@ func TestDebugLogRejectsMalformedJSON(t *testing.T) {
 	app.handleDebugLog(rr, req)
 	if rr.Code != http.StatusBadRequest {
 		t.Fatalf("malformed debug-log json = %d %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestBrowserCacheSizeHelpers(t *testing.T) {
+	if got := formatByteSize(-1); got != "0 B" {
+		t.Fatalf("negative format = %q", got)
+	}
+	if got := formatByteSize(1536); got != "1.5 KB" {
+		t.Fatalf("kb format = %q", got)
+	}
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "a"), []byte("abc"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if size, err := cacheSizeBytes(dir); err != nil || size != 3 {
+		t.Fatalf("cacheSizeBytes = %d %v", size, err)
+	}
+	if size, err := cacheSizeBytes(filepath.Join(dir, "missing")); err != nil || size != 0 {
+		t.Fatalf("missing cacheSizeBytes = %d %v", size, err)
 	}
 }
 

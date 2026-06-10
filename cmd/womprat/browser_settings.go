@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -197,14 +198,39 @@ func webviewDataPath() string {
 }
 
 func getCacheSize() string {
-	cacheDir := filepath.Join(webviewDataPath(), "EBWebView", "Default", "Cache")
+	size, err := cacheSizeBytes(filepath.Join(webviewDataPath(), "EBWebView", "Default", "Cache"))
+	if err != nil {
+		log.Printf("cache size scan failed: %v", err)
+	}
+	return formatByteSize(size)
+}
+
+func cacheSizeBytes(cacheDir string) (int64, error) {
 	var size int64
-	filepath.Walk(cacheDir, func(_ string, info os.FileInfo, _ error) error {
-		if info != nil && !info.IsDir() {
-			size += info.Size()
+	err := filepath.WalkDir(cacheDir, func(_ string, entry os.DirEntry, err error) error {
+		if err != nil {
+			return err
 		}
+		if entry == nil || entry.IsDir() {
+			return nil
+		}
+		info, err := entry.Info()
+		if err != nil {
+			return err
+		}
+		size += info.Size()
 		return nil
 	})
+	if os.IsNotExist(err) {
+		return 0, nil
+	}
+	return size, err
+}
+
+func formatByteSize(size int64) string {
+	if size < 0 {
+		size = 0
+	}
 	if size < 1024 {
 		return fmt.Sprintf("%d B", size)
 	} else if size < 1024*1024 {
@@ -234,6 +260,9 @@ func listCookieDomains() []CookieDomain {
 		if rows.Scan(&c.Domain, &c.Count) == nil {
 			out = append(out, c)
 		}
+	}
+	if err := rows.Err(); err != nil {
+		log.Printf("cookie domain rows error: %v", err)
 	}
 	return out
 }
