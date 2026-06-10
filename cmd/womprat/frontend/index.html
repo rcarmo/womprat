@@ -792,10 +792,17 @@ window.openTerminal = async function(host, name, user, port, options = {}) {
 };
 
 async function submitPassword(sshTabId, password, term, tabId, host, name, user, port, cols, rows) {
-  const res = await fetch('/api/ssh/auth-password', {
-    method: 'POST', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ tabId: sshTabId, password })
-  });
+  let res;
+  try {
+    res = await fetch('/api/ssh/auth-password', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ tabId: sshTabId, password })
+    });
+  } catch (err) {
+    term.write(`\x1b[31m Authentication failed: ${err.message}\x1b[0m\r\n`);
+    showReconnect(term, tabId, host, name, user, port);
+    return;
+  }
   if (!res.ok) {
     term.write(`\x1b[31m Authentication failed\x1b[0m\r\n`);
     showReconnect(term, tabId, host, name, user, port);

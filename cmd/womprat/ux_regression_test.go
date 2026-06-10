@@ -660,6 +660,7 @@ func TestSSHPromptPasswordInputIsBounded(t *testing.T) {
 	for _, want := range []string{
 		"const MAX_SSH_PASSWORD_CHARS = 4096;",
 		"if (password.length < MAX_SSH_PASSWORD_CHARS)",
+		"Authentication failed: ${err.message}",
 	} {
 		if !strings.Contains(s, want) {
 			t.Fatalf("SSH prompt password bound missing %q", want)
