@@ -86,8 +86,7 @@ func resourceNameFromPath(path, prefix string) (string, error) {
 }
 
 func (a *App) handleSetUnlockMethod(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" {
-		http.Error(w, "method not allowed", 405)
+	if !requirePOST(w, r) {
 		return
 	}
 	var body struct {
@@ -115,8 +114,7 @@ func (a *App) handleSetUnlockMethod(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleSetMasterPassword(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" {
-		http.Error(w, "method not allowed", 405)
+	if !requirePOST(w, r) {
 		return
 	}
 	var body struct {
@@ -165,8 +163,7 @@ func (a *App) handleSetMasterPassword(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleSetTailscaleKey(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" {
-		http.Error(w, "method not allowed", 405)
+	if !requirePOST(w, r) {
 		return
 	}
 	var body struct {
@@ -193,8 +190,7 @@ func (a *App) handleSetTailscaleKey(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleTailscaleDisconnect(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	if !requirePOST(w, r) {
 		return
 	}
 	a.mu.Lock()
@@ -247,8 +243,7 @@ func (a *App) handleSSHKeys(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleGenerateSSHKey(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" {
-		http.Error(w, "method not allowed", 405)
+	if !requirePOST(w, r) {
 		return
 	}
 	var body struct {
@@ -374,8 +369,7 @@ func (a *App) handleHosts(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleAppearance(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" {
-		http.Error(w, "method not allowed", 405)
+	if !requirePOST(w, r) {
 		return
 	}
 	var body struct {
@@ -566,8 +560,7 @@ func (a *App) applyExitNodePreference(ctx context.Context, exitNode string) erro
 }
 
 func (a *App) handleSaveTabs(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" {
-		http.Error(w, "method not allowed", 405)
+	if !requirePOST(w, r) {
 		return
 	}
 	var body struct {

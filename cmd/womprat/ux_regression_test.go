@@ -15,6 +15,23 @@ func readFileForRegression(t *testing.T, path string) string {
 	return string(b)
 }
 
+func TestSettingsHandlersUseSharedPostMethodGuard(t *testing.T) {
+	helpers := readFileForRegression(t, "http_method.go")
+	settings := readFileForRegression(t, "settings_api.go")
+	if !strings.Contains(helpers, "func requirePOST(w http.ResponseWriter, r *http.Request) bool") {
+		t.Fatal("shared POST method guard missing")
+	}
+	for _, want := range []string{
+		"func (a *App) handleSetUnlockMethod",
+		"if !requirePOST(w, r)",
+		"func (a *App) handleSaveTabs",
+	} {
+		if !strings.Contains(settings, want) {
+			t.Fatalf("settings method guard missing %q", want)
+		}
+	}
+}
+
 func TestSettingsUsesFetchJSONHelper(t *testing.T) {
 	s := readFileForRegression(t, "frontend/settings.html")
 	if !strings.Contains(s, "async function fetchJSON(url, fallback)") {
