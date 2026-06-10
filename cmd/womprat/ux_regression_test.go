@@ -727,6 +727,8 @@ func TestFrontendValidatesDownloadURLs(t *testing.T) {
 		"function downloadDisplayName(url)",
 		"if (u.protocol !== 'http:' && u.protocol !== 'https:') return '';",
 		"Invalid download URL",
+		"let start;",
+		"start = await fetch('/api/download?url=' + encodeURIComponent(url));",
 		"if (!start.ok)",
 	} {
 		if !strings.Contains(s, want) {

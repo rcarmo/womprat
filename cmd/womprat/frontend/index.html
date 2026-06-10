@@ -1493,9 +1493,17 @@ window.triggerDownload = async function(url) {
   status.textContent = 'Starting...';
   prog.style.width = '0%';
   
-  const start = await fetch('/api/download?url=' + encodeURIComponent(url));
+  let start;
+  try {
+    start = await fetch('/api/download?url=' + encodeURIComponent(url));
+  } catch (err) {
+    status.textContent = 'Error: ' + err.message;
+    setTimeout(() => bar.classList.remove('active'), 5000);
+    return;
+  }
   if (!start.ok) {
     status.textContent = await start.text();
+    setTimeout(() => bar.classList.remove('active'), 5000);
     return;
   }
   
