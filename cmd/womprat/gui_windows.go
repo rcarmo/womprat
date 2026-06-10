@@ -143,14 +143,17 @@ func createHostWindow(title string, width, height int) (uintptr, error) {
 	if hwnd == 0 {
 		return 0, fmt.Errorf("create host window: %w", err)
 	}
-	procShowWindowHost.Call(hwnd, swShow)
-	procUpdateWindow.Call(hwnd)
+	showHostWindow(hwnd)
 	return hwnd, nil
 }
 
 func showHostWindow(hwnd uintptr) {
-	procShowWindowHost.Call(hwnd, swShow)
-	procUpdateWindow.Call(hwnd)
+	if ret, _, err := procShowWindowHost.Call(hwnd, swShow); ret == 0 {
+		log.Printf("show host window failed: %v", err)
+	}
+	if ret, _, err := procUpdateWindow.Call(hwnd); ret == 0 {
+		log.Printf("update host window failed: %v", err)
+	}
 }
 
 func resizeChildToClient(parent, child uintptr, top, bottomInset int32) {
