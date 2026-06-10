@@ -15,6 +15,22 @@ func readFileForRegression(t *testing.T, path string) string {
 	return string(b)
 }
 
+func TestSettingsValidatesKeyAndHostInputs(t *testing.T) {
+	s := readFileForRegression(t, "frontend/settings.html")
+	for _, want := range []string{
+		"function safeSSHKeyName(name)",
+		"function safeHostName(host)",
+		"setStatus('keys-status', 'error', 'Invalid key name')",
+		"setStatus('hosts-status', 'error', 'Invalid host')",
+		"id=\"keys-status\"",
+		"id=\"hosts-status\"",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("settings input validation missing %q", want)
+		}
+	}
+}
+
 func TestSettingsBrowserTablesUseSafeDOMConstruction(t *testing.T) {
 	s := readFileForRegression(t, "frontend/settings.html")
 	for _, want := range []string{
