@@ -569,10 +569,15 @@ async function loadBrowserSettings() {
 }
 
 async function postBrowserAction(url, options = {}) {
-  const res = await fetch(url, {method:'POST', ...options});
-  if (!res.ok) { setStatus('browser-status', 'error', await res.text()); return false; }
-  setStatus('browser-status', 'ok', 'Browser data updated');
-  return true;
+  try {
+    const res = await fetch(url, {method:'POST', ...options});
+    if (!res.ok) { setStatus('browser-status', 'error', await res.text()); return false; }
+    setStatus('browser-status', 'ok', 'Browser data updated');
+    return true;
+  } catch (err) {
+    setStatus('browser-status', 'error', `Browser data action failed: ${err.message}`);
+    return false;
+  }
 }
 async function clearCache() {
   if (!confirm('Clear all cached data?')) return;
