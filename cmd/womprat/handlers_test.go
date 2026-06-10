@@ -51,6 +51,14 @@ func TestAuthAndSSHHandlersRejectMalformedJSON(t *testing.T) {
 	}
 }
 
+func TestSSHAuthPasswordValidatesTabID(t *testing.T) {
+	app := newTestApp(t)
+	rr := performJSON(app.handleSSHAuthPassword, "POST", "/api/ssh/auth-password", map[string]string{"tabId": "bad/id", "password": "x"})
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("invalid password-auth tab id = %d %s", rr.Code, rr.Body.String())
+	}
+}
+
 func TestSSHConnectValidatesBoundaryInputs(t *testing.T) {
 	app := newTestApp(t)
 	for _, tc := range []struct {

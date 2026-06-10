@@ -1172,8 +1172,8 @@ func (a *App) handleSSHAuthPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	body.TabId = strings.TrimSpace(body.TabId)
-	if body.TabId == "" {
-		httpError(w, 400, "Missing tabId", "")
+	if !validTabID(body.TabId) {
+		httpError(w, 400, "Invalid tabId", "")
 		return
 	}
 	a.mu.Lock()
