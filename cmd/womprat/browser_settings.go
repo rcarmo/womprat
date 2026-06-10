@@ -73,7 +73,14 @@ func (a *App) handleClearCookies(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Domain string `json:"domain"`
 	}
-	json.NewDecoder(r.Body).Decode(&body)
+	if !decodeOptionalSettingsJSON(w, r, &body) {
+		return
+	}
+	body.Domain = normalizeBrowserDomain(body.Domain)
+	if body.Domain == invalidBrowserSelector {
+		http.Error(w, "invalid domain", 400)
+		return
+	}
 
 	if body.Domain != "" {
 		// Clear cookies for specific domain
@@ -95,10 +102,20 @@ func (a *App) handleClearPasswords(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Site string `json:"site"`
 	}
-	json.NewDecoder(r.Body).Decode(&body)
+	if !decodeOptionalSettingsJSON(w, r, &body) {
+		return
+	}
+	body.Site = normalizeBrowserSite(body.Site)
+	if body.Site == invalidBrowserSelector {
+		http.Error(w, "invalid site", 400)
+		return
+	}
 
 	if body.Site != "" {
-		DeleteCredential("browser-pw/" + body.Site)
+		if err := DeleteCredential("browser-pw/" + body.Site); err != nil {
+			http.Error(w, err.Error(), 400)
+			return
+		}
 	} else {
 		// Clear all saved passwords
 		clearAllSavedPasswords()
@@ -127,7 +144,9 @@ func (a *App) handleSavePasswordsToggle(w http.ResponseWriter, r *http.Request) 
 	var body struct {
 		Enabled bool `json:"enabled"`
 	}
-	json.NewDecoder(r.Body).Decode(&body)
+	if !decodeSettingsJSON(w, r, &body) {
+		return
+	}
 	a.mu.Lock()
 	a.config.SavePasswords = body.Enabled
 	cfg := a.config
@@ -140,6 +159,33 @@ func (a *App) handleSavePasswordsToggle(w http.ResponseWriter, r *http.Request) 
 }
 
 // Helpers
+
+const invalidBrowserSelector = "\x00INVALID"
+
+func normalizeBrowserDomain(domain string) string {
+	domain = strings.TrimSpace(strings.ToLower(domain))
+	if domain == "" {
+		return ""
+	}
+	domain = strings.TrimPrefix(domain, "http://")
+	domain = strings.TrimPrefix(domain, "https://")
+	domain = strings.Trim(domain, "/")
+	if domain == "" || len(domain) > 253 || strings.ContainsAny(domain, " /?#\\@%") {
+		return invalidBrowserSelector
+	}
+	return domain
+}
+
+func normalizeBrowserSite(site string) string {
+	site = strings.TrimSpace(site)
+	if site == "" {
+		return ""
+	}
+	if err := validateCredentialName("browser-pw/" + site); err != nil {
+		return invalidBrowserSelector
+	}
+	return site
+}
 
 func webviewDataPath() string {
 	return filepath.Join(configDir(), "webview2")

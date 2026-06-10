@@ -94,7 +94,9 @@ func (a *App) handleDebugLog(w http.ResponseWriter, r *http.Request) {
 		var body struct {
 			Enabled bool `json:"enabled"`
 		}
-		json.NewDecoder(r.Body).Decode(&body)
+		if !decodeSettingsJSON(w, r, &body) {
+			return
+		}
 		a.mu.Lock()
 		a.config.DebugLog = body.Enabled
 		cfg := a.config

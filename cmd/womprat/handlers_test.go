@@ -136,6 +136,16 @@ func TestSSHKeyHandlers(t *testing.T) {
 	}
 }
 
+func TestDebugLogRejectsMalformedJSON(t *testing.T) {
+	app := newTestApp(t)
+	req := httptest.NewRequest("POST", "/api/settings/debug-log", strings.NewReader(`{"enabled":true} trailing`))
+	rr := httptest.NewRecorder()
+	app.handleDebugLog(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("malformed debug-log json = %d %s", rr.Code, rr.Body.String())
+	}
+}
+
 func TestBrowserSettingsHandlers(t *testing.T) {
 	app := newTestApp(t)
 	rr := performJSON(app.handleBrowserData, "GET", "/api/settings/browser", nil)
@@ -145,6 +155,20 @@ func TestBrowserSettingsHandlers(t *testing.T) {
 	rr = performJSON(app.handleSavePasswordsToggle, "POST", "/api/settings/browser/save-passwords", map[string]bool{"enabled": true})
 	if rr.Code != 200 || !app.config.SavePasswords {
 		t.Fatalf("save passwords toggle = %d %+v", rr.Code, app.config)
+	}
+	rr = performJSON(app.handleClearCookies, "POST", "/api/settings/browser/clear-cookies", map[string]string{"domain": "bad host"})
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("bad cookie domain = %d %s", rr.Code, rr.Body.String())
+	}
+	rr = performJSON(app.handleClearPasswords, "POST", "/api/settings/browser/clear-passwords", map[string]string{"site": "../secret"})
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("bad password site = %d %s", rr.Code, rr.Body.String())
+	}
+	req := httptest.NewRequest("POST", "/api/settings/browser/save-passwords", strings.NewReader(`{"enabled":true} trailing`))
+	rr = httptest.NewRecorder()
+	app.handleSavePasswordsToggle(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("malformed save-passwords json = %d %s", rr.Code, rr.Body.String())
 	}
 	for _, h := range []http.HandlerFunc{app.handleClearCache, app.handleClearCookies, app.handleClearPasswords, app.handleClearAll} {
 		rr = performJSON(h, "POST", "/", nil)

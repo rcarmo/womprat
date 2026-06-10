@@ -46,10 +46,21 @@ func (a *App) registerSettingsRoutes(mux *http.ServeMux) {
 const maxSettingsJSONBody = 1 << 20
 
 func decodeSettingsJSON(w http.ResponseWriter, r *http.Request, dst any) bool {
+	return decodeSettingsJSONInternal(w, r, dst, false)
+}
+
+func decodeOptionalSettingsJSON(w http.ResponseWriter, r *http.Request, dst any) bool {
+	return decodeSettingsJSONInternal(w, r, dst, true)
+}
+
+func decodeSettingsJSONInternal(w http.ResponseWriter, r *http.Request, dst any, allowEmpty bool) bool {
 	r.Body = http.MaxBytesReader(w, r.Body, maxSettingsJSONBody)
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(dst); err != nil {
+		if allowEmpty && err == io.EOF {
+			return true
+		}
 		http.Error(w, "invalid JSON: "+err.Error(), http.StatusBadRequest)
 		return false
 	}
