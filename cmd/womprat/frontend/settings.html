@@ -666,9 +666,13 @@ function defaultHostURL(peer) {
   return host ? `http://${host}:8080` : '';
 }
 function openHostURL(url) {
-  if (!url) return;
-  if (window.parent?.openBrowser) window.parent.openBrowser(url, url);
-  else window.location.href = url;
+  const safeURL = safeHostURL(url);
+  if (!safeURL) {
+    setStatus('hosts-status', 'error', 'Invalid browser URL');
+    return;
+  }
+  if (window.parent?.openBrowser) window.parent.openBrowser(safeURL, safeURL);
+  else window.location.href = safeURL;
 }
 async function updateHost(host, field, value) {
   const safeHost = safeHostName(host);
