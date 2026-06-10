@@ -384,6 +384,36 @@ function parseCustomURL(url) {
   if (!Number.isInteger(port) || port <= 0 || port > 65535) return null;
   return { scheme, host: parsed.hostname.replace(/^\[|\]$/g, ''), port, user: decodeURIComponent(parsed.username || '') };
 }
+function normalizedCustomURL(target) {
+  const host = target.host.includes(':') ? `[${target.host}]` : target.host;
+  const user = target.user ? `${encodeURIComponent(target.user)}@` : '';
+  return `${target.scheme}://${user}${host}:${target.port}`;
+}
+function openCustomViewerFallback(target) {
+  const url = normalizedCustomURL(target);
+  const id = `${target.scheme}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,7)}`;
+  const tab = { id, type: target.scheme, title: url, url, host: target.host, user: target.user || '', port: target.port };
+  state.tabs.push(tab);
+  saveURLHistory(url);
+  activateTab(id, { skipNative: true });
+  registerLocalTab(tab);
+  saveOpenTabs();
+}
+function callNativeCustomViewer(target, text) {
+  const fn = target.scheme === 'vnc' ? window.womprat_newVNC : target.scheme === 'rdp' ? window.womprat_newRDP : null;
+  if (!fn) {
+    openCustomViewerFallback(target);
+    return true;
+  }
+  try {
+    const result = fn(text);
+    if (result && typeof result.catch === 'function') result.catch(err => { console.warn(`${target.scheme} native open failed`, err); openCustomViewerFallback(target); });
+  } catch (err) {
+    console.warn(`${target.scheme} native open failed`, err);
+    openCustomViewerFallback(target);
+  }
+  return true;
+}
 function openSpecialURL(url) {
   const text = String(url || '').trim();
   if (!text) return false;
@@ -396,8 +426,7 @@ function openSpecialURL(url) {
     openTerminal(target.host, target.host, user, target.port);
     return true;
   }
-  if (target.scheme === 'vnc') { if (window.womprat_newVNC) womprat_newVNC(text); return true; }
-  if (target.scheme === 'rdp') { if (window.womprat_newRDP) womprat_newRDP(text); return true; }
+  if (target.scheme === 'vnc' || target.scheme === 'rdp') return callNativeCustomViewer(target, text);
   return false;
 }
 function saveURLHistory(url) {

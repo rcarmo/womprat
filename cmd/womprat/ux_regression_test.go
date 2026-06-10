@@ -91,6 +91,9 @@ func TestCustomSchemesUseSingleFrontendDispatcher(t *testing.T) {
 	for _, want := range []string{
 		"function parseCustomURL(url)",
 		"const defaults = { ssh: 22, vnc: 5900, rdp: 3389 }",
+		"function openCustomViewerFallback(target)",
+		"function callNativeCustomViewer(target, text)",
+		"if (target.scheme === 'vnc' || target.scheme === 'rdp') return callNativeCustomViewer(target, text);",
 		"if (openSpecialURL(url)) return;",
 		"if (openSpecialURL(url)) return;\n  let navUrl = url;",
 	} {
