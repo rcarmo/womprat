@@ -695,7 +695,7 @@ window.openTerminal = async function(host, name, user, port, options = {}) {
     term.onTitleChange((title) => {
       const t = state.tabs.find(t => t.id === tabId);
       if (t && title) {
-        t.title = sanitizeBrowserTitle(title).slice(0, 48);
+        t.title = Array.from(sanitizeBrowserTitle(title)).slice(0, 48).join('');
         renderTabs();
         registerLocalTab(t);
         saveOpenTabs();

@@ -509,6 +509,14 @@ func TestShellControlsUseCentralHandlers(t *testing.T) {
 	}
 }
 
+func TestTerminalTitleTruncationIsUnicodeSafe(t *testing.T) {
+	s := readFileForRegression(t, "frontend/index.html")
+	want := "t.title = Array.from(sanitizeBrowserTitle(title)).slice(0, 48).join('');"
+	if !strings.Contains(s, want) {
+		t.Fatalf("terminal title truncation must be Unicode-safe; missing %q", want)
+	}
+}
+
 func TestFrontendCentralizesBrowserURLNormalization(t *testing.T) {
 	s := readFileForRegression(t, "frontend/index.html")
 	if !strings.Contains(s, "function normalizeBrowserURL(url)") {
