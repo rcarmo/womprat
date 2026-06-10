@@ -397,7 +397,7 @@ async function selectUnlock(method) {
     method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({method})
   });
-  if (!res.ok) setStatus('pw-status', 'error', await res.text());
+  if (!res.ok) { setStatus('pw-status', 'error', await res.text()); await loadConfigSettings(); }
 }
 
 function toggleVis(id) {
@@ -748,7 +748,7 @@ async function loadConfigSettings() {
 async function initSettings() {
   document.getElementById('save-passwords')?.addEventListener('change', async (e) => {
     const res = await fetch('/api/settings/browser/save-passwords', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({enabled: e.target.checked})});
-    if (!res.ok) setStatus('browser-status', 'error', await res.text());
+    if (!res.ok) { setStatus('browser-status', 'error', await res.text()); await loadBrowserSettings(); }
   });
   await loadConfigSettings();
   await checkTailscale();

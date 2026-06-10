@@ -140,6 +140,7 @@ func TestSettingsReportsAsyncOperationFailures(t *testing.T) {
 		"setStatus('ts-status', 'error', 'Enter an auth key')",
 		"if (!res.ok) { setStatus('exit-status', 'error', await res.text()); await loadExitNodes(); return; }",
 		"if (!res.ok) { setStatus('debug-status', 'error', await res.text()); return; }",
+		"if (!res.ok) { setStatus('pw-status', 'error', await res.text()); await loadConfigSettings(); }",
 		"id=\"debug-status\"",
 	} {
 		if !strings.Contains(s, want) {
@@ -188,6 +189,7 @@ func TestSettingsBrowserActionsReportFailures(t *testing.T) {
 		"async function postBrowserAction(url, options = {})",
 		"if (!res.ok) { setStatus('browser-status', 'error', await res.text()); return false; }",
 		"setStatus('browser-status', 'ok', 'Browser data updated');",
+		"if (!res.ok) { setStatus('browser-status', 'error', await res.text()); await loadBrowserSettings(); }",
 	} {
 		if !strings.Contains(s, want) {
 			t.Fatalf("settings browser action error handling missing %q", want)
