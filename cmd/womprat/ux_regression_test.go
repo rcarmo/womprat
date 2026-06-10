@@ -215,6 +215,7 @@ func TestSettingsBrowserActionsReportFailures(t *testing.T) {
 		"async function postBrowserAction(url, options = {})",
 		"if (!res.ok) { setStatus('browser-status', 'error', await res.text()); return false; }",
 		"Browser data action failed: ${err.message}",
+		"Save passwords toggle failed: ${err.message}",
 		"setStatus('browser-status', 'ok', 'Browser data updated');",
 		"if (!res.ok) { setStatus('browser-status', 'error', await res.text()); await loadBrowserSettings(); }",
 	} {
