@@ -161,7 +161,10 @@ func serveLocalHTTP(listener net.Listener, handler http.Handler) {
 }
 
 func jsString(v interface{}) string {
-	b, _ := json.Marshal(v)
+	b, err := json.Marshal(v)
+	if err != nil {
+		return "null"
+	}
 	return string(b)
 }
 

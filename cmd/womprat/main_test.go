@@ -33,6 +33,15 @@ func newTestApp(t *testing.T) *App {
 	}
 }
 
+func TestJSStringFallsBackOnMarshalError(t *testing.T) {
+	if got := jsString(func() {}); got != "null" {
+		t.Fatalf("jsString unsupported = %q", got)
+	}
+	if got := jsString("x<y"); got != `"x\u003cy"` {
+		t.Fatalf("jsString string = %q", got)
+	}
+}
+
 func TestGenerateSessionToken(t *testing.T) {
 	a, err := generateSessionToken()
 	if err != nil {
