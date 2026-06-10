@@ -51,8 +51,19 @@ func TestSaveLoadDeleteCredential(t *testing.T) {
 func TestNormalizeConfigRepairsInvalidDefaults(t *testing.T) {
 	cfg := &AppConfig{UnlockMethod: "bad", WindowWidth: -1, WindowHeight: 0, FontSize: 999}
 	normalizeConfig(cfg)
-	if cfg.UnlockMethod != "dpapi" || cfg.WindowWidth != 1200 || cfg.WindowHeight != 800 || cfg.FontSize != 0 || cfg.Hosts == nil {
+	if cfg.UnlockMethod != "dpapi" || cfg.WindowWidth != 1200 || cfg.WindowHeight != 800 || cfg.FontSize != 0 || cfg.Theme != "dark" || cfg.Hosts == nil {
 		t.Fatalf("normalized config = %+v", cfg)
+	}
+}
+
+func TestNormalizeAppearance(t *testing.T) {
+	for _, tt := range []struct{ in, want int }{{0, 0}, {9, 0}, {10, 10}, {16, 16}, {32, 32}, {33, 0}} {
+		if got := normalizeFontSize(tt.in); got != tt.want {
+			t.Fatalf("normalizeFontSize(%d) = %d, want %d", tt.in, got, tt.want)
+		}
+	}
+	if got := normalizeTheme("light"); got != "dark" {
+		t.Fatalf("normalizeTheme = %q", got)
 	}
 }
 

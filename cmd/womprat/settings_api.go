@@ -363,8 +363,8 @@ func (a *App) handleAppearance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.mu.Lock()
-	a.config.FontSize = body.FontSize
-	a.config.Theme = body.Theme
+	a.config.FontSize = normalizeFontSize(body.FontSize)
+	a.config.Theme = normalizeTheme(body.Theme)
 	a.config.RestoreTabs = body.RestoreTabs
 	a.config.AutoConnect = body.AutoConnect
 	cfg := a.config

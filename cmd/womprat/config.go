@@ -156,11 +156,21 @@ func normalizeConfig(cfg *AppConfig) {
 	if cfg.WindowHeight <= 0 {
 		cfg.WindowHeight = 800
 	}
-	if cfg.FontSize < 0 || cfg.FontSize > 72 {
-		cfg.FontSize = 0
-	}
+	cfg.FontSize = normalizeFontSize(cfg.FontSize)
+	cfg.Theme = normalizeTheme(cfg.Theme)
 	cfg.Hosts = sanitizeHostConfigs(cfg.Hosts)
 	cfg.OpenTabs = sanitizeSavedTabs(cfg.OpenTabs)
+}
+
+func normalizeFontSize(size int) int {
+	if size < 10 || size > 32 {
+		return 0
+	}
+	return size
+}
+
+func normalizeTheme(_ string) string {
+	return "dark"
 }
 
 func sanitizeHostConfigs(hosts map[string]HostConfig) map[string]HostConfig {

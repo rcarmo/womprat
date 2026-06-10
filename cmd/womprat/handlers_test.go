@@ -136,9 +136,13 @@ func TestHostsAppearanceAndSaveTabsHandlers(t *testing.T) {
 		t.Fatalf("get hosts = %d %s", rr.Code, rr.Body.String())
 	}
 
-	rr = performJSON(app.handleAppearance, "POST", "/api/settings/appearance", map[string]any{"fontSize": 16, "theme": "dark", "restoreTabs": true, "autoConnect": true})
-	if rr.Code != 200 || app.config.FontSize != 16 || !app.config.RestoreTabs || !app.config.AutoConnect {
+	rr = performJSON(app.handleAppearance, "POST", "/api/settings/appearance", map[string]any{"fontSize": 16, "theme": "light", "restoreTabs": true, "autoConnect": true})
+	if rr.Code != 200 || app.config.FontSize != 16 || app.config.Theme != "dark" || !app.config.RestoreTabs || !app.config.AutoConnect {
 		t.Fatalf("appearance = %d %+v", rr.Code, app.config)
+	}
+	rr = performJSON(app.handleAppearance, "POST", "/api/settings/appearance", map[string]any{"fontSize": 99, "theme": "light"})
+	if rr.Code != 200 || app.config.FontSize != 0 || app.config.Theme != "dark" {
+		t.Fatalf("appearance bounds = %d %+v", rr.Code, app.config)
 	}
 
 	tabs := []SavedTab{{Type: "browser", Title: "Example", URL: "http://example.com"}}
