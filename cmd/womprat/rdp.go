@@ -10,7 +10,6 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"net/url"
 	"strconv"
 	"strings"
 	"sync"
@@ -42,40 +41,17 @@ type rdpResizeRequest struct {
 
 func parseRDPURL(raw string) (rdpTarget, error) {
 	text := strings.TrimSpace(raw)
-	if text == "" {
-		return rdpTarget{}, fmt.Errorf("missing RDP target")
-	}
-	if !strings.Contains(text, "://") {
+	if text != "" && !strings.Contains(text, "://") {
 		text = "rdp://" + text
 	}
-	parsed, err := url.Parse(text)
-	if err != nil || !strings.EqualFold(parsed.Scheme, "rdp") {
+	target, err := parseCustomURL(text)
+	if err != nil {
+		return rdpTarget{}, err
+	}
+	if target.Scheme != "rdp" {
 		return rdpTarget{}, fmt.Errorf("invalid RDP target %q", raw)
 	}
-	if parsed.Path != "" || parsed.RawQuery != "" || parsed.Fragment != "" {
-		return rdpTarget{}, fmt.Errorf("invalid RDP target %q", raw)
-	}
-	host := parsed.Hostname()
-	portText := parsed.Port()
-	if portText == "" {
-		portText = "3389"
-	}
-	port, err := strconv.Atoi(portText)
-	if err != nil || port <= 0 || port > 65535 {
-		return rdpTarget{}, fmt.Errorf("invalid RDP port %q", portText)
-	}
-	host = strings.TrimSpace(strings.Trim(host, "[]"))
-	if host == "" || strings.ContainsAny(host, " /?#\\") {
-		return rdpTarget{}, fmt.Errorf("invalid RDP host %q", host)
-	}
-	user := ""
-	if parsed.User != nil {
-		user = strings.TrimSuffix(parsed.User.Username(), ":")
-	}
-	if len(user) > 256 {
-		return rdpTarget{}, fmt.Errorf("invalid RDP user")
-	}
-	return rdpTarget{Host: host, Port: port, User: user}, nil
+	return rdpTarget{Host: target.Host, Port: target.Port, User: target.User}, nil
 }
 
 func (a *App) handleRDPWebSocket(w http.ResponseWriter, r *http.Request) {

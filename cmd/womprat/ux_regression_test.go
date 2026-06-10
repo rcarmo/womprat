@@ -86,6 +86,25 @@ func TestSettingsActivationIsResilient(t *testing.T) {
 	}
 }
 
+func TestCustomSchemesUseSingleFrontendDispatcher(t *testing.T) {
+	s := readFileForRegression(t, "frontend/index.html")
+	for _, want := range []string{
+		"function parseCustomURL(url)",
+		"const defaults = { ssh: 22, vnc: 5900, rdp: 3389 }",
+		"if (openSpecialURL(url)) return;",
+		"if (openSpecialURL(url)) return;\n  let navUrl = url;",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("frontend custom scheme dispatcher missing %q", want)
+		}
+	}
+	for _, forbidden := range []string{"const rdpMatch =", "const vncMatch =", "const sshMatch ="} {
+		if strings.Contains(s, forbidden) {
+			t.Fatalf("frontend must not use per-scheme URL parser %q", forbidden)
+		}
+	}
+}
+
 func TestNoProgressStripInShell(t *testing.T) {
 	s := readFileForRegression(t, "frontend/index.html")
 	for _, forbidden := range []string{"id=\"url-progress\"", "urlProgressIndeterminate", "#url-progress"} {

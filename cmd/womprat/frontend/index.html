@@ -369,7 +369,36 @@ function loadURLHistory() {
   catch { return []; }
 }
 function isHistoryURL(url) {
-  return /^(https?:\/\/|ssh:\/\/)/i.test(String(url || ''));
+  return /^(https?:\/\/|ssh:\/\/|vnc:\/\/|rdp:\/\/)/i.test(String(url || ''));
+}
+function parseCustomURL(url) {
+  const text = String(url || '').trim();
+  if (!text || !text.includes('://')) return null;
+  let parsed;
+  try { parsed = new URL(text); } catch { return null; }
+  const scheme = parsed.protocol.replace(':','').toLowerCase();
+  const defaults = { ssh: 22, vnc: 5900, rdp: 3389 };
+  if (!Object.prototype.hasOwnProperty.call(defaults, scheme)) return null;
+  if (parsed.pathname && parsed.pathname !== '/' || parsed.search || parsed.hash || !parsed.hostname) return null;
+  const port = parsed.port ? Number(parsed.port) : defaults[scheme];
+  if (!Number.isInteger(port) || port <= 0 || port > 65535) return null;
+  return { scheme, host: parsed.hostname.replace(/^\[|\]$/g, ''), port, user: decodeURIComponent(parsed.username || '') };
+}
+function openSpecialURL(url) {
+  const text = String(url || '').trim();
+  if (!text) return false;
+  if (/^settings:?$/i.test(text)) { openSettings(); return true; }
+  const target = parseCustomURL(text);
+  if (!target) return false;
+  if (target.scheme === 'ssh') {
+    const user = target.user || 'root';
+    saveURLHistory(formatSSHURL(user, target.host, target.port));
+    openTerminal(target.host, target.host, user, target.port);
+    return true;
+  }
+  if (target.scheme === 'vnc') { if (window.womprat_newVNC) womprat_newVNC(text); return true; }
+  if (target.scheme === 'rdp') { if (window.womprat_newRDP) womprat_newRDP(text); return true; }
+  return false;
 }
 function saveURLHistory(url) {
   if (!isHistoryURL(url)) return;
@@ -733,6 +762,7 @@ async function reconnectTerminal(tabId, host, name, user, port, term) {
 }
 
 window.openBrowser = function(url, name) {
+  if (openSpecialURL(url)) return;
   let navUrl = url;
   if (!/^https?:\/\//.test(navUrl)) navUrl = 'http://' + navUrl;
 
@@ -962,6 +992,7 @@ function activateTab(id, options = {}) {
 }
 
 window.showBrowserTab = function(id, url, options = {}) {
+  if (openSpecialURL(url)) return;
   let navUrl = url || 'about:blank';
   if (!/^https?:\/\//i.test(navUrl) && navUrl !== 'about:blank') navUrl = 'http://' + navUrl;
   let tab = state.tabs.find(t => t.id === id);
@@ -1093,29 +1124,7 @@ installBrowserHotkeys();
 window.navigateFromBar = function() {
   const url = document.getElementById('url-input').value.trim();
   if (!url) return;
-  if (/^settings:?$/i.test(url)) {
-    openSettings();
-    return;
-  }
-  const vncMatch = url.match(/^vnc:\/\/(.+)$/i);
-  if (vncMatch) {
-    if (window.womprat_newVNC) womprat_newVNC(url);
-    return;
-  }
-  const rdpMatch = url.match(/^rdp:\/\/(.+)$/i);
-  if (rdpMatch) {
-    if (window.womprat_newRDP) womprat_newRDP(url);
-    return;
-  }
-  const sshMatch = url.match(/^ssh:\/\/(?:([^@]+)@)?([^:\/]+)(?::(\d+))?/);
-  if (sshMatch) {
-    const user = sshMatch[1] || 'root';
-    const host = sshMatch[2];
-    const port = sshMatch[3] ? parseInt(sshMatch[3]) : 22;
-    saveURLHistory(formatSSHURL(user, host, port));
-    openTerminal(host, host, user, port);
-    return;
-  }
+  if (openSpecialURL(url)) return;
   let navUrl = url;
   if (!/^https?:\/\//.test(navUrl)) navUrl = 'http://' + navUrl;
   updateNetworkIndicator();
@@ -1156,6 +1165,7 @@ function activateRecentTab(tab) {
   }
   const url = tab.url || tab.title;
   if (url) {
+    if (openSpecialURL(url)) return;
     saveURLHistory(/^https?:\/\//i.test(url) ? url : 'http://' + url);
     openBrowser(url, tab.title || url);
   }

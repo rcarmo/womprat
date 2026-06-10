@@ -194,6 +194,9 @@ func (a *App) destroyContentOnUI(tabID string) {
 
 func (a *App) navigateBrowser(url string) {
 	log.Printf("tab: navigateBrowser %s (active=%s)", url, a.activeTab)
+	if a.openSpecialURL(url) {
+		return
+	}
 	if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
 		url = "http://" + url
 	}
@@ -324,7 +327,7 @@ func (a *App) switchTab(tabID string) {
 				a.contentViews.Show(tabID)
 			})
 		}
-	case "terminal", "settings", "vnc":
+	case "terminal", "settings", "vnc", "rdp":
 		a.showFullShellOnUI()
 		a.evalShell("window.activateTab(%s,{skipNative:true})", jsString(tabID))
 	}
@@ -440,6 +443,9 @@ func (a *App) closeTab(tabID string) {
 
 func (a *App) newBrowserTab(url string) {
 	log.Printf("tab: newBrowserTab %s", url)
+	if a.openSpecialURL(url) {
+		return
+	}
 	if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
 		url = "http://" + url
 	}
@@ -456,6 +462,35 @@ func (a *App) newBrowserTab(url string) {
 			a.contentViews.Show(tabID)
 			view.Navigate(url)
 		})
+	}
+}
+
+func (a *App) openSpecialURL(raw string) bool {
+	text := strings.TrimSpace(raw)
+	if strings.EqualFold(text, "settings:") || strings.EqualFold(text, "settings") {
+		a.openSettingsTab()
+		return true
+	}
+	target, err := parseCustomURL(text)
+	if err != nil {
+		return false
+	}
+	switch target.Scheme {
+	case "ssh":
+		user := target.User
+		if user == "" {
+			user = "root"
+		}
+		a.newTerminalTab(target.Host, user, target.Port)
+		return true
+	case "vnc":
+		a.newVNCTab(text)
+		return true
+	case "rdp":
+		a.newRDPTab(text)
+		return true
+	default:
+		return false
 	}
 }
 

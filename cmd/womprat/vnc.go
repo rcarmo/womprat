@@ -20,29 +20,17 @@ type vncTarget struct {
 
 func parseVNCURL(raw string) (vncTarget, error) {
 	text := strings.TrimSpace(raw)
-	text = strings.TrimPrefix(text, "vnc://")
-	if text == "" {
-		return vncTarget{}, fmt.Errorf("missing VNC target")
+	if text != "" && !strings.Contains(text, "://") {
+		text = "vnc://" + text
 	}
-	host, portText, err := net.SplitHostPort(text)
+	target, err := parseCustomURL(text)
 	if err != nil {
-		// Accept vnc://host as vnc://host:5900.
-		if strings.Count(text, ":") == 0 {
-			host = text
-			portText = "5900"
-		} else {
-			return vncTarget{}, fmt.Errorf("invalid VNC target %q", raw)
-		}
+		return vncTarget{}, err
 	}
-	port, err := strconv.Atoi(portText)
-	if err != nil || port <= 0 || port > 65535 {
-		return vncTarget{}, fmt.Errorf("invalid VNC port %q", portText)
+	if target.Scheme != "vnc" {
+		return vncTarget{}, fmt.Errorf("invalid VNC target %q", raw)
 	}
-	host = strings.TrimSpace(strings.Trim(host, "[]"))
-	if host == "" || strings.ContainsAny(host, " /?#\\") {
-		return vncTarget{}, fmt.Errorf("invalid VNC host %q", host)
-	}
-	return vncTarget{Host: host, Port: port}, nil
+	return vncTarget{Host: target.Host, Port: target.Port}, nil
 }
 
 func (a *App) handleVNCWebSocket(w http.ResponseWriter, r *http.Request) {
