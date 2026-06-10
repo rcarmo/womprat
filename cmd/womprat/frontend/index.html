@@ -384,8 +384,18 @@ function loadURLHistory() {
   }
   catch { return []; }
 }
+function normalizeBrowserURL(url) {
+  let text = String(url || '').trim();
+  if (!text) return '';
+  if (!text.includes('://')) text = 'http://' + text;
+  try {
+    const u = new URL(text);
+    if ((u.protocol === 'http:' || u.protocol === 'https:') && !!u.hostname) return u.href;
+  } catch {}
+  return '';
+}
 function isHTTPURL(url) {
-  try { const u = new URL(String(url || '').trim()); return (u.protocol === 'http:' || u.protocol === 'https:') && !!u.hostname; } catch { return false; }
+  return !!normalizeBrowserURL(url);
 }
 function normalizeHistoryURL(url) {
   const text = String(url || '').trim();
@@ -835,8 +845,8 @@ async function reconnectTerminal(tabId, host, name, user, port, term) {
 
 window.openBrowser = function(url, name) {
   if (openSpecialURL(url)) return;
-  let navUrl = url;
-  if (!/^https?:\/\//.test(navUrl)) navUrl = 'http://' + navUrl;
+  const navUrl = normalizeBrowserURL(url);
+  if (!navUrl) return;
 
   updateNetworkIndicator();
   setURLProgress(true);
@@ -1084,8 +1094,8 @@ function activateTab(id, options = {}) {
 
 window.showBrowserTab = function(id, url, options = {}) {
   if (openSpecialURL(url)) return;
-  let navUrl = url || 'about:blank';
-  if (!/^https?:\/\//i.test(navUrl) && navUrl !== 'about:blank') navUrl = 'http://' + navUrl;
+  const navUrl = url === 'about:blank' ? 'about:blank' : normalizeBrowserURL(url);
+  if (!navUrl) return;
   let tab = state.tabs.find(t => t.id === id);
   if (!tab) {
     tab = { id, type: 'browser', title: navUrl, url: navUrl };
@@ -1216,8 +1226,8 @@ window.navigateFromBar = function() {
   const url = document.getElementById('url-input').value.trim();
   if (!url) return;
   if (openSpecialURL(url)) return;
-  let navUrl = url;
-  if (!/^https?:\/\//.test(navUrl)) navUrl = 'http://' + navUrl;
+  const navUrl = normalizeBrowserURL(url);
+  if (!navUrl) return;
   updateNetworkIndicator();
   setURLProgress(true);
   saveURLHistory(navUrl);
@@ -1257,8 +1267,10 @@ function activateRecentTab(tab) {
   const url = tab.url || tab.title;
   if (url) {
     if (openSpecialURL(url)) return;
-    saveURLHistory(/^https?:\/\//i.test(url) ? url : 'http://' + url);
-    openBrowser(url, tab.title || url);
+    const navUrl = normalizeBrowserURL(url);
+    if (!navUrl) return;
+    saveURLHistory(navUrl);
+    openBrowser(navUrl, tab.title || url);
   }
 }
 
@@ -1335,7 +1347,7 @@ function sanitizeTabForSave(t) {
   if (!t || t.id === 'settings' || !validTabID(t.id)) return null;
   const type = String(t.type || '').toLowerCase();
   const base = { type, title: sanitizeBrowserTitle(t.title), host: String(t.host || ''), user: String(t.user || ''), port: Number(t.port || 0), url: String(t.url || ''), favicon: sanitizeFaviconURL(t.favicon) };
-  if (type === 'browser') return isHTTPURL(base.url) ? base : null;
+  if (type === 'browser') { const url = normalizeBrowserURL(base.url); if (!url) return null; base.url = url; return base; }
   if (type === 'terminal') return parseCustomURL(formatSSHURL(base.user || 'root', base.host || base.title, base.port)) ? base : null;
   if (type === 'vnc' || type === 'rdp') {
     const target = parseCustomURL(base.url || `${type}://${base.user ? encodeURIComponent(base.user) + '@' : ''}${base.host}:${base.port || (type === 'vnc' ? 5900 : 3389)}`);

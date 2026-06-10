@@ -95,7 +95,7 @@ func TestCustomSchemesUseSingleFrontendDispatcher(t *testing.T) {
 		"function callNativeCustomViewer(target, text)",
 		"if (target.scheme === 'vnc' || target.scheme === 'rdp') return callNativeCustomViewer(target, text);",
 		"if (openSpecialURL(url)) return;",
-		"if (openSpecialURL(url)) return;\n  let navUrl = url;",
+		"if (openSpecialURL(url)) return;\n  const navUrl = normalizeBrowserURL(url);",
 	} {
 		if !strings.Contains(s, want) {
 			t.Fatalf("frontend custom scheme dispatcher missing %q", want)
@@ -105,6 +105,16 @@ func TestCustomSchemesUseSingleFrontendDispatcher(t *testing.T) {
 		if strings.Contains(s, forbidden) {
 			t.Fatalf("frontend must not use per-scheme URL parser %q", forbidden)
 		}
+	}
+}
+
+func TestFrontendCentralizesBrowserURLNormalization(t *testing.T) {
+	s := readFileForRegression(t, "frontend/index.html")
+	if !strings.Contains(s, "function normalizeBrowserURL(url)") {
+		t.Fatal("frontend missing normalizeBrowserURL")
+	}
+	if strings.Contains(s, "navUrl = 'http://' + navUrl") || strings.Contains(s, "'http://' + url") {
+		t.Fatal("frontend must not use ad-hoc browser URL prefixing")
 	}
 }
 
