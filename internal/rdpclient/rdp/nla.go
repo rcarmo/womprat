@@ -342,8 +342,11 @@ func (c *Client) getTLSPublicKey() ([]byte, error) {
 	// Parse length
 	offset := 1
 	seqLen, lenBytes := parseASN1Length(spki[offset:])
+	if lenBytes == 0 || seqLen == 0 {
+		return nil, fmt.Errorf("invalid SubjectPublicKeyInfo length")
+	}
 	offset += lenBytes
-	if seqLen == 0 || offset+seqLen > len(spki) {
+	if offset+seqLen > len(spki) {
 		return nil, fmt.Errorf("invalid SubjectPublicKeyInfo length")
 	}
 
@@ -355,6 +358,9 @@ func (c *Client) getTLSPublicKey() ([]byte, error) {
 		return nil, fmt.Errorf("AlgorithmIdentifier truncated")
 	}
 	algIdLen, algIdLenBytes := parseASN1Length(spki[offset+1:])
+	if algIdLenBytes == 0 || algIdLen == 0 {
+		return nil, fmt.Errorf("invalid AlgorithmIdentifier length")
+	}
 	offset += 1 + algIdLenBytes + algIdLen
 
 	// Now at SubjectPublicKey BIT STRING
@@ -364,6 +370,9 @@ func (c *Client) getTLSPublicKey() ([]byte, error) {
 	offset++ // skip tag
 
 	bitStrLen, bitStrLenBytes := parseASN1Length(spki[offset:])
+	if bitStrLenBytes == 0 {
+		return nil, fmt.Errorf("invalid SubjectPublicKey BIT STRING length")
+	}
 	offset += bitStrLenBytes
 
 	if offset+bitStrLen > len(spki) {
@@ -393,7 +402,7 @@ func parseASN1Length(data []byte) (int, int) {
 	}
 	numBytes := int(data[0] & 0x7F)
 	if numBytes == 0 || numBytes > 4 || numBytes >= len(data) {
-		return 0, 1
+		return 0, 0
 	}
 	length := 0
 	for i := 0; i < numBytes; i++ {

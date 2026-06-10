@@ -189,19 +189,19 @@ func TestParseASN1Length(t *testing.T) {
 			name:           "invalid - numBytes is 0",
 			data:           []byte{0x80},
 			expectedLength: 0,
-			expectedBytes:  1,
+			expectedBytes:  0,
 		},
 		{
 			name:           "invalid - numBytes > 4",
 			data:           []byte{0x85, 0x00, 0x00, 0x00, 0x00, 0x00},
 			expectedLength: 0,
-			expectedBytes:  1,
+			expectedBytes:  0,
 		},
 		{
 			name:           "invalid - not enough bytes",
 			data:           []byte{0x82, 0x01}, // needs 2 bytes but only 1
 			expectedLength: 0,
-			expectedBytes:  1,
+			expectedBytes:  0,
 		},
 	}
 

@@ -290,7 +290,7 @@ func TestParseASN1Length_Scenarios(t *testing.T) {
 			name:      "incomplete long form returns zero",
 			data:      []byte{0x82, 0x01},
 			expectLen: 0,
-			expectOff: 1,
+			expectOff: 0,
 		},
 	}
 
