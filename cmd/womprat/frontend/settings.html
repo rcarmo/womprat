@@ -604,6 +604,16 @@ async function clearAllBrowsingData() {
 
 function importKey() { document.getElementById('key-file-input').click(); }
 const MAX_SSH_KEY_BYTES = 64 * 1024;
+async function postSSHKeyJSON(url, body) {
+  try {
+    const res = await fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+    if (!res.ok) { setStatus('keys-status', 'error', await res.text()); return false; }
+    return true;
+  } catch (err) {
+    setStatus('keys-status', 'error', `SSH key action failed: ${err.message}`);
+    return false;
+  }
+}
 async function handleKeyFile(input) {
   const file = input.files[0];
   if (!file) return;
@@ -613,17 +623,19 @@ async function handleKeyFile(input) {
   catch (err) { setStatus('keys-status', 'error', `Could not read key file: ${err.message}`); input.value = ''; return; }
   const name = safeSSHKeyName(file.name.replace(/\.(pem|key|pub)$/,''));
   if (!name) { setStatus('keys-status', 'error', 'Invalid key name'); input.value = ''; return; }
-  const res = await fetch('/api/settings/ssh-keys', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name, content})});
-  if (res.ok) { setStatus('keys-status', 'ok', 'Key imported'); loadKeys(); }
-  else setStatus('keys-status', 'error', await res.text());
+  if (await postSSHKeyJSON('/api/settings/ssh-keys', {name, content})) {
+    setStatus('keys-status', 'ok', 'Key imported');
+    loadKeys();
+  }
   input.value = '';
 }
 async function generateKey() {
   const name = safeSSHKeyName(prompt('Key name:'));
   if (!name) { setStatus('keys-status', 'error', 'Invalid key name'); return; }
-  const res = await fetch('/api/settings/ssh-keys/generate', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name})});
-  if (res.ok) { setStatus('keys-status', 'ok', 'Key generated'); loadKeys(); }
-  else setStatus('keys-status', 'error', await res.text());
+  if (await postSSHKeyJSON('/api/settings/ssh-keys/generate', {name})) {
+    setStatus('keys-status', 'ok', 'Key generated');
+    loadKeys();
+  }
 }
 function emptyTableRow(tbody, cols, text) {
   tbody.textContent = '';
@@ -654,10 +666,14 @@ async function loadKeys() {
 }
 async function deleteKey(name) {
   if (!confirm(`Delete key "${name}"?`)) return;
-  const res = await fetch('/api/settings/ssh-keys/'+encodeURIComponent(name), {method:'DELETE'});
-  if (!res.ok) { setStatus('keys-status', 'error', await res.text()); return; }
-  setStatus('keys-status', 'ok', 'Key deleted');
-  loadKeys();
+  try {
+    const res = await fetch('/api/settings/ssh-keys/'+encodeURIComponent(name), {method:'DELETE'});
+    if (!res.ok) { setStatus('keys-status', 'error', await res.text()); return; }
+    setStatus('keys-status', 'ok', 'Key deleted');
+    loadKeys();
+  } catch (err) {
+    setStatus('keys-status', 'error', `SSH key delete failed: ${err.message}`);
+  }
 }
 
 async function refreshHosts() {
