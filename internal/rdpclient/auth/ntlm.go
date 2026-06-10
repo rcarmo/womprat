@@ -205,16 +205,20 @@ func modifyTargetInfoForMIC(targetInfo []byte) []byte {
 
 	for offset+4 <= len(targetInfo) {
 		avID := binary.LittleEndian.Uint16(targetInfo[offset:])
-		avLen := binary.LittleEndian.Uint16(targetInfo[offset+2:])
+		avLen := int(binary.LittleEndian.Uint16(targetInfo[offset+2:]))
+		valueOffset := offset + 4
+		if valueOffset+avLen > len(targetInfo) {
+			break
+		}
 
-		if avID == MsvAvFlags {
+		if avID == MsvAvFlags && avLen >= 4 {
 			flagsOffset = offset
 		}
 		if avID == MsvAvEOL {
 			eolOffset = offset
 			break
 		}
-		offset += 4 + int(avLen)
+		offset = valueOffset + avLen
 	}
 
 	result := make([]byte, len(targetInfo))

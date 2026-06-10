@@ -382,6 +382,25 @@ func TestExtractTimestamp(t *testing.T) {
 	}
 }
 
+func TestModifyTargetInfoForMICRejectsMalformedFlags(t *testing.T) {
+	malformed := &bytes.Buffer{}
+	_ = binary.Write(malformed, binary.LittleEndian, uint16(MsvAvFlags))
+	_ = binary.Write(malformed, binary.LittleEndian, uint16(0))
+	got := modifyTargetInfoForMIC(malformed.Bytes())
+	if !bytes.Equal(got, malformed.Bytes()) {
+		t.Fatalf("malformed flags changed: %x -> %x", malformed.Bytes(), got)
+	}
+
+	truncated := &bytes.Buffer{}
+	_ = binary.Write(truncated, binary.LittleEndian, uint16(MsvAvFlags))
+	_ = binary.Write(truncated, binary.LittleEndian, uint16(8))
+	truncated.Write([]byte{1, 2})
+	got = modifyTargetInfoForMIC(truncated.Bytes())
+	if !bytes.Equal(got, truncated.Bytes()) {
+		t.Fatalf("truncated flags changed: %x -> %x", truncated.Bytes(), got)
+	}
+}
+
 func TestUnicodeEncode(t *testing.T) {
 	tests := []struct {
 		name     string
