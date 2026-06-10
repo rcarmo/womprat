@@ -56,6 +56,22 @@ func TestReadOnlyHandlersUseSharedGetMethodGuard(t *testing.T) {
 	}
 }
 
+func TestSSHConnectUsesRequestScopedDialTimeout(t *testing.T) {
+	s := readFileForRegression(t, "main.go")
+	for _, want := range []string{
+		"context.WithTimeout(r.Context(), 10*time.Second)",
+		"ts.Dial(dialCtx, \"tcp\", addr)",
+		"defer cancelDial()",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("SSH dial timeout/cancellation guard missing %q", want)
+		}
+	}
+	if strings.Contains(s, "ts.Dial(context.Background(), \"tcp\", addr)") {
+		t.Fatal("SSH handlers must not dial with context.Background")
+	}
+}
+
 func TestMainHandlersUseSharedPostMethodGuard(t *testing.T) {
 	s := readFileForRegression(t, "main.go")
 	for _, want := range []string{

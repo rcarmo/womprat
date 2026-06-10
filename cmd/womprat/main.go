@@ -1096,7 +1096,9 @@ func (a *App) handleSSHConnect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	addr := net.JoinHostPort(body.Host, fmt.Sprintf("%d", body.Port))
-	conn, err := ts.Dial(context.Background(), "tcp", addr)
+	dialCtx, cancelDial := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancelDial()
+	conn, err := ts.Dial(dialCtx, "tcp", addr)
 	if err != nil {
 		httpError(w, 500, "Connection failed", err.Error())
 		return
@@ -1205,7 +1207,9 @@ func (a *App) handleSSHAuthPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	addr := net.JoinHostPort(pending.host, fmt.Sprintf("%d", pending.port))
-	conn, err := ts.Dial(context.Background(), "tcp", addr)
+	dialCtx, cancelDial := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancelDial()
+	conn, err := ts.Dial(dialCtx, "tcp", addr)
 	if err != nil {
 		httpError(w, 500, "Connection failed", err.Error())
 		return
