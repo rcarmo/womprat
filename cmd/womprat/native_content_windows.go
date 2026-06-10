@@ -310,7 +310,9 @@ func newNativeContentView(parent uintptr, dataPath, tabID string, shell shellWeb
 		return nil, fmt.Errorf("embed content WebView2")
 	}
 	cv.edge = edge
-	_ = edge.PutAreBrowserAcceleratorKeysEnabled(false)
+	if err := edge.PutAreBrowserAcceleratorKeysEnabled(false); err != nil {
+		log.Printf("content: disable browser accelerator keys failed: %v", err)
+	}
 	edge.Init(browserTitleReporterJS)
 	cv.resize()
 	log.Printf("content: created browser WebView for tab %s hwnd=0x%x", tabID, hwnd)
