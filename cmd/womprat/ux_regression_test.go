@@ -15,6 +15,19 @@ func readFileForRegression(t *testing.T, path string) string {
 	return string(b)
 }
 
+func TestBrowserSettingsHandlersUseSharedPostMethodGuard(t *testing.T) {
+	s := readFileForRegression(t, "browser_settings.go")
+	for _, want := range []string{
+		"func (a *App) handleClearCache",
+		"func (a *App) handleSavePasswordsToggle",
+		"if !requirePOST(w, r)",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("browser settings method guard missing %q", want)
+		}
+	}
+}
+
 func TestSettingsHandlersUseSharedPostMethodGuard(t *testing.T) {
 	helpers := readFileForRegression(t, "http_method.go")
 	settings := readFileForRegression(t, "settings_api.go")

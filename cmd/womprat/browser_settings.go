@@ -56,8 +56,7 @@ func (a *App) handleBrowserData(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleClearCache(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" {
-		http.Error(w, "method not allowed", 405)
+	if !requirePOST(w, r) {
 		return
 	}
 	// WebView2 cache is in the DataPath directory
@@ -70,8 +69,7 @@ func (a *App) handleClearCache(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleClearCookies(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" {
-		http.Error(w, "method not allowed", 405)
+	if !requirePOST(w, r) {
 		return
 	}
 	var body struct {
@@ -103,8 +101,7 @@ func (a *App) handleClearCookies(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleClearPasswords(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" {
-		http.Error(w, "method not allowed", 405)
+	if !requirePOST(w, r) {
 		return
 	}
 	var body struct {
@@ -135,8 +132,7 @@ func (a *App) handleClearPasswords(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleClearAll(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" {
-		http.Error(w, "method not allowed", 405)
+	if !requirePOST(w, r) {
 		return
 	}
 	// Nuclear option: remove browser-local cache/cookies/password stores.
@@ -148,8 +144,7 @@ func (a *App) handleClearAll(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleSavePasswordsToggle(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" {
-		http.Error(w, "method not allowed", 405)
+	if !requirePOST(w, r) {
 		return
 	}
 	var body struct {
