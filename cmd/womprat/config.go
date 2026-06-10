@@ -214,10 +214,7 @@ func sanitizeHostConfigs(hosts map[string]HostConfig) map[string]HostConfig {
 				conf.KeyName = ""
 			}
 		}
-		conf.Nickname = strings.TrimSpace(conf.Nickname)
-		if len(conf.Nickname) > 100 {
-			conf.Nickname = conf.Nickname[:100]
-		}
+		conf.Nickname = truncateUTF8Bytes(strings.TrimSpace(conf.Nickname), 100)
 		conf.URL = sanitizeHostConfigURL(conf.URL)
 		out[host] = conf
 	}

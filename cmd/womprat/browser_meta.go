@@ -35,10 +35,7 @@ func validBrowserHotkeyAction(action string) bool {
 
 func sanitizeBrowserHotkeyArg(arg string) string {
 	arg = strings.TrimSpace(arg)
-	if len(arg) > 16 {
-		arg = arg[:16]
-	}
-	return strings.ToValidUTF8(arg, "")
+	return truncateUTF8Bytes(arg, 16)
 }
 
 func sanitizeFaviconURL(favicon string) string {

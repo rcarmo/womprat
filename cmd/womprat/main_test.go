@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"golang.org/x/crypto/ssh"
 )
@@ -97,6 +98,9 @@ func TestBrowserHotkeySanitizers(t *testing.T) {
 	}
 	if got := sanitizeBrowserHotkeyArg(strings.Repeat("1", 32)); len(got) != 16 {
 		t.Fatalf("hotkey arg length = %d", len(got))
+	}
+	if got := sanitizeBrowserHotkeyArg(strings.Repeat("界", 8)); len(got) > 16 || strings.ContainsRune(got, utf8.RuneError) {
+		t.Fatalf("unicode hotkey arg = len %d %q", len(got), got)
 	}
 }
 

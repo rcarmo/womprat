@@ -3,6 +3,7 @@ package main
 import (
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 func TestCredentialNameValidation(t *testing.T) {
@@ -85,8 +86,9 @@ func TestSanitizeHostConfigs(t *testing.T) {
 		"bad host": {User: "me", Port: 22},
 		"baduser":  {User: "bad user", Port: 70000, KeyName: "../x", URL: "rdp://me@host"},
 		"userinfo": {URL: "https://user@example.com"},
+		"unicode":  {Nickname: strings.Repeat("界", 40)},
 	})
-	if len(hosts) != 3 {
+	if len(hosts) != 4 {
 		t.Fatalf("hosts = %+v", hosts)
 	}
 	if got := hosts["platinum"]; got.User != "me" || got.KeyName != "main" || len(got.Nickname) != 100 || got.URL != "https://platinum.local" {
@@ -97,6 +99,9 @@ func TestSanitizeHostConfigs(t *testing.T) {
 	}
 	if got := hosts["userinfo"]; got.URL != "" {
 		t.Fatalf("userinfo host = %+v", got)
+	}
+	if got := hosts["unicode"]; len(got.Nickname) > 100 || strings.ContainsRune(got.Nickname, utf8.RuneError) {
+		t.Fatalf("unicode host = %+v", got)
 	}
 }
 
