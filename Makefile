@@ -94,6 +94,7 @@ frontend-check: ## Bundle-check embedded HTML/JS entry points with Bun
 	@mkdir -p $(TMP_DIR)
 	$(BUN) build $(CMD_DIR)/frontend/index.html --outdir=$(TMP_DIR)/frontend-index
 	$(BUN) build $(CMD_DIR)/frontend/settings.html --outdir=$(TMP_DIR)/frontend-settings
+	$(BUN) run build:vnc
 
 vet: ## Run go vet for the Windows ARM64 target
 	GOOS=windows GOARCH=arm64 $(GO) vet ./...

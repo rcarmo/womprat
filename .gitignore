@@ -21,6 +21,7 @@ cmd/womprat/rsrc_windows_*.syso
 
 # Makefile/Bun temporary output
 /.tmp/
+/node_modules/
 
 # Local Go/test artefacts
 /coverage.out

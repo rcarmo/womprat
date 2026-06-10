@@ -1,0 +1,13 @@
+{
+  "private": true,
+  "type": "module",
+  "devDependencies": {},
+  "dependencies": {
+    "@assemblyscript/loader": "0.28.17",
+    "fflate": "0.8.3"
+  },
+  "scripts": {
+    "build:vnc": "bun build cmd/womprat/frontend/vnc-src.ts --format=esm --target=browser --outfile=cmd/womprat/frontend/vnc.js",
+    "frontend-check": "bun build cmd/womprat/frontend/index.html --outdir=.tmp/frontend-index && bun build cmd/womprat/frontend/settings.html --outdir=.tmp/frontend-settings && bun run build:vnc"
+  }
+}
