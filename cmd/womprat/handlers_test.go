@@ -57,6 +57,10 @@ func TestSSHAuthPasswordValidatesTabID(t *testing.T) {
 	if rr.Code != http.StatusBadRequest {
 		t.Fatalf("invalid password-auth tab id = %d %s", rr.Code, rr.Body.String())
 	}
+	rr = performJSON(app.handleSSHAuthPassword, "POST", "/api/ssh/auth-password", map[string]string{"tabId": "term-ok", "password": strings.Repeat("x", 4097)})
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("oversized password-auth password = %d %s", rr.Code, rr.Body.String())
+	}
 }
 
 func TestSSHConnectValidatesBoundaryInputs(t *testing.T) {

@@ -1194,6 +1194,10 @@ func (a *App) handleSSHAuthPassword(w http.ResponseWriter, r *http.Request) {
 		httpError(w, 400, "Invalid tabId", "")
 		return
 	}
+	if body.Password == "" || len(body.Password) > 4096 {
+		httpError(w, 400, "Invalid password", "")
+		return
+	}
 	a.mu.Lock()
 	pending := a.pendingAuth[body.TabId]
 	a.mu.Unlock()
