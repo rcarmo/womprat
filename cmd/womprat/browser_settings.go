@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -87,8 +88,9 @@ func (a *App) handleClearCookies(w http.ResponseWriter, r *http.Request) {
 		deleteCookiesForDomain(body.Domain)
 	} else {
 		// Clear all cookies
-		for _, cookieFile := range cookieDBPaths() {
-			os.Remove(cookieFile)
+		if err := removeExistingFiles(cookieDBPaths()...); err != nil {
+			http.Error(w, err.Error(), 500)
+			return
 		}
 	}
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
@@ -118,7 +120,10 @@ func (a *App) handleClearPasswords(w http.ResponseWriter, r *http.Request) {
 		}
 	} else {
 		// Clear all saved passwords
-		clearAllSavedPasswords()
+		if err := clearAllSavedPasswords(); err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
 	}
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
@@ -128,11 +133,11 @@ func (a *App) handleClearAll(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", 405)
 		return
 	}
-	// Nuclear option: remove entire WebView2 user data
-	dataPath := webviewDataPath()
-	os.RemoveAll(filepath.Join(dataPath, "EBWebView", "Default", "Cache"))
-	os.Remove(filepath.Join(dataPath, "EBWebView", "Default", "Cookies"))
-	clearAllSavedPasswords()
+	// Nuclear option: remove browser-local cache/cookies/password stores.
+	if err := clearBrowserArtifacts(); err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
 
@@ -273,13 +278,52 @@ func deleteCookiesForDomain(domain string) {
 	}
 }
 
-func clearAllSavedPasswords() {
-	base := filepath.Join(webviewDataPath(), "EBWebView", "Default")
-	for _, name := range []string{"Login Data", "Login Data For Account"} {
-		os.Remove(filepath.Join(base, name))
-		os.Remove(filepath.Join(base, name+"-journal"))
-		os.Remove(filepath.Join(base, name+"-wal"))
-		os.Remove(filepath.Join(base, name+"-shm"))
+func clearBrowserArtifacts() error {
+	dataPath := webviewDataPath()
+	var errs []error
+	if err := os.RemoveAll(filepath.Join(dataPath, "EBWebView", "Default", "Cache")); err != nil {
+		errs = append(errs, err)
 	}
-	os.RemoveAll(filepath.Join(configDir(), "creds", "browser-pw")) // legacy app-side placeholder store
+	if err := removeExistingFiles(cookieDBPaths()...); err != nil {
+		errs = append(errs, err)
+	}
+	if err := clearAllSavedPasswords(); err != nil {
+		errs = append(errs, err)
+	}
+	return errors.Join(errs...)
+}
+
+func clearAllSavedPasswords() error {
+	base := filepath.Join(webviewDataPath(), "EBWebView", "Default")
+	paths := []string{}
+	for _, name := range []string{"Login Data", "Login Data For Account"} {
+		paths = append(paths,
+			filepath.Join(base, name),
+			filepath.Join(base, name+"-journal"),
+			filepath.Join(base, name+"-wal"),
+			filepath.Join(base, name+"-shm"),
+		)
+	}
+	paths = append(paths, filepath.Join(configDir(), "creds", "browser-pw")) // legacy app-side placeholder store
+	return removeExistingPaths(paths...)
+}
+
+func removeExistingFiles(paths ...string) error {
+	var errs []error
+	for _, path := range paths {
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			errs = append(errs, fmt.Errorf("remove %s: %w", path, err))
+		}
+	}
+	return errors.Join(errs...)
+}
+
+func removeExistingPaths(paths ...string) error {
+	var errs []error
+	for _, path := range paths {
+		if err := os.RemoveAll(path); err != nil && !os.IsNotExist(err) {
+			errs = append(errs, fmt.Errorf("remove %s: %w", path, err))
+		}
+	}
+	return errors.Join(errs...)
 }

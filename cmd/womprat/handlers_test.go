@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -185,6 +186,16 @@ func TestDebugLogRejectsMalformedJSON(t *testing.T) {
 	app.handleDebugLog(rr, req)
 	if rr.Code != http.StatusBadRequest {
 		t.Fatalf("malformed debug-log json = %d %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestBrowserCleanupHelpersIgnoreMissingPaths(t *testing.T) {
+	missing := filepath.Join(t.TempDir(), "missing")
+	if err := removeExistingFiles(missing); err != nil {
+		t.Fatalf("removeExistingFiles missing = %v", err)
+	}
+	if err := removeExistingPaths(missing); err != nil {
+		t.Fatalf("removeExistingPaths missing = %v", err)
 	}
 }
 
