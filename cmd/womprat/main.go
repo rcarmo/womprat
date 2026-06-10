@@ -688,6 +688,8 @@ func (a *App) serveFrontend(w http.ResponseWriter, r *http.Request) {
 	}
 	if strings.HasSuffix(path, ".js") || strings.HasSuffix(path, ".mjs") {
 		w.Header().Set("Content-Type", "application/javascript")
+	} else if strings.HasSuffix(path, ".wasm") {
+		w.Header().Set("Content-Type", "application/wasm")
 	} else if strings.HasSuffix(path, ".css") {
 		w.Header().Set("Content-Type", "text/css")
 	} else if strings.HasSuffix(path, ".ttf") {

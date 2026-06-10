@@ -122,9 +122,8 @@ func (a *App) handleRDPWebSocket(w http.ResponseWriter, r *http.Request) {
 	colorDepth := parseRDPColorDepth(r.URL.Query().Get("colorDepth"), 16)
 	enableAudio := r.URL.Query().Get("audio") == "true"
 	disableNLA := r.URL.Query().Get("disableNLA") == "true"
-	// RemoteFX/NSCodec surface codecs require the optional go-rdp TinyGo WASM
-	// decoder in the browser. Keep negotiation off by default so Womprat's
-	// single-binary build stays robust with the embedded JS fallback codecs.
+	// RemoteFX/NSCodec surface codecs are enabled only when the frontend has
+	// successfully loaded the embedded go-rdp TinyGo decoder and requests them.
 	enableRFX := r.URL.Query().Get("rfx") == "true"
 
 	dial := func(ctx context.Context, network, address string) (net.Conn, error) {

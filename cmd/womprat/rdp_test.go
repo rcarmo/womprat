@@ -1,6 +1,10 @@
 package main
 
-import "testing"
+import (
+	"os"
+	"strings"
+	"testing"
+)
 
 func TestParseRDPURL(t *testing.T) {
 	tests := []struct {
@@ -40,14 +44,36 @@ func TestParseRDPURLRejectsInvalidTargets(t *testing.T) {
 }
 
 func TestParseRDPColorDepth(t *testing.T) {
-	for _, depth := range []int{8, 15, 16, 24, 32} {
-		if got := parseRDPColorDepth(string(rune('0'+depth/10))+string(rune('0'+depth%10)), 16); got != depth {
-			t.Fatalf("parseRDPColorDepth(%d) = %d", depth, got)
+	for _, raw := range []string{"8", "15", "16", "24", "32"} {
+		depth := map[string]int{"8": 8, "15": 15, "16": 16, "24": 24, "32": 32}[raw]
+		if got := parseRDPColorDepth(raw, 16); got != depth {
+			t.Fatalf("parseRDPColorDepth(%s) = %d", raw, got)
 		}
 	}
 	for _, raw := range []string{"", "12", "33", "abc"} {
 		if got := parseRDPColorDepth(raw, 16); got != 16 {
 			t.Fatalf("parseRDPColorDepth(%q) = %d, want fallback", raw, got)
+		}
+	}
+}
+
+func TestRDPFrontendEmbedsWASMCodecs(t *testing.T) {
+	for _, path := range []string{"frontend/rle/rle.wasm", "frontend/rle/wasm_exec.js"} {
+		info, err := os.Stat(path)
+		if err != nil {
+			t.Fatalf("missing embedded RDP codec asset %s: %v", path, err)
+		}
+		if info.Size() == 0 {
+			t.Fatalf("embedded RDP codec asset %s is empty", path)
+		}
+	}
+	js, err := os.ReadFile("frontend/rdp.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"/rle/wasm_exec.js", "/rle/rle.wasm", "WASM codecs loaded", "rfx"} {
+		if !strings.Contains(string(js), want) {
+			t.Fatalf("rdp.js missing %q", want)
 		}
 	}
 }
