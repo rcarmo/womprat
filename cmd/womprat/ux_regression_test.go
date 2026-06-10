@@ -108,6 +108,20 @@ func TestCustomSchemesUseSingleFrontendDispatcher(t *testing.T) {
 	}
 }
 
+func TestFrontendValidatesDownloadURLs(t *testing.T) {
+	s := readFileForRegression(t, "frontend/index.html")
+	for _, want := range []string{
+		"function downloadDisplayName(url)",
+		"if (u.protocol !== 'http:' && u.protocol !== 'https:') return '';",
+		"Invalid download URL",
+		"if (!start.ok)",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("frontend download validation missing %q", want)
+		}
+	}
+}
+
 func TestFrontendSanitizesBrowserMetadata(t *testing.T) {
 	s := readFileForRegression(t, "frontend/index.html")
 	for _, want := range []string{

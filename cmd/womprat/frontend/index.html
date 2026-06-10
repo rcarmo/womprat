@@ -1358,18 +1358,37 @@ const origRenderTabs = renderTabs;
 
 
 // Download handling — intercept download links in iframes
+function downloadDisplayName(url) {
+  try {
+    const u = new URL(String(url || '').trim());
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return '';
+    return decodeURIComponent(u.pathname.split('/').pop() || '') || 'download';
+  } catch { return ''; }
+}
 window.triggerDownload = async function(url) {
   const bar = document.getElementById('download-bar');
   const fname = document.getElementById('dl-filename');
   const prog = document.getElementById('dl-progress');
   const status = document.getElementById('dl-status');
+  const displayName = downloadDisplayName(url);
+  if (!displayName) {
+    bar.classList.add('active');
+    fname.textContent = 'download';
+    status.textContent = 'Invalid download URL';
+    prog.style.width = '0%';
+    return;
+  }
   
   bar.classList.add('active');
-  fname.textContent = url.split('/').pop() || 'download';
+  fname.textContent = displayName;
   status.textContent = 'Starting...';
   prog.style.width = '0%';
   
-  await fetch('/api/download?url=' + encodeURIComponent(url));
+  const start = await fetch('/api/download?url=' + encodeURIComponent(url));
+  if (!start.ok) {
+    status.textContent = await start.text();
+    return;
+  }
   
   // Poll progress
   const poll = setInterval(async () => {
