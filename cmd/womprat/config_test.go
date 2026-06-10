@@ -86,7 +86,7 @@ func TestSanitizeHostConfigs(t *testing.T) {
 
 func TestSanitizeSavedTabs(t *testing.T) {
 	tabs := sanitizeSavedTabs([]SavedTab{
-		{Type: "browser", URL: "https://example.com"},
+		{Type: "browser", Title: strings.Repeat("x", maxBrowserTitleRunes+10), Favicon: strings.Repeat("x", maxFaviconURLBytes+1), URL: "https://example.com"},
 		{Type: "browser", URL: "rdp://me@platinum:3389"},
 		{Type: "terminal", Host: "platinum"},
 		{Type: "vnc", Host: "platinum"},
@@ -97,7 +97,7 @@ func TestSanitizeSavedTabs(t *testing.T) {
 	if len(tabs) != 4 {
 		t.Fatalf("sanitizeSavedTabs kept %d tabs: %+v", len(tabs), tabs)
 	}
-	if tabs[0].Type != "browser" || tabs[0].Title != "https://example.com" {
+	if tabs[0].Type != "browser" || len([]rune(tabs[0].Title)) != maxBrowserTitleRunes || tabs[0].Favicon != "" {
 		t.Fatalf("browser tab = %+v", tabs[0])
 	}
 	if tabs[1].Type != "terminal" || tabs[1].User != "root" || tabs[1].Port != 22 {

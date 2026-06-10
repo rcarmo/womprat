@@ -235,11 +235,11 @@ func sanitizeSavedTabs(tabs []SavedTab) []SavedTab {
 
 func sanitizeSavedTab(tab SavedTab) (SavedTab, bool) {
 	tab.Type = strings.ToLower(strings.TrimSpace(tab.Type))
-	tab.Title = strings.TrimSpace(tab.Title)
+	tab.Title = sanitizeBrowserTitle(tab.Title)
 	tab.Host = strings.TrimSpace(tab.Host)
 	tab.User = strings.TrimSpace(tab.User)
 	tab.URL = strings.TrimSpace(tab.URL)
-	tab.Favicon = strings.TrimSpace(tab.Favicon)
+	tab.Favicon = sanitizeFaviconURL(tab.Favicon)
 	switch tab.Type {
 	case "browser":
 		parsed, err := url.Parse(tab.URL)
