@@ -14,9 +14,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/rcarmo/womprat/internal/rdpclient/protocol/audio"
-	"github.com/rcarmo/womprat/internal/rdpclient/protocol/pdu"
-	"github.com/rcarmo/womprat/internal/rdpclient/rdp"
+	"github.com/rcarmo/go-rdp/pkg/protocol/audio"
+	"github.com/rcarmo/go-rdp/pkg/protocol/pdu"
+	"github.com/rcarmo/go-rdp/pkg/rdp"
 	"nhooyr.io/websocket"
 )
 

@@ -354,7 +354,9 @@ function safeHostURL(url) {
   try {
     const parsed = new URL(value);
     if ((parsed.protocol === 'http:' || parsed.protocol === 'https:') && parsed.hostname && !parsed.username && !parsed.password) return parsed.href;
-  } catch {}
+  } catch (err) {
+    console.warn('invalid browser host URL', err);
+  }
   return null;
 }
 function setStatus(id, kind, text) {

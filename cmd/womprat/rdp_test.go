@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rcarmo/womprat/internal/rdpclient/protocol/pdu"
+	"github.com/rcarmo/go-rdp/pkg/protocol/pdu"
 )
 
 func TestParseRDPURL(t *testing.T) {
