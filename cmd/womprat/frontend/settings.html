@@ -742,13 +742,17 @@ function addHost() {
 }
 
 async function saveAppearance() {
-  const res = await fetch('/api/settings/appearance', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({
-    fontSize: +document.getElementById('font-size').value,
-    theme: document.getElementById('theme').value,
-    restoreTabs: document.getElementById('restore-tabs').checked,
-    autoConnect: document.getElementById('auto-connect').checked,
-  })});
-  setStatus('appearance-status', res.ok ? 'ok' : 'error', res.ok ? 'Appearance saved' : await res.text());
+  try {
+    const res = await fetch('/api/settings/appearance', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({
+      fontSize: +document.getElementById('font-size').value,
+      theme: document.getElementById('theme').value,
+      restoreTabs: document.getElementById('restore-tabs').checked,
+      autoConnect: document.getElementById('auto-connect').checked,
+    })});
+    setStatus('appearance-status', res.ok ? 'ok' : 'error', res.ok ? 'Appearance saved' : await res.text());
+  } catch (err) {
+    setStatus('appearance-status', 'error', `Appearance save failed: ${err.message}`);
+  }
 }
 
 function setText(id, value) {
