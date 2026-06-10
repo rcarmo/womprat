@@ -42,14 +42,17 @@ func (a *App) handleDownload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	parsed, err := url.Parse(targetURL)
-	if err != nil || parsed.Scheme == "" || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
-		httpError(w, 400, "Invalid URL", fmt.Sprintf("%v", err))
+	parsed, err := parseDownloadURL(targetURL)
+	if err != nil {
+		httpError(w, 400, "Invalid URL", err.Error())
 		return
 	}
 
 	downloadsDir := getDownloadsDir()
-	os.MkdirAll(downloadsDir, 0755)
+	if err := os.MkdirAll(downloadsDir, 0755); err != nil {
+		httpError(w, 500, "Download directory unavailable", err.Error())
+		return
+	}
 
 	filename := filenameFromURL(parsed)
 	savePath := uniqueDownloadPath(downloadsDir, filename)
@@ -151,33 +154,85 @@ func (a *App) handleDownloadStatus(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(&copy)
 }
 
+func parseDownloadURL(raw string) (*url.URL, error) {
+	parsed, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil {
+		return nil, err
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return nil, fmt.Errorf("unsupported scheme %q", parsed.Scheme)
+	}
+	if parsed.Host == "" || parsed.User != nil || parsed.Fragment != "" {
+		return nil, fmt.Errorf("download URL must include only http(s) scheme, host, path, and query")
+	}
+	return parsed, nil
+}
+
 func filenameFromURL(parsed *url.URL) string {
-	filename := filepath.Base(parsed.Path)
-	if filename == "" || filename == "/" || filename == "." {
+	filename := filepath.Base(parsed.EscapedPath())
+	if unescaped, err := url.PathUnescape(filename); err == nil {
+		filename = unescaped
+	}
+	return sanitizeDownloadFilename(filename)
+}
+
+func sanitizeDownloadFilename(filename string) string {
+	filename = strings.TrimSpace(filename)
+	if filename == "" || filename == "/" || filename == "." || filename == ".." {
 		filename = "download"
 	}
-	// Basic sanitization for Windows path separators/control chars.
 	filename = strings.Map(func(r rune) rune {
 		switch r {
 		case '<', '>', ':', '"', '/', '\\', '|', '?', '*':
 			return '_'
 		}
-		if r < 32 {
+		if r < 32 || r == 127 {
 			return '_'
 		}
 		return r
 	}, filename)
+	filename = strings.Trim(filename, " .")
+	if filename == "" {
+		filename = "download"
+	}
+	reserved := map[string]bool{"CON": true, "PRN": true, "AUX": true, "NUL": true, "COM1": true, "COM2": true, "COM3": true, "COM4": true, "COM5": true, "COM6": true, "COM7": true, "COM8": true, "COM9": true, "LPT1": true, "LPT2": true, "LPT3": true, "LPT4": true, "LPT5": true, "LPT6": true, "LPT7": true, "LPT8": true, "LPT9": true}
+	base := strings.ToUpper(strings.TrimSuffix(filename, filepath.Ext(filename)))
+	if reserved[base] {
+		filename = "_" + filename
+	}
+	if len(filename) > 180 {
+		ext := filepath.Ext(filename)
+		base := strings.TrimSuffix(filename, ext)
+		if len(ext) > 32 {
+			ext = ext[:32]
+		}
+		maxBase := 180 - len(ext)
+		if maxBase < 1 {
+			maxBase = 1
+		}
+		if len(base) > maxBase {
+			base = base[:maxBase]
+		}
+		filename = base + ext
+	}
 	return filename
 }
 
 func uniqueDownloadPath(dir, filename string) string {
+	filename = sanitizeDownloadFilename(filename)
 	savePath := filepath.Join(dir, filename)
-	if _, err := os.Stat(savePath); err != nil {
+	if _, err := os.Stat(savePath); os.IsNotExist(err) {
 		return savePath
 	}
 	ext := filepath.Ext(filename)
 	base := strings.TrimSuffix(filename, ext)
-	return filepath.Join(dir, fmt.Sprintf("%s_%d%s", base, time.Now().Unix(), ext))
+	for i := 1; i < 10000; i++ {
+		candidate := filepath.Join(dir, fmt.Sprintf("%s_%d%s", base, i, ext))
+		if _, err := os.Stat(candidate); os.IsNotExist(err) {
+			return candidate
+		}
+	}
+	return filepath.Join(dir, fmt.Sprintf("%s_%d%s", base, time.Now().UnixNano(), ext))
 }
 
 func getDownloadsDir() string {
