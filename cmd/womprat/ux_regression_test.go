@@ -364,6 +364,22 @@ func TestTerminalDoesNotSwallowUnimplementedSearchShortcut(t *testing.T) {
 	}
 }
 
+func TestShellBrowserStatusUsesTextContent(t *testing.T) {
+	s := readFileForRegression(t, "frontend/index.html")
+	for _, want := range []string{
+		"function setBrowserStatus(tabId, message)",
+		"placeholder.textContent = String(message || '');",
+		"panel.appendChild(placeholder);",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("shell browser status DOM rendering missing %q", want)
+		}
+	}
+	if strings.Contains(s, `browser-placeholder">${escapeHTML`) {
+		t.Fatal("browser status must not use dynamic innerHTML")
+	}
+}
+
 func TestShellFaviconRenderingUsesDOMEvents(t *testing.T) {
 	s := readFileForRegression(t, "frontend/index.html")
 	for _, want := range []string{

@@ -288,7 +288,12 @@ function setURLProgress(_active, _done = false) {
 }
 function setBrowserStatus(tabId, message) {
   const panel = document.getElementById(`panel-${tabId}`);
-  if (panel) panel.innerHTML = `<div class="browser-placeholder">${escapeHTML(message || '')}</div>`;
+  if (!panel) return;
+  panel.textContent = '';
+  const placeholder = document.createElement('div');
+  placeholder.className = 'browser-placeholder';
+  placeholder.textContent = String(message || '');
+  panel.appendChild(placeholder);
 }
 window.wompratContentError = function(tabId, message) {
   const tab = state.tabs.find(t => t.id === tabId);
