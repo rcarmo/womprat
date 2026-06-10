@@ -177,12 +177,39 @@ func (m *nativeContentManager) Destroy(tabID string) {
 	}
 }
 
+func nativeClientRect(hwnd uintptr, context string) (winRect, bool) {
+	var r winRect
+	if ret, _, err := procGetClientRect.Call(hwnd, uintptr(unsafe.Pointer(&r))); ret == 0 {
+		log.Printf("%s get client rect failed: %v", context, err)
+		return winRect{}, false
+	}
+	return r, true
+}
+
+func nativeSetWindowPos(hwnd, insertAfter uintptr, x, y, width, height int32, flags uintptr, context string) bool {
+	if ret, _, err := procSetWindowPos.Call(hwnd, insertAfter, uintptr(x), uintptr(y), uintptr(width), uintptr(height), flags); ret == 0 {
+		log.Printf("%s set window pos failed: %v", context, err)
+		return false
+	}
+	return true
+}
+
+func nativeShowWindow(hwnd uintptr, cmd uintptr, context string) bool {
+	if ret, _, err := procShowWindow.Call(hwnd, cmd); ret == 0 {
+		log.Printf("%s show window failed: %v", context, err)
+		return false
+	}
+	return true
+}
+
 func (m *nativeContentManager) resizeAll() {
 	if m == nil || m.parent == 0 || m.shellHWND == 0 {
 		return
 	}
-	var r winRect
-	procGetClientRect.Call(m.parent, uintptr(unsafe.Pointer(&r)))
+	r, ok := nativeClientRect(m.parent, "content manager resize")
+	if !ok {
+		return
+	}
 	width := r.Right - r.Left
 	height := r.Bottom - r.Top
 	chrome := chromePx(m.parent)
@@ -194,9 +221,9 @@ func (m *nativeContentManager) resizeAll() {
 	}
 	m.mu.Unlock()
 	if active == "" {
-		procSetWindowPos.Call(m.shellHWND, hwndTop, 0, 0, uintptr(width), uintptr(height), swpNoActivate)
+		nativeSetWindowPos(m.shellHWND, hwndTop, 0, 0, width, height, swpNoActivate, "shell full resize")
 	} else {
-		procSetWindowPos.Call(m.shellHWND, hwndTop, 0, 0, uintptr(width), uintptr(chrome), swpNoActivate)
+		nativeSetWindowPos(m.shellHWND, hwndTop, 0, 0, width, chrome, swpNoActivate, "shell chrome resize")
 	}
 	if m.shell != nil {
 		m.shell.Resize()
@@ -368,19 +395,21 @@ func (v *nativeContentView) resize() {
 	if v == nil || v.parent == 0 || v.hwnd == 0 {
 		return
 	}
-	ok, _, _ := procIsWindow.Call(v.hwnd)
-	if ok == 0 {
+	isWindow, _, _ := procIsWindow.Call(v.hwnd)
+	if isWindow == 0 {
 		return
 	}
-	var r winRect
-	procGetClientRect.Call(v.parent, uintptr(unsafe.Pointer(&r)))
+	r, ok := nativeClientRect(v.parent, "content view resize")
+	if !ok {
+		return
+	}
 	chrome := chromePx(v.parent)
 	width := r.Right - r.Left
 	height := r.Bottom - r.Top - chrome
 	if height < 0 {
 		height = 0
 	}
-	procSetWindowPos.Call(v.hwnd, hwndTop, 0, uintptr(chrome), uintptr(width), uintptr(height), swpNoActivate|swpNoZOrder)
+	nativeSetWindowPos(v.hwnd, hwndTop, 0, chrome, width, height, swpNoActivate|swpNoZOrder, "content view resize")
 	if v.edge != nil {
 		v.edge.Resize()
 	}
@@ -410,8 +439,10 @@ func (v *nativeContentView) Reload() {
 }
 func (v *nativeContentView) Show() {
 	if v != nil && v.hwnd != 0 {
-		var r winRect
-		procGetClientRect.Call(v.parent, uintptr(unsafe.Pointer(&r)))
+		r, ok := nativeClientRect(v.parent, "content view show")
+		if !ok {
+			return
+		}
 		chrome := chromePx(v.parent)
 		width := r.Right - r.Left
 		height := r.Bottom - r.Top - chrome
@@ -421,8 +452,8 @@ func (v *nativeContentView) Show() {
 		// Position with the DPI-correct chrome offset (same as resize) and raise the
 		// active browser child above the shell WebView content area. Using the raw
 		// CSS constant here previously made the content jump on every tab switch.
-		procSetWindowPos.Call(v.hwnd, hwndTop, 0, uintptr(chrome), uintptr(width), uintptr(height), swpNoActivate)
-		procShowWindow.Call(v.hwnd, swShow)
+		nativeSetWindowPos(v.hwnd, hwndTop, 0, chrome, width, height, swpNoActivate, "content view show")
+		nativeShowWindow(v.hwnd, swShow, "content view show")
 		if v.edge != nil {
 			v.edge.Resize()
 		}
@@ -430,7 +461,7 @@ func (v *nativeContentView) Show() {
 }
 func (v *nativeContentView) Hide() {
 	if v != nil && v.hwnd != 0 {
-		procShowWindow.Call(v.hwnd, swHide)
+		nativeShowWindow(v.hwnd, swHide, "content view hide")
 	}
 }
 func (v *nativeContentView) Destroy() {
