@@ -891,7 +891,11 @@ func (a *App) handleTSStatus(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]string{"status": "disconnected"})
 		return
 	}
-	lc, _ := ts.LocalClient()
+	lc, err := ts.LocalClient()
+	if err != nil {
+		json.NewEncoder(w).Encode(map[string]string{"status": "error", "error": err.Error()})
+		return
+	}
 	status, err := lc.Status(r.Context())
 	if err != nil {
 		json.NewEncoder(w).Encode(map[string]string{"status": "error", "error": err.Error()})
@@ -910,7 +914,11 @@ func (a *App) handleTSPeers(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode([]string{})
 		return
 	}
-	lc, _ := ts.LocalClient()
+	lc, err := ts.LocalClient()
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
 	status, err := lc.Status(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), 500)
