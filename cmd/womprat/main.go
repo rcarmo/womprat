@@ -871,10 +871,10 @@ func (a *App) handleUnlock(w http.ResponseWriter, r *http.Request) {
 	a.locked = false
 	a.mu.Unlock()
 	if err := a.startTailscale(); err != nil {
-		json.NewEncoder(w).Encode(map[string]string{"status": "unlocked", "tailscale": err.Error()})
+		writeJSON(w, http.StatusOK, map[string]string{"status": "unlocked", "tailscale": err.Error()})
 		return
 	}
-	json.NewEncoder(w).Encode(map[string]string{"status": "unlocked"})
+	writeJSON(w, http.StatusOK, map[string]string{"status": "unlocked"})
 }
 
 func (a *App) handleSaveKey(w http.ResponseWriter, r *http.Request) {
@@ -898,10 +898,10 @@ func (a *App) handleSaveKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := a.startTailscale(); err != nil {
-		json.NewEncoder(w).Encode(map[string]string{"status": "saved", "error": err.Error()})
+		writeJSON(w, http.StatusOK, map[string]string{"status": "saved", "error": err.Error()})
 		return
 	}
-	json.NewEncoder(w).Encode(map[string]string{"status": "connected"})
+	writeJSON(w, http.StatusOK, map[string]string{"status": "connected"})
 }
 
 func (a *App) handleTSStatus(w http.ResponseWriter, r *http.Request) {
@@ -1000,7 +1000,7 @@ func (a *App) handleAbout(w http.ResponseWriter, r *http.Request) {
 		"cookieBackend":        "WebView2 SQLite cookie store",
 		"logPath":              logFilePath(),
 	}
-	json.NewEncoder(w).Encode(info)
+	writeJSON(w, http.StatusOK, info)
 }
 
 func moduleVersion(path string) string {
@@ -1108,7 +1108,7 @@ func (a *App) handleSSHConnect(w http.ResponseWriter, r *http.Request) {
 		a.mu.Lock()
 		a.pendingAuth[tabID] = &pendingSSH{host: body.Host, user: body.User, port: body.Port, cols: body.Cols, rows: body.Rows}
 		a.mu.Unlock()
-		json.NewEncoder(w).Encode(map[string]interface{}{"tabId": tabID, "needsPassword": true})
+		writeJSON(w, http.StatusOK, map[string]interface{}{"tabId": tabID, "needsPassword": true})
 		return
 	}
 
@@ -1117,7 +1117,7 @@ func (a *App) handleSSHConnect(w http.ResponseWriter, r *http.Request) {
 	a.mu.Lock()
 	a.sshConns[tabID] = client
 	a.mu.Unlock()
-	json.NewEncoder(w).Encode(map[string]string{"tabId": tabID, "status": "connected"})
+	writeJSON(w, http.StatusOK, map[string]string{"tabId": tabID, "status": "connected"})
 }
 
 func (a *App) handleSSHResize(w http.ResponseWriter, r *http.Request) { w.WriteHeader(200) }
@@ -1211,5 +1211,5 @@ func (a *App) handleSSHAuthPassword(w http.ResponseWriter, r *http.Request) {
 	delete(a.pendingAuth, body.TabId)
 	a.sshConns[body.TabId] = client
 	a.mu.Unlock()
-	json.NewEncoder(w).Encode(map[string]string{"status": "connected", "tabId": body.TabId})
+	writeJSON(w, http.StatusOK, map[string]string{"status": "connected", "tabId": body.TabId})
 }

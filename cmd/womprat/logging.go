@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -89,7 +88,7 @@ func (a *App) handleDebugLog(w http.ResponseWriter, r *http.Request) {
 		a.mu.Lock()
 		enabled := a.config.DebugLog
 		a.mu.Unlock()
-		json.NewEncoder(w).Encode(map[string]any{"enabled": enabled, "logPath": logFilePath()})
+		writeJSON(w, http.StatusOK, map[string]any{"enabled": enabled, "logPath": logFilePath()})
 	case "POST":
 		var body struct {
 			Enabled bool `json:"enabled"`
@@ -109,7 +108,7 @@ func (a *App) handleDebugLog(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), 500)
 			return
 		}
-		json.NewEncoder(w).Encode(map[string]any{"status": "ok", "enabled": body.Enabled, "logPath": logFilePath()})
+		writeJSON(w, http.StatusOK, map[string]any{"status": "ok", "enabled": body.Enabled, "logPath": logFilePath()})
 	default:
 		http.Error(w, "method not allowed", 405)
 	}

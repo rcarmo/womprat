@@ -105,7 +105,7 @@ func (a *App) handleSetUnlockMethod(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 func (a *App) handleSetMasterPassword(w http.ResponseWriter, r *http.Request) {
@@ -152,7 +152,7 @@ func (a *App) handleSetMasterPassword(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	json.NewEncoder(w).Encode(map[string]string{"status": "ok", "kdf": masterKDF})
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "kdf": masterKDF})
 }
 
 func (a *App) handleSetTailscaleKey(w http.ResponseWriter, r *http.Request) {
@@ -177,10 +177,10 @@ func (a *App) handleSetTailscaleKey(w http.ResponseWriter, r *http.Request) {
 	}
 	// Restart tailscale with new key
 	if err := a.startTailscale(); err != nil {
-		json.NewEncoder(w).Encode(map[string]interface{}{"status": "saved", "error": err.Error()})
+		writeJSON(w, http.StatusOK, map[string]interface{}{"status": "saved", "error": err.Error()})
 		return
 	}
-	json.NewEncoder(w).Encode(map[string]string{"status": "connected"})
+	writeJSON(w, http.StatusOK, map[string]string{"status": "connected"})
 }
 
 func (a *App) handleTailscaleDisconnect(w http.ResponseWriter, r *http.Request) {
@@ -195,14 +195,14 @@ func (a *App) handleTailscaleDisconnect(w http.ResponseWriter, r *http.Request) 
 	if ts != nil {
 		ts.Close()
 	}
-	json.NewEncoder(w).Encode(map[string]string{"status": "disconnected"})
+	writeJSON(w, http.StatusOK, map[string]string{"status": "disconnected"})
 }
 
 func (a *App) handleSSHKeys(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "GET":
 		keys := a.listSSHKeys()
-		json.NewEncoder(w).Encode(keys)
+		writeJSON(w, http.StatusOK, keys)
 	case "POST":
 		var body struct {
 			Name    string `json:"name"`
@@ -215,7 +215,7 @@ func (a *App) handleSSHKeys(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), 400)
 			return
 		}
-		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	case "DELETE":
 		namePart, err := resourceNameFromPath(r.URL.Path, "/api/settings/ssh-keys/")
 		if err != nil {
@@ -231,7 +231,7 @@ func (a *App) handleSSHKeys(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), 500)
 			return
 		}
-		json.NewEncoder(w).Encode(map[string]string{"status": "deleted"})
+		writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 	default:
 		http.Error(w, "method not allowed", 405)
 	}
@@ -279,7 +279,7 @@ func (a *App) handleGenerateSSHKey(w http.ResponseWriter, r *http.Request) {
 	}
 	fingerprint := ssh.FingerprintSHA256(sshPub)
 
-	json.NewEncoder(w).Encode(map[string]string{
+	writeJSON(w, http.StatusOK, map[string]string{
 		"status":      "ok",
 		"name":        name,
 		"fingerprint": fingerprint,
@@ -293,7 +293,7 @@ func (a *App) handleHosts(w http.ResponseWriter, r *http.Request) {
 		a.mu.Lock()
 		hosts := a.config.Hosts
 		a.mu.Unlock()
-		json.NewEncoder(w).Encode(hosts)
+		writeJSON(w, http.StatusOK, hosts)
 	case "PATCH":
 		host, err := resourceNameFromPath(r.URL.Path, "/api/settings/hosts/")
 		if err != nil || validateCustomURLHost("ssh", host) != nil {
@@ -347,7 +347,7 @@ func (a *App) handleHosts(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), 500)
 			return
 		}
-		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	default:
 		http.Error(w, "method not allowed", 405)
 	}
@@ -378,14 +378,14 @@ func (a *App) handleAppearance(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 func (a *App) handleGetConfig(w http.ResponseWriter, r *http.Request) {
 	a.mu.Lock()
 	cfg := a.config
 	a.mu.Unlock()
-	json.NewEncoder(w).Encode(cfg)
+	writeJSON(w, http.StatusOK, cfg)
 }
 
 // Helper: list SSH keys from credential store
@@ -451,7 +451,7 @@ func (a *App) handleExitNode(w http.ResponseWriter, r *http.Request) {
 		a.mu.Lock()
 		exitNode := a.config.ExitNode
 		a.mu.Unlock()
-		json.NewEncoder(w).Encode(map[string]string{"exitNode": exitNode})
+		writeJSON(w, http.StatusOK, map[string]string{"exitNode": exitNode})
 	case "POST":
 		var body struct {
 			ExitNode string `json:"exitNode"`
@@ -472,7 +472,7 @@ func (a *App) handleExitNode(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), 500)
 			return
 		}
-		json.NewEncoder(w).Encode(map[string]string{"status": "ok", "exitNode": body.ExitNode})
+		writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "exitNode": body.ExitNode})
 	default:
 		http.Error(w, "method not allowed", 405)
 	}
@@ -544,5 +544,5 @@ func (a *App) handleSaveTabs(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }

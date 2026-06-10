@@ -2,7 +2,6 @@ package main
 
 import (
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -50,7 +49,7 @@ func (a *App) handleBrowserData(w http.ResponseWriter, r *http.Request) {
 		Cookies:       listCookieDomains(),
 		Passwords:     listSavedPasswords(),
 	}
-	json.NewEncoder(w).Encode(data)
+	writeJSON(w, http.StatusOK, data)
 }
 
 func (a *App) handleClearCache(w http.ResponseWriter, r *http.Request) {
@@ -64,7 +63,7 @@ func (a *App) handleClearCache(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 func (a *App) handleClearCookies(w http.ResponseWriter, r *http.Request) {
@@ -97,7 +96,7 @@ func (a *App) handleClearCookies(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 func (a *App) handleClearPasswords(w http.ResponseWriter, r *http.Request) {
@@ -129,7 +128,7 @@ func (a *App) handleClearPasswords(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 func (a *App) handleClearAll(w http.ResponseWriter, r *http.Request) {
@@ -142,7 +141,7 @@ func (a *App) handleClearAll(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 func (a *App) handleSavePasswordsToggle(w http.ResponseWriter, r *http.Request) {
@@ -164,7 +163,7 @@ func (a *App) handleSavePasswordsToggle(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 // Helpers

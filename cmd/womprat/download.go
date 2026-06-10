@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -68,7 +67,7 @@ func (a *App) handleDownload(w http.ResponseWriter, r *http.Request) {
 
 	go a.downloadToFile(parsed.String(), savePath, st)
 
-	json.NewEncoder(w).Encode(map[string]string{
+	writeJSON(w, http.StatusOK, map[string]string{
 		"status":   "started",
 		"filename": filepath.Base(savePath),
 	})
