@@ -377,6 +377,19 @@ func TestCustomSchemesUseSingleFrontendDispatcher(t *testing.T) {
 	}
 }
 
+func TestVNCFramebufferIsBounded(t *testing.T) {
+	s := readFileForRegression(t, "frontend/vnc.js")
+	for _, want := range []string{
+		"var MAX_VNC_FRAMEBUFFER_DIMENSION = 8192;",
+		"var MAX_VNC_FRAMEBUFFER_PIXELS = 16 * 1024 * 1024;",
+		"throw new Error(`VNC framebuffer too large: ${w}×${h}`);",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("VNC framebuffer bound missing %q", want)
+		}
+	}
+}
+
 func TestVNCClipboardIsBounded(t *testing.T) {
 	s := readFileForRegression(t, "frontend/vnc.js")
 	for _, want := range []string{

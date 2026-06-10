@@ -2822,6 +2822,8 @@ function resolveVncKeysymFromKeyboardEvent(event) {
 var textEncoder = new TextEncoder;
 var MAX_VNC_CLIPBOARD_CHARS = 256 * 1024;
 var MAX_VNC_PASSWORD_CHARS = 8;
+var MAX_VNC_FRAMEBUFFER_DIMENSION = 8192;
+var MAX_VNC_FRAMEBUFFER_PIXELS = 16 * 1024 * 1024;
 function boundedVncClipboardText(text) {
   const value = String(text || "");
   return value.length > MAX_VNC_CLIPBOARD_CHARS ? value.slice(0, MAX_VNC_CLIPBOARD_CHARS) : value;
@@ -2997,6 +2999,9 @@ class WompratVncViewer {
   resizeFramebuffer(width, height) {
     const w = Math.max(1, Math.floor(Number(width || 0)));
     const h = Math.max(1, Math.floor(Number(height || 0)));
+    if (w > MAX_VNC_FRAMEBUFFER_DIMENSION || h > MAX_VNC_FRAMEBUFFER_DIMENSION || w * h > MAX_VNC_FRAMEBUFFER_PIXELS) {
+      throw new Error(`VNC framebuffer too large: ${w}×${h}`);
+    }
     this.canvas.width = w;
     this.canvas.height = h;
     this.framebuffer = this.ctx.createImageData(w, h);
