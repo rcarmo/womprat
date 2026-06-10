@@ -101,8 +101,7 @@ func (c *Client) getX224Update() (*Update, error) {
 			// Read all data from wire
 			var buf bytes.Buffer
 			if _, err := io.Copy(&buf, wire); err != nil {
-				logging.Debug("Audio: Error reading channel data: %v", err)
-				return nil, nil
+				return nil, fmt.Errorf("audio channel read: %w", err)
 			}
 			if err := c.audioHandler.HandleChannelData(buf.Bytes()); err != nil {
 				logging.Debug("Audio: Error handling channel data: %v", err)
@@ -116,8 +115,7 @@ func (c *Client) getX224Update() (*Update, error) {
 		if c.displayControl != nil {
 			var buf bytes.Buffer
 			if _, err := io.Copy(&buf, wire); err != nil {
-				logging.Debug("DRDYNVC: Error reading channel data: %v", err)
-				return nil, nil
+				return nil, fmt.Errorf("drdynvc channel read: %w", err)
 			}
 			// Skip the static channel PDU header (8 bytes)
 			data := buf.Bytes()
