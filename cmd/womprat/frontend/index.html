@@ -365,11 +365,25 @@ async function registerLocalTab(tab) {
   }
 }
 function loadURLHistory() {
-  try { return JSON.parse(localStorage.getItem('wompratURLHistory') || '[]'); }
+  try {
+    const parsed = JSON.parse(localStorage.getItem('wompratURLHistory') || '[]');
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map(normalizeHistoryURL).filter(Boolean).slice(0, 100);
+  }
   catch { return []; }
 }
+function isHTTPURL(url) {
+  try { const u = new URL(String(url || '').trim()); return (u.protocol === 'http:' || u.protocol === 'https:') && !!u.hostname; } catch { return false; }
+}
+function normalizeHistoryURL(url) {
+  const text = String(url || '').trim();
+  if (isHTTPURL(text)) return text;
+  const target = parseCustomURL(text);
+  if (target) return normalizedCustomURL(target);
+  return '';
+}
 function isHistoryURL(url) {
-  return /^(https?:\/\/|ssh:\/\/|vnc:\/\/|rdp:\/\/)/i.test(String(url || ''));
+  return !!normalizeHistoryURL(url);
 }
 function validCustomHost(host) {
   if (!host || host.length > 253 || /[\s\/?#\\@%]/.test(host)) return false;
@@ -440,9 +454,10 @@ function openSpecialURL(url) {
   return false;
 }
 function saveURLHistory(url) {
-  if (!isHistoryURL(url)) return;
-  const history = loadURLHistory().filter(u => u !== url);
-  history.unshift(url);
+  const normalized = normalizeHistoryURL(url);
+  if (!normalized) return;
+  const history = loadURLHistory().filter(u => u !== normalized);
+  history.unshift(normalized);
   localStorage.setItem('wompratURLHistory', JSON.stringify(history.slice(0, 100)));
   refreshURLHistoryDatalist();
 }
@@ -1278,11 +1293,22 @@ async function hydrateNativeTabs() {
 }
 
 // Save tabs on changes
+function sanitizeTabForSave(t) {
+  if (!t || t.id === 'settings') return null;
+  const type = String(t.type || '').toLowerCase();
+  const base = { type, title: String(t.title || '').slice(0, 200), host: String(t.host || ''), user: String(t.user || ''), port: Number(t.port || 0), url: String(t.url || ''), favicon: String(t.favicon || '') };
+  if (type === 'browser') return isHTTPURL(base.url) ? base : null;
+  if (type === 'terminal') return parseCustomURL(formatSSHURL(base.user || 'root', base.host || base.title, base.port)) ? base : null;
+  if (type === 'vnc' || type === 'rdp') {
+    const target = parseCustomURL(base.url || `${type}://${base.user ? encodeURIComponent(base.user) + '@' : ''}${base.host}:${base.port || (type === 'vnc' ? 5900 : 3389)}`);
+    if (!target || target.scheme !== type) return null;
+    base.host = target.host; base.user = target.user; base.port = target.port; base.url = normalizedCustomURL(target); base.title = base.title || base.url;
+    return base;
+  }
+  return null;
+}
 function saveOpenTabs() {
-  const tabs = state.tabs.filter(t => t.id !== 'settings').map(t => ({
-    type: t.type, title: t.title,
-    host: t.host || '', user: t.user || '', port: t.port || 0, url: t.url || '', favicon: t.favicon || ''
-  }));
+  const tabs = state.tabs.map(sanitizeTabForSave).filter(Boolean).slice(0, 100);
   fetch('/api/settings/save-tabs', {
     method: 'POST', headers: {'Content-Type':'application/json'},
     body: JSON.stringify({tabs})

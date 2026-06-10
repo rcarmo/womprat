@@ -108,6 +108,20 @@ func TestCustomSchemesUseSingleFrontendDispatcher(t *testing.T) {
 	}
 }
 
+func TestFrontendPersistsOnlySanitizedURLState(t *testing.T) {
+	s := readFileForRegression(t, "frontend/index.html")
+	for _, want := range []string{
+		"function normalizeHistoryURL(url)",
+		"return parsed.map(normalizeHistoryURL).filter(Boolean).slice(0, 100);",
+		"function sanitizeTabForSave(t)",
+		"const tabs = state.tabs.map(sanitizeTabForSave).filter(Boolean).slice(0, 100);",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("frontend persistence sanitizer missing %q", want)
+		}
+	}
+}
+
 func TestNoProgressStripInShell(t *testing.T) {
 	s := readFileForRegression(t, "frontend/index.html")
 	for _, forbidden := range []string{"id=\"url-progress\"", "urlProgressIndeterminate", "#url-progress"} {
