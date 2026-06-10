@@ -193,7 +193,7 @@ func rdpWsToClient(ctx context.Context, cancel context.CancelFunc, ws *websocket
 		if err != nil {
 			return
 		}
-		if len(data) > 0 && data[0] == '{' {
+		if msgType == websocket.MessageText {
 			var req rdpResizeRequest
 			if json.Unmarshal(data, &req) == nil && req.Type == "resize" {
 				width := clampRDPDim(strconv.Itoa(req.Width), 0)
@@ -203,10 +203,12 @@ func rdpWsToClient(ctx context.Context, cancel context.CancelFunc, ws *websocket
 						log.Printf("rdp resize failed: %v", err)
 					}
 				}
-				continue
+			} else {
+				log.Printf("rdp: ignoring unrecognized text message")
 			}
+			continue
 		}
-		if msgType == websocket.MessageBinary || msgType == websocket.MessageText {
+		if msgType == websocket.MessageBinary {
 			if err := client.SendInputEvent(data); err != nil {
 				return
 			}
