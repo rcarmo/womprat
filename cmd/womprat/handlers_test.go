@@ -127,6 +127,33 @@ func TestSettingsUnlockAndMasterPasswordHandlers(t *testing.T) {
 	}
 }
 
+func TestHostAndAppearanceHandlersDoNotChangeMemoryOnPersistFailure(t *testing.T) {
+	app := newTestApp(t)
+	app.config.Hosts["smith"] = HostConfig{User: "old", Port: 22}
+	app.config.FontSize = 14
+	blocked := filepath.Join(t.TempDir(), "blocked")
+	if err := os.WriteFile(blocked, []byte("x"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("XDG_CONFIG_HOME", blocked)
+
+	rr := performJSON(app.handleHosts, "PATCH", "/api/settings/hosts/smith", map[string]any{"user": "new", "port": 2222})
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("host persist failure = %d %s", rr.Code, rr.Body.String())
+	}
+	if got := app.config.Hosts["smith"]; got.User != "old" || got.Port != 22 {
+		t.Fatalf("host changed despite persist failure: %+v", got)
+	}
+
+	rr = performJSON(app.handleAppearance, "POST", "/api/settings/appearance", map[string]any{"fontSize": 16, "theme": "dark", "restoreTabs": true, "autoConnect": true})
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("appearance persist failure = %d %s", rr.Code, rr.Body.String())
+	}
+	if app.config.FontSize != 14 || app.config.RestoreTabs || app.config.AutoConnect {
+		t.Fatalf("appearance changed despite persist failure: %+v", app.config)
+	}
+}
+
 func TestHostsAppearanceAndSaveTabsHandlers(t *testing.T) {
 	app := newTestApp(t)
 	rr := performJSON(app.handleHosts, "PATCH", "/api/settings/hosts/smith", map[string]any{"user": "rui", "port": 2222, "nickname": "Smith", "url": "http://smith"})

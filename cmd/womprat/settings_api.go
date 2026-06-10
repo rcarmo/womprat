@@ -314,7 +314,8 @@ func (a *App) handleHosts(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		a.mu.Lock()
-		conf := a.config.Hosts[host]
+		cfg := cloneConfig(a.config)
+		conf := cfg.Hosts[host]
 		if body.User != nil {
 			user := strings.TrimSpace(*body.User)
 			if user != "" {
@@ -351,13 +352,15 @@ func (a *App) handleHosts(w http.ResponseWriter, r *http.Request) {
 		if body.URL != nil {
 			conf.URL = sanitizeHostConfigURL(*body.URL)
 		}
-		a.config.Hosts[host] = conf
-		cfg := a.config
+		cfg.Hosts[host] = conf
 		a.mu.Unlock()
 		if err := SaveConfig(cfg); err != nil {
 			http.Error(w, err.Error(), 500)
 			return
 		}
+		a.mu.Lock()
+		a.config.Hosts[host] = conf
+		a.mu.Unlock()
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	default:
 		http.Error(w, "method not allowed", 405)
@@ -379,16 +382,22 @@ func (a *App) handleAppearance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.mu.Lock()
-	a.config.FontSize = normalizeFontSize(body.FontSize)
-	a.config.Theme = normalizeTheme(body.Theme)
-	a.config.RestoreTabs = body.RestoreTabs
-	a.config.AutoConnect = body.AutoConnect
-	cfg := a.config
+	cfg := cloneConfig(a.config)
 	a.mu.Unlock()
+	cfg.FontSize = normalizeFontSize(body.FontSize)
+	cfg.Theme = normalizeTheme(body.Theme)
+	cfg.RestoreTabs = body.RestoreTabs
+	cfg.AutoConnect = body.AutoConnect
 	if err := SaveConfig(cfg); err != nil {
 		http.Error(w, err.Error(), 500)
 		return
 	}
+	a.mu.Lock()
+	a.config.FontSize = cfg.FontSize
+	a.config.Theme = cfg.Theme
+	a.config.RestoreTabs = cfg.RestoreTabs
+	a.config.AutoConnect = cfg.AutoConnect
+	a.mu.Unlock()
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
