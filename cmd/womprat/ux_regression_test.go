@@ -15,6 +15,24 @@ func readFileForRegression(t *testing.T, path string) string {
 	return string(b)
 }
 
+func TestSettingsHostsTableUsesSafeDOMConstruction(t *testing.T) {
+	s := readFileForRegression(t, "frontend/settings.html")
+	for _, want := range []string{
+		"input.onchange = () => updateHost(p.name, 'url', input.value);",
+		"open.onclick = () => openHostURL(input.value);",
+		"tr.append(name, urlCell, status, actions);",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("settings hosts DOM rendering missing %q", want)
+		}
+	}
+	for _, forbidden := range []string{"onchange=\"updateHost", "onclick=\"openHostURL"} {
+		if strings.Contains(s, forbidden) {
+			t.Fatalf("settings hosts table must not template inline handler %q", forbidden)
+		}
+	}
+}
+
 func TestSettingsKeysTableUsesSafeDOMConstruction(t *testing.T) {
 	s := readFileForRegression(t, "frontend/settings.html")
 	for _, want := range []string{

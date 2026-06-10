@@ -556,18 +556,25 @@ async function refreshHosts() {
   Object.keys(hostConf).forEach(name => {
     if (!rows.some(p => p.name === name)) rows.push({ name, ips: [], online: false });
   });
-  if (!rows.length) { tbody.innerHTML = '<tr><td colspan="4" style="color:var(--dim)">No hosts</td></tr>'; return; }
-  tbody.innerHTML = rows.map(p => {
+  if (!rows.length) { emptyTableRow(tbody, 4, 'No hosts'); return; }
+  tbody.textContent = '';
+  rows.forEach(p => {
     const conf = hostConf[p.name] || {};
     const fallbackURL = defaultHostURL(p);
     const url = conf.url || fallbackURL;
-    return `<tr>
-      <td class="mono">${escapeHTML(p.name)}</td>
-      <td><input value="${escapeHTML(url)}" style="min-width:280px;width:100%;padding:.2rem .4rem;font-size:.78rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text)" onchange="updateHost(${jsArg(p.name)},'url',this.value)"></td>
-      <td>${p.online ? '<span class="badge badge-green">online</span>' : '<span class="badge badge-dim">offline</span>'}</td>
-      <td><button class="btn-secondary" onclick="openHostURL(this.closest('tr').querySelector('input').value)" style="padding:.2rem .5rem;font-size:.7rem">Open</button></td>
-    </tr>`;
-  }).join('');
+    const tr = document.createElement('tr');
+    const name = document.createElement('td'); name.className = 'mono'; name.textContent = p.name || '';
+    const urlCell = document.createElement('td');
+    const input = document.createElement('input'); input.value = url; input.style.cssText = 'min-width:280px;width:100%;padding:.2rem .4rem;font-size:.78rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text)'; input.onchange = () => updateHost(p.name, 'url', input.value);
+    urlCell.appendChild(input);
+    const status = document.createElement('td');
+    const badge = document.createElement('span'); badge.className = p.online ? 'badge badge-green' : 'badge badge-dim'; badge.textContent = p.online ? 'online' : 'offline'; status.appendChild(badge);
+    const actions = document.createElement('td');
+    const open = document.createElement('button'); open.className = 'btn-secondary'; open.style.cssText = 'padding:.2rem .5rem;font-size:.7rem'; open.textContent = 'Open'; open.onclick = () => openHostURL(input.value);
+    actions.appendChild(open);
+    tr.append(name, urlCell, status, actions);
+    tbody.appendChild(tr);
+  });
 }
 function defaultHostURL(peer) {
   const host = peer.ips?.[0] || peer.name || '';
