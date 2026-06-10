@@ -57,6 +57,12 @@ func TestRegisterLocalTabAndUpsertPreservesFields(t *testing.T) {
 	if len(app.tabs) != 1 {
 		t.Fatalf("bad register changed tabs: %+v", app.tabs)
 	}
+	app.registerLocalTab(`{"id":"bad/id","type":"browser","url":"https://example.com"}`)
+	app.registerLocalTab(`{"id":"x","type":"browser","url":"rdp://me@platinum:3389"}`)
+	app.registerLocalTab(`{"id":"x","type":"unknown","url":"https://example.com"}`)
+	if len(app.tabs) != 1 {
+		t.Fatalf("invalid local tabs changed tabs: %+v", app.tabs)
+	}
 }
 
 func TestHandleSaveKeyValidation(t *testing.T) {

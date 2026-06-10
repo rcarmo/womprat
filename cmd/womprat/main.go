@@ -564,21 +564,63 @@ func (a *App) newTerminalTab(host, user string, port int) {
 }
 
 func (a *App) registerLocalTab(tabJSON string) {
-	var tab Tab
-	if err := json.Unmarshal([]byte(tabJSON), &tab); err != nil || tab.ID == "" || tab.Type == "" {
+	if len(tabJSON) > 64*1024 {
 		return
 	}
-	if tab.Title == "" {
-		tab.Title = tab.URL
-		if tab.Title == "" {
-			tab.Title = tab.Host
+	var tab Tab
+	if err := json.Unmarshal([]byte(tabJSON), &tab); err != nil || !validTabID(tab.ID) {
+		return
+	}
+	if tab.Type == "settings" {
+		tab = Tab{ID: "settings", Type: "settings", Title: "Settings", URL: "settings:"}
+	} else {
+		a.mu.Lock()
+		for _, existing := range a.tabs {
+			if existing.ID == tab.ID {
+				if tab.Type == "" {
+					tab.Type = existing.Type
+				}
+				if tab.Title == "" {
+					tab.Title = existing.Title
+				}
+				if tab.Host == "" {
+					tab.Host = existing.Host
+				}
+				if tab.User == "" {
+					tab.User = existing.User
+				}
+				if tab.Port == 0 {
+					tab.Port = existing.Port
+				}
+				if tab.URL == "" {
+					tab.URL = existing.URL
+				}
+				if tab.Favicon == "" {
+					tab.Favicon = existing.Favicon
+				}
+				break
+			}
 		}
+		a.mu.Unlock()
+		saved, ok := sanitizeSavedTab(SavedTab{Type: tab.Type, Title: tab.Title, Host: tab.Host, User: tab.User, Port: tab.Port, URL: tab.URL, Favicon: tab.Favicon})
+		if !ok {
+			return
+		}
+		tab.Type, tab.Title, tab.Host, tab.User, tab.Port, tab.URL, tab.Favicon = saved.Type, saved.Title, saved.Host, saved.User, saved.Port, saved.URL, saved.Favicon
 	}
 	a.mu.Lock()
 	a.tabs = upsertTab(a.tabs, tab)
 	a.activeTab = tab.ID
 	a.mu.Unlock()
 	a.persistOpenTabs()
+}
+
+func validTabID(id string) bool {
+	id = strings.TrimSpace(id)
+	if id == "" || len(id) > 128 || strings.ContainsAny(id, " /\\?#") {
+		return false
+	}
+	return true
 }
 
 func upsertTab(tabs []Tab, tab Tab) []Tab {
