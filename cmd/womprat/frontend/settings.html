@@ -98,11 +98,11 @@ tr:hover td{background:rgba(255,255,255,.02)}
   <div class="section">
     <h3>Unlock Method</h3>
     <p style="color:var(--dim);font-size:.82rem;margin-bottom:.8rem">How should womprat protect your stored secrets?</p>
-    <div class="option selected" onclick="selectUnlock('dpapi')">
+    <div class="option selected" data-unlock="dpapi">
       <input type="radio" name="unlock" value="dpapi" checked>
       <div><div class="option-label">Transparent (DPAPI)</div><div class="option-desc">No prompt — secrets protected by your Windows login</div></div>
     </div>
-    <div class="option" onclick="selectUnlock('master')">
+    <div class="option" data-unlock="master">
       <input type="radio" name="unlock" value="master">
       <div><div class="option-label">Master Password</div><div class="option-desc">PBKDF2-protected unlock prompt before credentials and Tailscale start</div></div>
     </div>
@@ -364,6 +364,7 @@ function showTab(id) {
 }
 
 document.querySelectorAll('.tab-btn[data-tab]').forEach(btn => btn.addEventListener('click', () => showTab(btn.dataset.tab)));
+document.querySelectorAll('.option[data-unlock]').forEach(option => option.addEventListener('click', () => selectUnlock(option.dataset.unlock)));
 
 function selectUnlock(method) {
   document.querySelectorAll('.option').forEach(o => o.classList.remove('selected'));

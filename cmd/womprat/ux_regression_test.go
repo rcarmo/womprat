@@ -25,6 +25,22 @@ func TestSettingsUsesFetchJSONHelper(t *testing.T) {
 	}
 }
 
+func TestSettingsUnlockOptionsUseDataAttributes(t *testing.T) {
+	s := readFileForRegression(t, "frontend/settings.html")
+	for _, want := range []string{
+		"data-unlock=\"dpapi\"",
+		"data-unlock=\"master\"",
+		"document.querySelectorAll('.option[data-unlock]').forEach",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("settings unlock data-attribute wiring missing %q", want)
+		}
+	}
+	if strings.Contains(s, "onclick=\"selectUnlock") {
+		t.Fatal("settings unlock options must not use inline selectUnlock handlers")
+	}
+}
+
 func TestSettingsTabsUseDataAttributes(t *testing.T) {
 	s := readFileForRegression(t, "frontend/settings.html")
 	for _, want := range []string{
