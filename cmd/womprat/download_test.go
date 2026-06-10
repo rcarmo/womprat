@@ -53,6 +53,12 @@ func TestSanitizeDownloadFilename(t *testing.T) {
 	if got := sanitizeDownloadFilename(strings.Repeat("a", 300) + ".txt"); len(got) > 180 || !strings.HasSuffix(got, ".txt") {
 		t.Fatalf("long sanitized filename = len %d %q", len(got), got)
 	}
+	if got := sanitizeDownloadFilename(strings.Repeat("界", 100) + ".txt"); len(got) > 180 || !strings.HasSuffix(got, ".txt") || !strings.Contains(got, "界") {
+		t.Fatalf("unicode sanitized filename = len %d %q", len(got), got)
+	}
+	if got := sanitizeDownloadFilename("bad\xffname.txt"); got != "badname.txt" {
+		t.Fatalf("invalid UTF-8 sanitized filename = %q", got)
+	}
 }
 
 func TestUniqueDownloadPath(t *testing.T) {

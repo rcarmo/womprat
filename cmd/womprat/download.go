@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 )
 
 func (a *App) registerDownloadRoutes(mux *http.ServeMux) {
@@ -183,7 +184,7 @@ func filenameFromURL(parsed *url.URL) string {
 }
 
 func sanitizeDownloadFilename(filename string) string {
-	filename = strings.TrimSpace(filename)
+	filename = strings.ToValidUTF8(strings.TrimSpace(filename), "")
 	if filename == "" || filename == "/" || filename == "." || filename == ".." {
 		filename = "download"
 	}
@@ -207,21 +208,41 @@ func sanitizeDownloadFilename(filename string) string {
 		filename = "_" + filename
 	}
 	if len(filename) > 180 {
-		ext := filepath.Ext(filename)
-		base := strings.TrimSuffix(filename, ext)
-		if len(ext) > 32 {
-			ext = ext[:32]
-		}
+		ext := truncateUTF8Bytes(filepath.Ext(filename), 32)
+		base := strings.TrimSuffix(filename, filepath.Ext(filename))
 		maxBase := 180 - len(ext)
 		if maxBase < 1 {
 			maxBase = 1
 		}
-		if len(base) > maxBase {
-			base = base[:maxBase]
-		}
-		filename = base + ext
+		filename = truncateUTF8Bytes(base, maxBase) + ext
 	}
 	return filename
+}
+
+func truncateUTF8Bytes(value string, maxBytes int) string {
+	if maxBytes <= 0 {
+		return ""
+	}
+	value = strings.ToValidUTF8(value, "")
+	if len(value) <= maxBytes {
+		return value
+	}
+	for i := range value {
+		if i > maxBytes {
+			break
+		}
+		if i == maxBytes {
+			return value[:i]
+		}
+	}
+	for len(value) > maxBytes {
+		_, size := utf8.DecodeLastRuneInString(value)
+		if size <= 0 {
+			return ""
+		}
+		value = value[:len(value)-size]
+	}
+	return value
 }
 
 func uniqueDownloadPath(dir, filename string) string {
