@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 
 	"golang.org/x/crypto/ssh"
@@ -198,13 +199,22 @@ func (a *App) handleSSHWebSocketFull(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			if msgType == websocket.MessageText {
-				// Check for control messages (resize)
-				var msg struct {
-					Type string `json:"type"`
-					Cols int    `json:"cols"`
-					Rows int    `json:"rows"`
-				}
-				if json.Unmarshal(data, &msg) == nil && msg.Type == "resize" {
+				// Check for JSON control messages (resize). Plain text remains terminal input.
+				trimmed := strings.TrimSpace(string(data))
+				if strings.HasPrefix(trimmed, "{") {
+					var msg struct {
+						Type string `json:"type"`
+						Cols int    `json:"cols"`
+						Rows int    `json:"rows"`
+					}
+					if err := json.Unmarshal(data, &msg); err != nil {
+						log.Printf("ssh: ignoring malformed control message for tab %s: %v", tabID, err)
+						continue
+					}
+					if msg.Type != "resize" {
+						log.Printf("ssh: ignoring unknown control message %q for tab %s", msg.Type, tabID)
+						continue
+					}
 					cols := clampTerminalDimension(msg.Cols, minTerminalCols, maxTerminalCols)
 					rows := clampTerminalDimension(msg.Rows, minTerminalRows, maxTerminalRows)
 					if cols > 0 && rows > 0 {
