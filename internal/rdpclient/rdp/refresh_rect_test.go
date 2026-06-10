@@ -83,6 +83,12 @@ func TestBuildShareDataHeader(t *testing.T) {
 	}
 }
 
+func TestBuildShareDataHeaderBoundsLargeData(t *testing.T) {
+	result := buildShareDataHeader(0x1234, 1000, 0x21, make([]byte, 0x10000))
+	require.Len(t, result, 12+0xffff-4)
+	assert.Equal(t, uint16(0xffff), binary.LittleEndian.Uint16(result[6:8]))
+}
+
 func TestBuildShareControlHeader(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -159,6 +165,12 @@ func TestBuildShareControlHeader(t *testing.T) {
 			tt.checkFunc(t, result)
 		})
 	}
+}
+
+func TestBuildShareControlHeaderBoundsLargeData(t *testing.T) {
+	result := buildShareControlHeader(0x0007, 1000, make([]byte, 0x10000))
+	require.Len(t, result, 0xffff)
+	assert.Equal(t, uint16(0xffff), binary.LittleEndian.Uint16(result[0:2]))
 }
 
 func TestBuildShareDataHeader_UserIDIgnored(t *testing.T) {
