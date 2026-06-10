@@ -239,6 +239,23 @@ func TestBrowserCleanupHelpersIgnoreMissingPaths(t *testing.T) {
 	}
 }
 
+func TestSavePasswordsToggleDoesNotChangeMemoryOnPersistFailure(t *testing.T) {
+	app := newTestApp(t)
+	app.config.SavePasswords = false
+	blocked := filepath.Join(t.TempDir(), "blocked")
+	if err := os.WriteFile(blocked, []byte("x"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("XDG_CONFIG_HOME", blocked)
+	rr := performJSON(app.handleSavePasswordsToggle, "POST", "/api/settings/browser/save-passwords", map[string]bool{"enabled": true})
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("save passwords persist failure = %d %s", rr.Code, rr.Body.String())
+	}
+	if app.config.SavePasswords {
+		t.Fatal("save passwords changed in memory despite persist failure")
+	}
+}
+
 func TestBrowserSettingsHandlers(t *testing.T) {
 	app := newTestApp(t)
 	rr := performJSON(app.handleBrowserData, "GET", "/api/settings/browser", nil)

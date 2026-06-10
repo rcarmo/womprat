@@ -159,13 +159,16 @@ func (a *App) handleSavePasswordsToggle(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	a.mu.Lock()
-	a.config.SavePasswords = body.Enabled
-	cfg := a.config
+	cfg := cloneConfig(a.config)
 	a.mu.Unlock()
+	cfg.SavePasswords = body.Enabled
 	if err := SaveConfig(cfg); err != nil {
 		http.Error(w, err.Error(), 500)
 		return
 	}
+	a.mu.Lock()
+	a.config.SavePasswords = body.Enabled
+	a.mu.Unlock()
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
