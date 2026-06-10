@@ -36,6 +36,8 @@ func TestSettingsHasNoEmptyCatchBlocks(t *testing.T) {
 		"console.warn(`fetch JSON failed for ${url}`, err);",
 		"console.warn('tailscale key response parse failed', err);",
 		"console.warn('tailscale status refresh failed', err);",
+		"Unlock method save failed: ${err.message}",
+		"Password save failed: ${err.message}",
 	} {
 		if !strings.Contains(s, want) {
 			t.Fatalf("settings failure reporting missing %q", want)

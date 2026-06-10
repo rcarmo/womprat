@@ -407,11 +407,16 @@ function applyUnlockSelection(method) {
 }
 async function selectUnlock(method) {
   applyUnlockSelection(method);
-  const res = await fetch('/api/settings/unlock-method', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({method})
-  });
-  if (!res.ok) { setStatus('pw-status', 'error', await res.text()); await loadConfigSettings(); }
+  try {
+    const res = await fetch('/api/settings/unlock-method', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({method})
+    });
+    if (!res.ok) { setStatus('pw-status', 'error', await res.text()); await loadConfigSettings(); }
+  } catch (err) {
+    setStatus('pw-status', 'error', `Unlock method save failed: ${err.message}`);
+    await loadConfigSettings();
+  }
 }
 
 function toggleVis(id) {
@@ -423,11 +428,15 @@ async function setMasterPassword() {
   const pw1 = document.getElementById('pw1').value;
   const pw2 = document.getElementById('pw2').value;
   if (!pw1 || pw1 !== pw2) { setStatus('pw-status', 'err', "Passwords don't match"); return; }
-  const res = await fetch('/api/settings/master-password', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({password: pw1})
-  });
-  setStatus('pw-status', res.ok ? 'ok' : 'error', res.ok ? 'Password set' : await res.text());
+  try {
+    const res = await fetch('/api/settings/master-password', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({password: pw1})
+    });
+    setStatus('pw-status', res.ok ? 'ok' : 'error', res.ok ? 'Password set' : await res.text());
+  } catch (err) {
+    setStatus('pw-status', 'error', `Password save failed: ${err.message}`);
+  }
 }
 
 async function saveTailscale() {
