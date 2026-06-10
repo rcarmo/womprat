@@ -503,6 +503,20 @@ func TestSetupAuthReportsFailures(t *testing.T) {
 	}
 }
 
+func TestShellGuardsSessionStorageAccess(t *testing.T) {
+	s := readFileForRegression(t, "frontend/index.html")
+	for _, want := range []string{
+		"function readShellContentZoom()",
+		"shell zoom storage unavailable",
+		"function saveShellContentZoom(value)",
+		"shell zoom storage save failed",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("shell zoom storage guard missing %q", want)
+		}
+	}
+}
+
 func TestShellLogsNativeAndCleanupFailures(t *testing.T) {
 	s := readFileForRegression(t, "frontend/index.html")
 	for _, want := range []string{
