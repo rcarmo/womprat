@@ -151,13 +151,16 @@ func (a *App) handleSetMasterPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.mu.Lock()
-	a.config.UnlockMethod = "master"
-	cfg := a.config
+	cfg := cloneConfig(a.config)
 	a.mu.Unlock()
+	cfg.UnlockMethod = "master"
 	if err := SaveConfig(cfg); err != nil {
 		http.Error(w, err.Error(), 500)
 		return
 	}
+	a.mu.Lock()
+	a.config.UnlockMethod = "master"
+	a.mu.Unlock()
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "kdf": masterKDF})
 }
 

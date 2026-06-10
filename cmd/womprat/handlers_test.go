@@ -145,6 +145,14 @@ func TestUnlockMethodAndSaveTabsDoNotChangeMemoryOnPersistFailure(t *testing.T) 
 		t.Fatalf("unlock method changed despite persist failure: %+v", app.config)
 	}
 
+	rr = performJSON(app.handleSetMasterPassword, "POST", "/api/settings/master-password", map[string]string{"password": "secret"})
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("master password persist failure = %d %s", rr.Code, rr.Body.String())
+	}
+	if app.config.UnlockMethod != "dpapi" {
+		t.Fatalf("master password changed unlock method despite persist failure: %+v", app.config)
+	}
+
 	rr = performJSON(app.handleSaveTabs, "POST", "/api/settings/save-tabs", map[string]any{"tabs": []SavedTab{{Type: "browser", URL: "https://new.example.com"}}})
 	if rr.Code != http.StatusInternalServerError {
 		t.Fatalf("save tabs persist failure = %d %s", rr.Code, rr.Body.String())

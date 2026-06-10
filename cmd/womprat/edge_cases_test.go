@@ -7,6 +7,8 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -68,6 +70,29 @@ func TestHostKeyCallbackTOFUAndMismatch(t *testing.T) {
 	}
 	if err := cb("smith:22", nil, signer2.PublicKey()); err == nil {
 		t.Fatal("expected host key mismatch")
+	}
+}
+
+func TestHostKeyCallbackDoesNotChangeMemoryOnPersistFailure(t *testing.T) {
+	app := newTestApp(t)
+	blocked := filepath.Join(t.TempDir(), "blocked")
+	if err := os.WriteFile(blocked, []byte("x"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("XDG_CONFIG_HOME", blocked)
+	_, priv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	signer, err := ssh.NewSignerFromKey(priv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := app.hostKeyCallback("smith")("smith:22", nil, signer.PublicKey()); err == nil {
+		t.Fatal("expected host key persistence failure")
+	}
+	if app.config.Hosts["smith"].HostKey != "" {
+		t.Fatalf("host key changed in memory despite persist failure: %+v", app.config.Hosts["smith"])
 	}
 }
 

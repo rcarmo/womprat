@@ -1153,10 +1153,16 @@ func (a *App) hostKeyCallback(host string) ssh.HostKeyCallback {
 		if stored == "" {
 			conf.HostKey = keyData
 			conf.HostKeyFingerprint = fingerprint
-			a.config.Hosts[host] = conf
-			cfg := a.config
+			cfg := cloneConfig(a.config)
+			cfg.Hosts[host] = conf
 			a.mu.Unlock()
-			return SaveConfig(cfg)
+			if err := SaveConfig(cfg); err != nil {
+				return err
+			}
+			a.mu.Lock()
+			a.config.Hosts[host] = conf
+			a.mu.Unlock()
+			return nil
 		}
 		a.mu.Unlock()
 
