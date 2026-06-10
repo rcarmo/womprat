@@ -84,13 +84,13 @@ tr:hover td{background:rgba(255,255,255,.02)}
 <h2>Settings</h2>
 
 <div class="tabs">
-  <button class="tab-btn active" onclick="showTab('security')">Security</button>
-  <button class="tab-btn" onclick="showTab('tailscale')">Tailscale</button>
-  <button class="tab-btn" onclick="showTab('keys')">SSH Keys</button>
-  <button class="tab-btn" onclick="showTab('hosts')">Hosts</button>
-  <button class="tab-btn" onclick="showTab('browser')">Browser</button>
-  <button class="tab-btn" onclick="showTab('appearance')">Appearance</button>
-  <button class="tab-btn" onclick="showTab('about')">About</button>
+  <button class="tab-btn active" data-tab="security">Security</button>
+  <button class="tab-btn" data-tab="tailscale">Tailscale</button>
+  <button class="tab-btn" data-tab="keys">SSH Keys</button>
+  <button class="tab-btn" data-tab="hosts">Hosts</button>
+  <button class="tab-btn" data-tab="browser">Browser</button>
+  <button class="tab-btn" data-tab="appearance">Appearance</button>
+  <button class="tab-btn" data-tab="about">About</button>
 </div>
 
 <!-- ═══ Security ═══ -->
@@ -359,11 +359,11 @@ function setStatus(id, kind, text) {
 
 function showTab(id) {
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === id));
   document.getElementById('panel-'+id)?.classList.add('active');
-  const target = window.event?.target;
-  if (target?.classList?.contains('tab-btn')) target.classList.add('active');
 }
+
+document.querySelectorAll('.tab-btn[data-tab]').forEach(btn => btn.addEventListener('click', () => showTab(btn.dataset.tab)));
 
 function selectUnlock(method) {
   document.querySelectorAll('.option').forEach(o => o.classList.remove('selected'));

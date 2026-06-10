@@ -25,6 +25,22 @@ func TestSettingsUsesFetchJSONHelper(t *testing.T) {
 	}
 }
 
+func TestSettingsTabsUseDataAttributes(t *testing.T) {
+	s := readFileForRegression(t, "frontend/settings.html")
+	for _, want := range []string{
+		"data-tab=\"security\"",
+		"document.querySelectorAll('.tab-btn[data-tab]').forEach",
+		"b.classList.toggle('active', b.dataset.tab === id)",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("settings tab data-attribute wiring missing %q", want)
+		}
+	}
+	if strings.Contains(s, "onclick=\"showTab") {
+		t.Fatal("settings tab buttons must not use inline showTab handlers")
+	}
+}
+
 func TestSettingsExitNodeSelectUsesSafeDOMConstruction(t *testing.T) {
 	s := readFileForRegression(t, "frontend/settings.html")
 	for _, want := range []string{
