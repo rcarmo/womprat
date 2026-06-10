@@ -114,16 +114,19 @@ func (a *App) handleDebugLog(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		a.mu.Lock()
+		cfg := cloneConfig(a.config)
+		a.mu.Unlock()
+		cfg.DebugLog = body.Enabled
+		if err := SaveConfig(cfg); err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		a.mu.Lock()
 		a.config.DebugLog = body.Enabled
-		cfg := a.config
 		a.mu.Unlock()
 		setupLogging(body.Enabled)
 		if body.Enabled {
 			a.logStartupBannerSafe()
-		}
-		if err := SaveConfig(cfg); err != nil {
-			http.Error(w, err.Error(), 500)
-			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"status": "ok", "enabled": body.Enabled, "logPath": logFilePath()})
 	default:
