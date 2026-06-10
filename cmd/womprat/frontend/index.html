@@ -275,6 +275,10 @@ const state = { tabs: [], activeTab: null };
 const terminalSessions = new Map();
 const failedFavicons = new Set();
 const TERMINAL_FONT_SIZE = 14;
+const MIN_TERMINAL_COLS = 20;
+const MAX_TERMINAL_COLS = 500;
+const MIN_TERMINAL_ROWS = 5;
+const MAX_TERMINAL_ROWS = 200;
 const MAX_BROWSER_TITLE_RUNES = 200;
 const MAX_FAVICON_URL_BYTES = 2048;
 let shellContentZoom = Number(sessionStorage.getItem('wompratShellContentZoom') || '1') || 1;
@@ -665,7 +669,7 @@ window.openTerminal = async function(host, name, user, port, options = {}) {
     term.onTitleChange((title) => {
       const t = state.tabs.find(t => t.id === tabId);
       if (t && title) {
-        t.title = title.slice(0, 48);
+        t.title = sanitizeBrowserTitle(title).slice(0, 48);
         renderTabs();
         registerLocalTab(t);
         saveOpenTabs();
@@ -690,8 +694,8 @@ window.openTerminal = async function(host, name, user, port, options = {}) {
   term.write(`\x1b[2m Connecting to ${sshUser}@${host}:${sshPort}...\x1b[0m\r\n`);
 
   // Get initial dimensions
-  const cols = term.cols;
-  const rows = term.rows;
+  const cols = clampTerminalCols(term.cols);
+  const rows = clampTerminalRows(term.rows);
 
   // Connect SSH
   let res;
@@ -763,8 +767,11 @@ async function submitPassword(sshTabId, password, term, tabId, host, name, user,
 }
 
 function connectWebSocket(sshTabId, term, tabId, host, name, user, port, cols, rows) {
+  cols = clampTerminalCols(cols);
+  rows = clampTerminalRows(rows);
   term.write(`\x1b[2m Connected.\x1b[0m\r\n\r\n`);
-  const ws = new WebSocket(`ws://${location.host}/api/ssh/ws?tab=${sshTabId}&cols=${cols}&rows=${rows}&token=${TOKEN}`);
+  const params = new URLSearchParams({ tab: String(sshTabId || ''), cols: String(cols), rows: String(rows), token: TOKEN });
+  const ws = new WebSocket(`ws://${location.host}/api/ssh/ws?${params.toString()}`);
   const session = terminalSessions.get(tabId);
   if (session) session.ws = ws;
 
@@ -786,7 +793,7 @@ function connectWebSocket(sshTabId, term, tabId, host, name, user, port, cols, r
   // Handle terminal resize → send to server
   term.onResize(({cols, rows}) => {
     if (ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({type:'resize', cols, rows}));
+      ws.send(JSON.stringify({type:'resize', cols: clampTerminalCols(cols), rows: clampTerminalRows(rows)}));
     }
   });
 }
@@ -805,7 +812,7 @@ function showReconnect(term, tabId, host, name, user, port) {
 
 async function reconnectTerminal(tabId, host, name, user, port, term) {
   term.write(`\x1b[2m Reconnecting to ${user}@${host}:${port}...\x1b[0m\r\n`);
-  const cols = term.cols, rows = term.rows;
+  const cols = clampTerminalCols(term.cols), rows = clampTerminalRows(term.rows);
   let res;
   try {
     res = await fetch('/api/ssh/connect', {
@@ -879,6 +886,13 @@ window.closeTab = function(id, e) {
   else updateHomeVisibility();
 };
 
+function clampInt(value, min, max, fallback) {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) return fallback;
+  return Math.max(min, Math.min(max, Math.floor(n)));
+}
+function clampTerminalCols(value) { return clampInt(value, MIN_TERMINAL_COLS, MAX_TERMINAL_COLS, 80); }
+function clampTerminalRows(value) { return clampInt(value, MIN_TERMINAL_ROWS, MAX_TERMINAL_ROWS, 24); }
 function sanitizeBrowserTitle(value) {
   const text = String(value || '').trim();
   return Array.from(text).slice(0, MAX_BROWSER_TITLE_RUNES).join('');

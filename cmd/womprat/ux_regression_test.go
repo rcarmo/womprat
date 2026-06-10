@@ -137,6 +137,22 @@ func TestFrontendSanitizesBrowserMetadata(t *testing.T) {
 	}
 }
 
+func TestFrontendClampsTerminalDimensions(t *testing.T) {
+	s := readFileForRegression(t, "frontend/index.html")
+	for _, want := range []string{
+		"const MIN_TERMINAL_COLS = 20",
+		"const MAX_TERMINAL_COLS = 500",
+		"function clampTerminalCols(value)",
+		"function clampTerminalRows(value)",
+		"new URLSearchParams({ tab: String(sshTabId || ''), cols: String(cols), rows: String(rows), token: TOKEN })",
+		"ws.send(JSON.stringify({type:'resize', cols: clampTerminalCols(cols), rows: clampTerminalRows(rows)}));",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("frontend terminal clamp missing %q", want)
+		}
+	}
+}
+
 func TestFrontendValidatesTabIDsBeforeDOMUse(t *testing.T) {
 	s := readFileForRegression(t, "frontend/index.html")
 	for _, want := range []string{
