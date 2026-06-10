@@ -402,9 +402,6 @@ function normalizeBrowserURL(url) {
   if (u && (u.protocol === 'http:' || u.protocol === 'https:') && !!u.hostname && !u.username && !u.password) return u.href;
   return '';
 }
-function isHTTPURL(url) {
-  return !!normalizeBrowserURL(url);
-}
 function normalizeHistoryURL(url) {
   const text = String(url || '').trim();
   const browserURL = normalizeBrowserURL(text);
@@ -412,9 +409,6 @@ function normalizeHistoryURL(url) {
   const target = parseCustomURL(text);
   if (target) return normalizedCustomURL(target);
   return '';
-}
-function isHistoryURL(url) {
-  return !!normalizeHistoryURL(url);
 }
 function validCustomHost(host) {
   if (!host || host.length > 253 || /[\s\/?#\\@%]/.test(host)) return false;
@@ -935,10 +929,6 @@ function sanitizeFaviconURL(value) {
   if (u && u.protocol === 'data:' && /^data:image\//i.test(v) && v.length <= 4096) return v;
   return '';
 }
-function isUsableFavicon(value) {
-  return !!sanitizeFaviconURL(value);
-}
-
 function tabIconName(tab) {
   return tab.type === 'terminal' || tab.type === 'vnc' || tab.type === 'rdp' ? 'terminal' : tab.type === 'settings' ? 'settings' : 'globe';
 }
@@ -1151,10 +1141,6 @@ window.showBrowserTab = function(id, url, options = {}) {
   saveOpenTabs();
 };
 
-function activeBrowserTab() {
-  const tab = state.tabs.find(t => t.id === state.activeTab);
-  return tab?.type === 'browser' ? tab : null;
-}
 window.historyBack = function() { if (window.womprat_browserBack) womprat_browserBack(); };
 window.historyForward = function() { if (window.womprat_browserForward) womprat_browserForward(); };
 window.historyReload = function() { if (window.womprat_browserReload) womprat_browserReload(); };
