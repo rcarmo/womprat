@@ -1418,12 +1418,22 @@ function sanitizeTabForSave(t) {
   if (!t || t.id === 'settings' || !validTabID(t.id)) return null;
   const type = String(t.type || '').toLowerCase();
   const base = { type, title: sanitizeBrowserTitle(t.title), host: String(t.host || ''), user: String(t.user || ''), port: Number(t.port || 0), url: String(t.url || ''), favicon: sanitizeFaviconURL(t.favicon) };
-  if (type === 'browser') { const url = normalizeBrowserURL(base.url); if (!url) return null; base.url = url; return base; }
+  if (type === 'browser') {
+    const url = normalizeBrowserURL(base.url);
+    if (!url) return null;
+    base.url = url;
+    return base;
+  }
   if (type === 'terminal') return parseCustomURL(formatSSHURL(base.user || 'root', base.host || base.title, base.port)) ? base : null;
   if (type === 'vnc' || type === 'rdp') {
-    const target = parseCustomURL(base.url || `${type}://${base.user ? encodeURIComponent(base.user) + '@' : ''}${base.host}:${base.port || (type === 'vnc' ? 5900 : 3389)}`);
+    const fallbackURL = `${type}://${base.user ? encodeURIComponent(base.user) + '@' : ''}${base.host}:${base.port || (type === 'vnc' ? 5900 : 3389)}`;
+    const target = parseCustomURL(base.url || fallbackURL);
     if (!target || target.scheme !== type) return null;
-    base.host = target.host; base.user = target.user; base.port = target.port; base.url = normalizedCustomURL(target); base.title = base.title || base.url;
+    base.host = target.host;
+    base.user = target.user;
+    base.port = target.port;
+    base.url = normalizedCustomURL(target);
+    base.title = base.title || base.url;
     return base;
   }
   return null;
