@@ -25,6 +25,22 @@ func TestSettingsUsesFetchJSONHelper(t *testing.T) {
 	}
 }
 
+func TestSettingsExitNodeSelectUsesSafeDOMConstruction(t *testing.T) {
+	s := readFileForRegression(t, "frontend/settings.html")
+	for _, want := range []string{
+		"sel.textContent = '';",
+		"const none = document.createElement('option');",
+		"none.textContent = 'None — tailnet only';",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("settings exit-node select DOM rendering missing %q", want)
+		}
+	}
+	if strings.Contains(s, "sel.innerHTML = '<option") {
+		t.Fatal("settings exit-node select must not use innerHTML")
+	}
+}
+
 func TestSettingsReportsAsyncOperationFailures(t *testing.T) {
 	s := readFileForRegression(t, "frontend/settings.html")
 	for _, want := range []string{

@@ -441,7 +441,11 @@ async function loadExitNodes() {
   if (!sel) return;
   const peers = await fetchJSON('/api/tailscale/peers', []);
   const conf = await fetchJSON('/api/settings/exit-node', {});
-  sel.innerHTML = '<option value="">None — tailnet only</option>';
+  sel.textContent = '';
+  const none = document.createElement('option');
+  none.value = '';
+  none.textContent = 'None — tailnet only';
+  sel.appendChild(none);
   peers.filter(p=>p.online && p.exitNodeOption).forEach(p => {
     const opt = document.createElement('option');
     opt.value = p.name;
