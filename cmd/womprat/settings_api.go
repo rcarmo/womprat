@@ -205,10 +205,10 @@ func (a *App) handleTailscaleDisconnect(w http.ResponseWriter, r *http.Request) 
 
 func (a *App) handleSSHKeys(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
-	case "GET":
+	case http.MethodGet, http.MethodHead:
 		keys := a.listSSHKeys()
 		writeJSON(w, http.StatusOK, keys)
-	case "POST":
+	case http.MethodPost:
 		var body struct {
 			Name    string `json:"name"`
 			Content string `json:"content"`
@@ -221,7 +221,7 @@ func (a *App) handleSSHKeys(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
-	case "DELETE":
+	case http.MethodDelete:
 		namePart, err := resourceNameFromPath(r.URL.Path, "/api/settings/ssh-keys/")
 		if err != nil {
 			http.Error(w, err.Error(), 400)
@@ -238,7 +238,7 @@ func (a *App) handleSSHKeys(w http.ResponseWriter, r *http.Request) {
 		}
 		writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 	default:
-		http.Error(w, "method not allowed", 405)
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	}
 }
 
@@ -293,12 +293,12 @@ func (a *App) handleGenerateSSHKey(w http.ResponseWriter, r *http.Request) {
 
 func (a *App) handleHosts(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
-	case "GET":
+	case http.MethodGet, http.MethodHead:
 		a.mu.Lock()
 		hosts := cloneConfig(a.config).Hosts
 		a.mu.Unlock()
 		writeJSON(w, http.StatusOK, hosts)
-	case "PATCH":
+	case http.MethodPatch:
 		host, err := resourceNameFromPath(r.URL.Path, "/api/settings/hosts/")
 		if err != nil || validateCustomURLHost("ssh", host) != nil {
 			http.Error(w, "invalid host", 400)
@@ -364,7 +364,7 @@ func (a *App) handleHosts(w http.ResponseWriter, r *http.Request) {
 		a.mu.Unlock()
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	default:
-		http.Error(w, "method not allowed", 405)
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	}
 }
 
@@ -479,12 +479,12 @@ func fingerprintFromPEM(pemData string) string {
 
 func (a *App) handleExitNode(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
-	case "GET":
+	case http.MethodGet, http.MethodHead:
 		a.mu.Lock()
 		exitNode := a.config.ExitNode
 		a.mu.Unlock()
 		writeJSON(w, http.StatusOK, map[string]string{"exitNode": exitNode})
-	case "POST":
+	case http.MethodPost:
 		var body struct {
 			ExitNode string `json:"exitNode"`
 		}
@@ -509,7 +509,7 @@ func (a *App) handleExitNode(w http.ResponseWriter, r *http.Request) {
 		a.mu.Unlock()
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "exitNode": body.ExitNode})
 	default:
-		http.Error(w, "method not allowed", 405)
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	}
 }
 

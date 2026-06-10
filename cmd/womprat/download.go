@@ -36,8 +36,7 @@ var (
 
 // handleDownload initiates a file download using the same routing policy as the browser.
 func (a *App) handleDownload(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	if !requireGET(w, r) {
 		return
 	}
 	targetURL := r.URL.Query().Get("url")

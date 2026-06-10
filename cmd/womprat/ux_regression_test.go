@@ -15,6 +15,28 @@ func readFileForRegression(t *testing.T, path string) string {
 	return string(b)
 }
 
+func TestDownloadHandlerUsesSharedGetMethodGuard(t *testing.T) {
+	s := readFileForRegression(t, "download.go")
+	if !strings.Contains(s, "func (a *App) handleDownload") || !strings.Contains(s, "if !requireGET(w, r)") {
+		t.Fatal("download handler should use shared GET method guard")
+	}
+}
+
+func TestSettingsMultiMethodHandlersUseHTTPMethodConstants(t *testing.T) {
+	s := readFileForRegression(t, "settings_api.go")
+	for _, want := range []string{
+		"case http.MethodGet, http.MethodHead:",
+		"case http.MethodPost:",
+		"case http.MethodDelete:",
+		"case http.MethodPatch:",
+		"http.StatusMethodNotAllowed",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("settings multi-method handler should use method constant/status %q", want)
+		}
+	}
+}
+
 func TestReadOnlyHandlersUseSharedGetMethodGuard(t *testing.T) {
 	mainSource := readFileForRegression(t, "main.go")
 	loggingSource := readFileForRegression(t, "logging.go")
