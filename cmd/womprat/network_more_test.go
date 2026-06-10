@@ -60,7 +60,11 @@ func TestGetSSHAuthMethods(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := SaveCredential("ssh-key/main", string(pem.EncodeToMemory(pem1))); err != nil {
+	encoded := string(pem.EncodeToMemory(pem1))
+	if err := SaveCredential("ssh-key/main", encoded); err != nil {
+		t.Fatal(err)
+	}
+	if err := SaveCredential("ssh-key/duplicate", encoded); err != nil {
 		t.Fatal(err)
 	}
 	app.config.Hosts["smith"] = HostConfig{KeyName: "main"}

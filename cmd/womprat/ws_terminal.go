@@ -225,22 +225,45 @@ func (a *App) handleSSHWebSocketFull(w http.ResponseWriter, r *http.Request) {
 // getSSHAuthMethods returns auth methods for connecting to a host
 func (a *App) getSSHAuthMethods(host string) []ssh.AuthMethod {
 	var signers []ssh.Signer
+	seen := map[string]bool{}
+	addSigner := func(name string) {
+		name, err := safeSSHKeyName(name)
+		if err != nil {
+			log.Printf("ssh key %q skipped: %v", name, err)
+			return
+		}
+		keyData, err := GetCredential("ssh-key/" + name)
+		if err != nil {
+			log.Printf("ssh key %q unavailable: %v", name, err)
+			return
+		}
+		signer, err := ssh.ParsePrivateKey([]byte(keyData))
+		if err != nil {
+			log.Printf("ssh key %q parse failed: %v", name, err)
+			return
+		}
+		fingerprint := ssh.FingerprintSHA256(signer.PublicKey())
+		if seen[fingerprint] {
+			return
+		}
+		seen[fingerprint] = true
+		signers = append(signers, signer)
+	}
 
-	// Try host-specific key first
+	// Try host-specific key first.
 	a.mu.Lock()
 	hostConf := a.config.Hosts[host]
 	a.mu.Unlock()
 	if hostConf.KeyName != "" {
-		if keyData, err := GetCredential("ssh-key/" + hostConf.KeyName); err == nil {
-			if signer, err := ssh.ParsePrivateKey([]byte(keyData)); err == nil {
-				signers = append(signers, signer)
-			}
-		}
+		addSigner(hostConf.KeyName)
 	}
 
 	// Try all stored keys as fallback. Keys are stored under creds/ssh-key/<name>.
 	keyDir := filepath.Join(configDir(), "creds", "ssh-key")
-	entries, _ := os.ReadDir(keyDir)
+	entries, err := os.ReadDir(keyDir)
+	if err != nil && !os.IsNotExist(err) {
+		log.Printf("ssh key directory read failed: %v", err)
+	}
 	for _, e := range entries {
 		if e.IsDir() {
 			continue
@@ -249,15 +272,7 @@ func (a *App) getSSHAuthMethods(host string) []ssh.AuthMethod {
 		if hostConf.KeyName != "" && name == hostConf.KeyName {
 			continue // already tried
 		}
-		keyData, err := GetCredential("ssh-key/" + name)
-		if err != nil {
-			continue
-		}
-		signer, err := ssh.ParsePrivateKey([]byte(keyData))
-		if err != nil {
-			continue
-		}
-		signers = append(signers, signer)
+		addSigner(name)
 	}
 
 	if len(signers) > 0 {
