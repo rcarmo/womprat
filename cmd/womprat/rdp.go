@@ -86,12 +86,12 @@ func (a *App) handleRDPWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if len(data) > maxRDPWebSocketMessageBytes {
-		_ = wsjsonError(ctx, ws, "credentials message too large")
+		sendRDPError(ctx, ws, "credentials message too large")
 		return
 	}
 	var creds rdpCredentials
 	if err := json.Unmarshal(data, &creds); err != nil || creds.Type != "credentials" {
-		_ = wsjsonError(ctx, ws, "expected credentials")
+		sendRDPError(ctx, ws, "expected credentials")
 		return
 	}
 	if creds.Host == "" {
@@ -102,7 +102,7 @@ func (a *App) handleRDPWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 	creds.User = strings.TrimSpace(creds.User)
 	if creds.User == "" || len(creds.User) > 256 || len(creds.Password) > 1024 {
-		_ = wsjsonError(ctx, ws, "invalid credentials")
+		sendRDPError(ctx, ws, "invalid credentials")
 		return
 	}
 
@@ -124,7 +124,7 @@ func (a *App) handleRDPWebSocket(w http.ResponseWriter, r *http.Request) {
 	client, err := rdp.NewClientWithDialContext(ctx, dial, net.JoinHostPort(queryTarget.Host, strconv.Itoa(queryTarget.Port)), creds.User, creds.Password, width, height, colorDepth)
 	if err != nil {
 		log.Printf("rdp init: %v", err)
-		_ = wsjsonError(ctx, ws, "connection failed")
+		sendRDPError(ctx, ws, "connection failed")
 		return
 	}
 	defer client.Close()
@@ -137,7 +137,7 @@ func (a *App) handleRDPWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := client.Connect(); err != nil {
 		log.Printf("rdp connect: %v", err)
-		_ = wsjsonError(ctx, ws, "connection failed")
+		sendRDPError(ctx, ws, "connection failed")
 		return
 	}
 
@@ -172,8 +172,17 @@ func rdpRFXEnabled(raw string) bool {
 	return raw != "false"
 }
 
+func sendRDPError(ctx context.Context, ws *websocket.Conn, message string) {
+	if err := wsjsonError(ctx, ws, message); err != nil {
+		log.Printf("rdp error send failed: %v", err)
+	}
+}
+
 func wsjsonError(ctx context.Context, ws *websocket.Conn, message string) error {
-	body, _ := json.Marshal(map[string]string{"type": "error", "message": message})
+	body, err := json.Marshal(map[string]string{"type": "error", "message": message})
+	if err != nil {
+		return err
+	}
 	return ws.Write(ctx, websocket.MessageText, body)
 }
 
