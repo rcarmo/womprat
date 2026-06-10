@@ -210,9 +210,12 @@ func (a *App) navigateBrowser(url string) {
 	if a.openSpecialURL(url) {
 		return
 	}
-	if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
-		url = "http://" + url
+	normalized, err := normalizeBrowserURL(url)
+	if err != nil {
+		log.Printf("browser navigation rejected %q: %v", url, err)
+		return
 	}
+	url = normalized
 	var tabID string
 	a.mu.Lock()
 	for i, t := range a.tabs {
@@ -258,7 +261,7 @@ func (a *App) updateActiveBrowserTitle(title, url, favicon string) {
 	// Chromium's internal error pages report chrome-error://chromewebdata/ as the
 	// current URL. Never persist that over the user's requested URL: a transient
 	// routing/DNS failure should not destroy the tab's navigable address.
-	if url != "" && !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
+	if url != "" && !isBrowserURL(url) {
 		url = ""
 		favicon = ""
 	}
@@ -470,9 +473,12 @@ func (a *App) newBrowserTab(url string) {
 	if a.openSpecialURL(url) {
 		return
 	}
-	if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
-		url = "http://" + url
+	normalized, err := normalizeBrowserURL(url)
+	if err != nil {
+		log.Printf("new browser tab rejected %q: %v", url, err)
+		return
 	}
+	url = normalized
 	tabID := newTabID("browser")
 	a.mu.Lock()
 	a.tabs = append(a.tabs, Tab{ID: tabID, Type: "browser", Title: url, URL: url})
