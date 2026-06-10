@@ -182,6 +182,19 @@ func TestSettingsValidatesKeyAndHostInputs(t *testing.T) {
 	}
 }
 
+func TestSettingsBrowserActionsReportFailures(t *testing.T) {
+	s := readFileForRegression(t, "frontend/settings.html")
+	for _, want := range []string{
+		"async function postBrowserAction(url, options = {})",
+		"if (!res.ok) { setStatus('browser-status', 'error', await res.text()); return false; }",
+		"setStatus('browser-status', 'ok', 'Browser data updated');",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("settings browser action error handling missing %q", want)
+		}
+	}
+}
+
 func TestSettingsBrowserTablesUseSafeDOMConstruction(t *testing.T) {
 	s := readFileForRegression(t, "frontend/settings.html")
 	for _, want := range []string{

@@ -524,33 +524,33 @@ async function loadBrowserSettings() {
   } catch (err) { setStatus('browser-status', 'error', err.message); }
 }
 
+async function postBrowserAction(url, options = {}) {
+  const res = await fetch(url, {method:'POST', ...options});
+  if (!res.ok) { setStatus('browser-status', 'error', await res.text()); return false; }
+  setStatus('browser-status', 'ok', 'Browser data updated');
+  return true;
+}
 async function clearCache() {
   if (!confirm('Clear all cached data?')) return;
-  await fetch('/api/settings/browser/clear-cache', {method:'POST'});
-  document.getElementById('cache-size').textContent = '0 KB';
+  if (await postBrowserAction('/api/settings/browser/clear-cache')) document.getElementById('cache-size').textContent = '0 KB';
 }
 async function clearAllCookies() {
   if (!confirm('Clear all cookies? You will be logged out of all services.')) return;
-  await fetch('/api/settings/browser/clear-cookies', {method:'POST'});
-  loadBrowserSettings();
+  if (await postBrowserAction('/api/settings/browser/clear-cookies')) loadBrowserSettings();
 }
 async function clearCookiesFor(domain) {
-  await fetch('/api/settings/browser/clear-cookies', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({domain})});
-  loadBrowserSettings();
+  if (await postBrowserAction('/api/settings/browser/clear-cookies', {headers:{'Content-Type':'application/json'}, body: JSON.stringify({domain})})) loadBrowserSettings();
 }
 async function clearAllPasswords() {
   if (!confirm('Delete all saved passwords?')) return;
-  await fetch('/api/settings/browser/clear-passwords', {method:'POST'});
-  loadBrowserSettings();
+  if (await postBrowserAction('/api/settings/browser/clear-passwords')) loadBrowserSettings();
 }
 async function deletePassword(site) {
-  await fetch('/api/settings/browser/clear-passwords', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({site})});
-  loadBrowserSettings();
+  if (await postBrowserAction('/api/settings/browser/clear-passwords', {headers:{'Content-Type':'application/json'}, body: JSON.stringify({site})})) loadBrowserSettings();
 }
 async function clearAllBrowsingData() {
   if (!confirm('Clear ALL browsing data (cache, cookies, passwords, history)?')) return;
-  await fetch('/api/settings/browser/clear-all', {method:'POST'});
-  loadBrowserSettings();
+  if (await postBrowserAction('/api/settings/browser/clear-all')) loadBrowserSettings();
 }
 
 function importKey() { document.getElementById('key-file-input').click(); }
