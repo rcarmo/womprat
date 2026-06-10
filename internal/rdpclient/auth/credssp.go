@@ -384,7 +384,7 @@ func parseTag(data []byte) (byte, []byte, error) {
 		length = int(lenByte)
 	} else {
 		numBytes := int(lenByte & 0x7F)
-		if offset+numBytes > len(data) {
+		if numBytes == 0 || numBytes > 4 || offset+numBytes > len(data) {
 			return 0, nil, bytes.ErrTooLarge
 		}
 		for i := 0; i < numBytes; i++ {
@@ -411,10 +411,16 @@ func tagLen(data []byte) int {
 		length = int(lenByte)
 	} else {
 		numBytes := int(lenByte & 0x7F)
+		if numBytes == 0 || numBytes > 4 || offset+numBytes > len(data) {
+			return len(data)
+		}
 		offset += numBytes
-		for i := 0; i < numBytes && 2+i < len(data); i++ {
+		for i := 0; i < numBytes; i++ {
 			length = (length << 8) | int(data[2+i])
 		}
+	}
+	if offset+length > len(data) {
+		return len(data)
 	}
 	return offset + length
 }

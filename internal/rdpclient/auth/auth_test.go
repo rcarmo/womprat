@@ -979,6 +979,16 @@ func TestParseTag(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name:    "indefinite length rejected",
+			data:    []byte{0x04, 0x80, 0x00, 0x00},
+			wantErr: true,
+		},
+		{
+			name:    "oversized length form rejected",
+			data:    []byte{0x04, 0x85, 0, 0, 0, 0, 1, 0},
+			wantErr: true,
+		},
+		{
 			name:    "content length exceeds data",
 			data:    []byte{0x30, 0x10, 0x01, 0x02},
 			wantErr: true,
@@ -1067,6 +1077,16 @@ func TestTagLen(t *testing.T) {
 			name:     "single byte",
 			data:     []byte{0x30},
 			expected: 1,
+		},
+		{
+			name:     "indefinite length",
+			data:     []byte{0x04, 0x80, 0x00, 0x00},
+			expected: 4,
+		},
+		{
+			name:     "truncated long form",
+			data:     []byte{0x04, 0x82, 0x01},
+			expected: 3,
 		},
 	}
 
