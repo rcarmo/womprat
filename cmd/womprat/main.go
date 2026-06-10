@@ -315,6 +315,9 @@ func (a *App) persistOpenTabs() {
 
 func (a *App) switchTab(tabID string) {
 	log.Printf("tab: switchTab %s", tabID)
+	if !validTabID(tabID) {
+		return
+	}
 	a.mu.Lock()
 	var tab *Tab
 	for i := range a.tabs {
@@ -366,6 +369,9 @@ func clampTabIndex(toIndex, count int) int {
 }
 
 func (a *App) reorderTab(tabID string, toIndex int) {
+	if !validTabID(tabID) {
+		return
+	}
 	a.mu.Lock()
 	from := -1
 	for i, t := range a.tabs {
@@ -401,6 +407,9 @@ func (a *App) reorderTab(tabID string, toIndex int) {
 }
 
 func (a *App) forgetTab(tabID string) {
+	if !validTabID(tabID) {
+		return
+	}
 	a.mu.Lock()
 	newTabs := []Tab{}
 	for _, t := range a.tabs {
@@ -418,6 +427,9 @@ func (a *App) forgetTab(tabID string) {
 }
 
 func (a *App) closeTab(tabID string) {
+	if !validTabID(tabID) {
+		return
+	}
 	a.mu.Lock()
 	now := time.Now()
 	if tabID == a.lastCloseTab && !a.lastCloseAt.IsZero() && now.Sub(a.lastCloseAt) < 250*time.Millisecond {

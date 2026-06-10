@@ -129,6 +129,19 @@ func TestUpdateActiveBrowserTitleIgnoresChromeErrorURL(t *testing.T) {
 	}
 }
 
+func TestTabMutationsRejectInvalidIDs(t *testing.T) {
+	app := newTestApp(t)
+	app.tabs = []Tab{{ID: "a", Type: "browser", URL: "http://a"}, {ID: "b", Type: "browser", URL: "http://b"}}
+	app.activeTab = "a"
+	app.switchTab("bad/id")
+	app.closeTab("bad/id")
+	app.forgetTab("bad/id")
+	app.reorderTab("bad/id", 0)
+	if len(app.tabs) != 2 || app.activeTab != "a" {
+		t.Fatalf("invalid tab mutation changed state: active=%q tabs=%+v", app.activeTab, app.tabs)
+	}
+}
+
 func TestCloseTabSelectsAdjacent(t *testing.T) {
 	app := newTestApp(t)
 	app.tabs = []Tab{{ID: "a", Type: "browser", URL: "http://a"}, {ID: "b", Type: "browser", URL: "http://b"}, {ID: "c", Type: "browser", URL: "http://c"}}
