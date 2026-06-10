@@ -2412,7 +2412,7 @@ class VncRemoteDisplayProtocol {
         this.framebufferWidth = fixedView.getUint16(0, false);
         this.framebufferHeight = fixedView.getUint16(2, false);
         this.serverPixelFormat = parsePixelFormat(fixedView, 4);
-        this.serverName = bytesToAscii(this.consume(nameLength));
+        this.serverName = boundedVncDesktopName(bytesToAscii(this.consume(nameLength)));
         this.state = "connected";
         if (this.pipeline) {
           this.pipeline.initFramebuffer(this.framebufferWidth, this.framebufferHeight);
@@ -2577,7 +2577,7 @@ class VncRemoteDisplayProtocol {
                 break;
               }
               const nameBytes = this.buffer.slice(offset + 4, offset + 4 + nameLength);
-              try { this.serverName = new TextDecoder().decode(nameBytes); } catch {}
+              try { this.serverName = boundedVncDesktopName(new TextDecoder().decode(nameBytes)); } catch {}
               rects.push({ kind: "desktop-name", name: this.serverName });
               offset += 4 + nameLength;
               continue;
@@ -2826,6 +2826,10 @@ var MAX_VNC_FRAMEBUFFER_DIMENSION = 8192;
 var MAX_VNC_FRAMEBUFFER_PIXELS = 16 * 1024 * 1024;
 var MAX_VNC_CURSOR_DIMENSION = 256;
 var MAX_VNC_CURSOR_PIXELS = 256 * 256;
+var MAX_VNC_DESKTOP_NAME_CHARS = 200;
+function boundedVncDesktopName(text) {
+  return Array.from(String(text || "").trim()).slice(0, MAX_VNC_DESKTOP_NAME_CHARS).join("");
+}
 function boundedVncClipboardText(text) {
   const value = String(text || "");
   return value.length > MAX_VNC_CLIPBOARD_CHARS ? value.slice(0, MAX_VNC_CLIPBOARD_CHARS) : value;

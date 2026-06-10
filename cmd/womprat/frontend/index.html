@@ -492,7 +492,8 @@ function saveURLHistory(url) {
   if (!normalized) return;
   const history = loadURLHistory().filter(u => u !== normalized);
   history.unshift(normalized);
-  localStorage.setItem('wompratURLHistory', JSON.stringify(history.slice(0, 100)));
+  try { localStorage.setItem('wompratURLHistory', JSON.stringify(history.slice(0, 100))); }
+  catch (err) { console.warn('save URL history failed', err); }
   refreshURLHistoryDatalist();
 }
 function formatSSHURL(user, host, port) {

@@ -379,6 +379,20 @@ func TestCustomSchemesUseSingleFrontendDispatcher(t *testing.T) {
 	}
 }
 
+func TestVNCDesktopNameIsBounded(t *testing.T) {
+	s := readFileForRegression(t, "frontend/vnc.js")
+	for _, want := range []string{
+		"var MAX_VNC_DESKTOP_NAME_CHARS = 200;",
+		"function boundedVncDesktopName(text)",
+		"this.serverName = boundedVncDesktopName(bytesToAscii(this.consume(nameLength)));",
+		"this.serverName = boundedVncDesktopName(new TextDecoder().decode(nameBytes));",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("VNC desktop-name bound missing %q", want)
+		}
+	}
+}
+
 func TestVNCCursorIsBounded(t *testing.T) {
 	s := readFileForRegression(t, "frontend/vnc.js")
 	for _, want := range []string{
@@ -697,6 +711,18 @@ func TestFrontendValidatesTabIDsBeforeDOMUse(t *testing.T) {
 	} {
 		if !strings.Contains(s, want) {
 			t.Fatalf("frontend tab id validation missing %q", want)
+		}
+	}
+}
+
+func TestURLHistorySaveFailureIsHandled(t *testing.T) {
+	s := readFileForRegression(t, "frontend/index.html")
+	for _, want := range []string{
+		"try { localStorage.setItem('wompratURLHistory'",
+		"console.warn('save URL history failed', err);",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("URL history failure handling missing %q", want)
 		}
 	}
 }
