@@ -197,6 +197,7 @@ func TestSettingsValidatesKeyAndHostInputs(t *testing.T) {
 		"setStatus('hosts-status', 'error', 'Invalid host')",
 		"setStatus('hosts-status', 'error', 'Invalid browser URL')",
 		"setStatus('hosts-status', 'ok', 'Host updated')",
+		"Host update failed: ${err.message}",
 		"if (!res.ok) { setStatus('hosts-status', 'error', await res.text()); return false; }",
 		"id=\"keys-status\"",
 		"id=\"hosts-status\"",

@@ -724,10 +724,15 @@ async function updateHost(host, field, value) {
     value = safeHostURL(value);
     if (value === null) { setStatus('hosts-status', 'error', 'Invalid browser URL'); return false; }
   }
-  const res = await fetch('/api/settings/hosts/'+encodeURIComponent(safeHost), {method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({[field]: value})});
-  if (!res.ok) { setStatus('hosts-status', 'error', await res.text()); return false; }
-  setStatus('hosts-status', 'ok', 'Host updated');
-  return true;
+  try {
+    const res = await fetch('/api/settings/hosts/'+encodeURIComponent(safeHost), {method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({[field]: value})});
+    if (!res.ok) { setStatus('hosts-status', 'error', await res.text()); return false; }
+    setStatus('hosts-status', 'ok', 'Host updated');
+    return true;
+  } catch (err) {
+    setStatus('hosts-status', 'error', `Host update failed: ${err.message}`);
+    return false;
+  }
 }
 function addHost() {
   const host = safeHostName(prompt('Hostname or IP:'));
