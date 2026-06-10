@@ -7,6 +7,7 @@ import (
 	"embed"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -137,7 +138,7 @@ func main() {
 	}
 	app.serverPort = listener.Addr().(*net.TCPAddr).Port
 	logStartupBanner(app)
-	go http.Serve(listener, mux)
+	go serveLocalHTTP(listener, mux)
 
 	// Start SOCKS5 proxy (port must be open before WebView2 starts)
 	startSOCKS5Listener(app)
@@ -151,6 +152,12 @@ func main() {
 
 	shellURL := fmt.Sprintf("http://127.0.0.1:%d/", app.serverPort)
 	runGUI(app, shellURL)
+}
+
+func serveLocalHTTP(listener net.Listener, handler http.Handler) {
+	if err := http.Serve(listener, handler); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		log.Printf("local HTTP server stopped: %v", err)
+	}
 }
 
 func jsString(v interface{}) string {
