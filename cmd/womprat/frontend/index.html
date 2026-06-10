@@ -1321,10 +1321,12 @@ function activateRecentTab(tab) {
 }
 
 async function loadRecentTabs() {
+  const list = document.getElementById('recent-list');
+  if (!list) return;
   try {
     const res = await fetch('/api/settings/config');
+    if (!res.ok) throw new Error(await res.text());
     const cfg = await res.json();
-    const list = document.getElementById('recent-list');
     const tabs = cfg.openTabs || [];
     refreshURLHistoryDatalist(tabs.map(t => t.type === 'terminal' ? formatSSHURL(t.user || 'root', t.host || t.title, t.port) : (t.url || t.title)));
     list.textContent = '';
@@ -1373,7 +1375,14 @@ async function loadRecentTabs() {
       item.append(iconSpan, title, detailSpan);
       list.appendChild(item);
     });
-  } catch (err) { console.warn('recent tabs load failed', err); }
+  } catch (err) {
+    console.warn('recent tabs load failed', err);
+    list.textContent = '';
+    const item = document.createElement('div');
+    item.style.cssText = 'color:var(--dim);font-size:.85em';
+    item.textContent = 'Could not load recent tabs';
+    list.appendChild(item);
+  }
 }
 
 async function hydrateNativeTabs() {

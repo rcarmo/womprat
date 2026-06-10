@@ -528,6 +528,19 @@ func TestFrontendCentralizesBrowserURLNormalization(t *testing.T) {
 	}
 }
 
+func TestRecentTabsLoadFailureIsVisible(t *testing.T) {
+	s := readFileForRegression(t, "frontend/index.html")
+	for _, want := range []string{
+		"if (!res.ok) throw new Error(await res.text());",
+		"console.warn('recent tabs load failed', err);",
+		"Could not load recent tabs",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("recent tabs failure handling missing %q", want)
+		}
+	}
+}
+
 func TestFrontendDownloadPollingHandlesStatusFailures(t *testing.T) {
 	s := readFileForRegression(t, "frontend/index.html")
 	for _, want := range []string{
