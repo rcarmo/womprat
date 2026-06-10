@@ -1694,7 +1694,7 @@ function normalizeEncodings(encodings) {
   }
   if (values.length > 0)
     return values;
-  return [5, 2, 1, 0, -223];
+  return [16, 5, 2, 1, 0, -239, -223];
 }
 function toUint8Array2(chunk) {
   if (chunk instanceof Uint8Array)
@@ -2512,6 +2512,28 @@ class VncRemoteDisplayProtocol {
               offset += hextile.consumed;
               continue;
             }
+            if (encoding === -239) {
+              const bytesPerPixel = Math.max(1, Math.floor(Number(this.clientPixelFormat.bitsPerPixel || 0) / 8));
+              const pixelLength = width * height * bytesPerPixel;
+              const maskLength = Math.ceil(width / 8) * height;
+              if (this.buffer.byteLength < offset + pixelLength + maskLength) {
+                incomplete = true;
+                break;
+              }
+              const pixelBytes = this.buffer.slice(offset, offset + pixelLength);
+              const maskBytes = this.buffer.slice(offset + pixelLength, offset + pixelLength + maskLength);
+              const rgba = this.decodeRawRect(pixelBytes, width, height, this.clientPixelFormat);
+              for (let cy = 0;cy < height; cy += 1) {
+                for (let cx = 0;cx < width; cx += 1) {
+                  const maskByte = maskBytes[cy * Math.ceil(width / 8) + Math.floor(cx / 8)] || 0;
+                  const visible = (maskByte & 128 >> cx % 8) !== 0;
+                  rgba[(cy * width + cx) * 4 + 3] = visible ? rgba[(cy * width + cx) * 4 + 3] : 0;
+                }
+              }
+              rects.push({ kind: "cursor", x: x2, y, width, height, rgba });
+              offset += pixelLength + maskLength;
+              continue;
+            }
             if (encoding === -223) {
               this.framebufferWidth = width;
               this.framebufferHeight = height;
@@ -2521,7 +2543,7 @@ class VncRemoteDisplayProtocol {
               rects.push({ kind: "resize", x: x2, y, width, height });
               continue;
             }
-            throw new Error(`Unsupported VNC rectangle encoding ${encoding}. This viewer currently supports ZRLE, Hextile, RRE, CopyRect, raw rectangles, and DesktopSize only.`);
+            throw new Error(`Unsupported VNC rectangle encoding ${encoding}. This viewer currently supports ZRLE, Hextile, RRE, CopyRect, Cursor, raw rectangles, and DesktopSize only.`);
           }
           if (incomplete)
             break;
@@ -2880,6 +2902,9 @@ class WompratVncViewer {
     if (event.framebuffer && event.width && event.height) {
       this.resizeFramebuffer(event.width, event.height);
       this.ctx.putImageData(new ImageData(new Uint8ClampedArray(event.framebuffer), event.width, event.height), 0, 0);
+      for (const rect of event.rects || []) {
+        if (rect.kind === "cursor") this.applyCursor(rect);
+      }
       return;
     }
     if (!this.framebuffer)
@@ -2895,9 +2920,26 @@ class WompratVncViewer {
         const copy = this.ctx.getImageData(rect.srcX, rect.srcY, rect.width, rect.height);
         this.ctx.putImageData(copy, rect.x, rect.y);
         this.framebuffer = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
+      } else if (rect.kind === "cursor") {
+        this.applyCursor(rect);
       }
     }
     this.ctx.putImageData(this.framebuffer, 0, 0);
+  }
+  applyCursor(rect) {
+    if (!rect?.rgba || !rect.width || !rect.height) {
+      this.canvas.style.cursor = "default";
+      return;
+    }
+    const cursorCanvas = document.createElement("canvas");
+    cursorCanvas.width = rect.width;
+    cursorCanvas.height = rect.height;
+    const ctx = cursorCanvas.getContext("2d");
+    if (!ctx) return;
+    ctx.putImageData(new ImageData(new Uint8ClampedArray(rect.rgba), rect.width, rect.height), 0, 0);
+    const hotX = Math.max(0, Math.min(rect.width - 1, Number(rect.x || 0)));
+    const hotY = Math.max(0, Math.min(rect.height - 1, Number(rect.y || 0)));
+    this.canvas.style.cursor = `url(${cursorCanvas.toDataURL("image/png")}) ${hotX} ${hotY}, default`;
   }
   blitRgba(x2, y, width, height, rgba) {
     if (!this.framebuffer)
