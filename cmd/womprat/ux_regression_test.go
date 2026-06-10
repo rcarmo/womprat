@@ -452,6 +452,19 @@ func TestFrontendCentralizesBrowserURLNormalization(t *testing.T) {
 	}
 }
 
+func TestFrontendDownloadPollingHandlesStatusFailures(t *testing.T) {
+	s := readFileForRegression(t, "frontend/index.html")
+	for _, want := range []string{
+		"if (!res.ok) throw new Error(await res.text());",
+		"clearInterval(poll);",
+		"status.textContent = 'Error: ' + err.message;",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("frontend download polling error handling missing %q", want)
+		}
+	}
+}
+
 func TestFrontendValidatesDownloadURLs(t *testing.T) {
 	s := readFileForRegression(t, "frontend/index.html")
 	for _, want := range []string{

@@ -1452,8 +1452,17 @@ window.triggerDownload = async function(url) {
   
   // Poll progress
   const poll = setInterval(async () => {
-    const res = await fetch('/api/download/status');
-    const d = await res.json();
+    let d;
+    try {
+      const res = await fetch('/api/download/status');
+      if (!res.ok) throw new Error(await res.text());
+      d = await res.json();
+    } catch (err) {
+      clearInterval(poll);
+      status.textContent = 'Error: ' + err.message;
+      setTimeout(() => bar.classList.remove('active'), 5000);
+      return;
+    }
     if (d.status === 'downloading') {
       const pct = d.size > 0 ? Math.round(d.done / d.size * 100) : 0;
       prog.style.width = pct + '%';
