@@ -2959,10 +2959,29 @@ class WompratVncViewer {
     ro.observe(this.viewport);
   }
   installClipboard() {
+    const input = this.root.querySelector("[data-vnc-clipboard]");
     query(this.root, "[data-vnc-send-clipboard]").addEventListener("click", () => {
-      const input = this.root.querySelector("[data-vnc-clipboard]");
       this.send(clientCutText(input?.value || ""));
       setStatus(this.root, "Clipboard sent to remote.");
+    });
+    this.root.querySelector("[data-vnc-copy-clipboard]")?.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard?.writeText(input?.value || "");
+        setStatus(this.root, "Clipboard copied locally.");
+      } catch {
+        input?.select?.();
+        setStatus(this.root, "Clipboard text selected; press Ctrl+C to copy.");
+      }
+    });
+    this.root.querySelector("[data-vnc-paste-clipboard]")?.addEventListener("click", async () => {
+      try {
+        const text = await navigator.clipboard?.readText?.();
+        if (input && typeof text === "string") input.value = text;
+        setStatus(this.root, "Local clipboard pasted into field.");
+      } catch {
+        input?.focus?.();
+        setStatus(this.root, "Focus the field and press Ctrl+V to paste.");
+      }
     });
   }
   installControls() {

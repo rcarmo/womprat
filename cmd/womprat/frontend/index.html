@@ -116,7 +116,7 @@ button,a,.tab,.recent-item,.option{
 .vnc-field:focus{border-color:var(--accent);background:var(--bg)}
 .vnc-password{margin-left:auto;width:128px}
 .vnc-clipboard{min-width:160px;max-width:360px;width:28vw}
-.vnc-send,.vnc-reconnect,.vnc-scale{height:24px;min-width:52px;padding:0 10px;font-size:12px;font-weight:600}
+.vnc-send,.vnc-copy,.vnc-paste,.vnc-reconnect,.vnc-scale{height:24px;min-width:52px;padding:0 10px;font-size:12px;font-weight:600}
 .vnc-viewport{flex:1;min-height:0;display:grid;place-items:center;overflow:hidden;background:radial-gradient(circle at 50% 30%,rgba(255,255,255,.06),transparent 42%),#050609}
 .vnc-viewport canvas{display:block;image-rendering:pixelated;background:#000;border:1px solid rgba(255,255,255,.14);border-radius:var(--radius);box-shadow:0 8px 30px rgba(0,0,0,.45);outline:none}
 .vnc-viewport canvas:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(96,205,255,.22),0 8px 30px rgba(0,0,0,.45)}
@@ -877,6 +877,8 @@ function activateTab(id, options = {}) {
           <button data-vnc-reconnect class="icon-button text-button vnc-reconnect">Reconnect</button>
           <button data-vnc-scale class="icon-button text-button vnc-scale" aria-pressed="true">Fit</button>
           <input class="vnc-field vnc-clipboard" data-vnc-clipboard placeholder="Clipboard text" aria-label="VNC clipboard text">
+          <button data-vnc-copy-clipboard class="icon-button text-button vnc-copy">Copy</button>
+          <button data-vnc-paste-clipboard class="icon-button text-button vnc-paste">Paste</button>
           <button data-vnc-send-clipboard class="icon-button text-button vnc-send">Send</button>
         </div>
         <div class="vnc-viewport" data-vnc-viewport><canvas aria-label="VNC remote display"></canvas></div>
