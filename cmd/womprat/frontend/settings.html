@@ -515,12 +515,17 @@ function setExitStatus(node) {
   setStatus('exit-status', node ? 'ok' : 'warn', node ? `Internet via ${node}` : 'Tailnet only');
 }
 async function setExitNode(node) {
-  const res = await fetch('/api/settings/exit-node', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({exitNode: node})
-  });
-  if (!res.ok) { setStatus('exit-status', 'error', await res.text()); await loadExitNodes(); return; }
-  setExitStatus(node);
+  try {
+    const res = await fetch('/api/settings/exit-node', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({exitNode: node})
+    });
+    if (!res.ok) { setStatus('exit-status', 'error', await res.text()); await loadExitNodes(); return; }
+    setExitStatus(node);
+  } catch (err) {
+    setStatus('exit-status', 'error', `Exit node save failed: ${err.message}`);
+    await loadExitNodes();
+  }
 }
 
 async function loadBrowserSettings() {

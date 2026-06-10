@@ -40,6 +40,7 @@ func TestSettingsHasNoEmptyCatchBlocks(t *testing.T) {
 		"Password save failed: ${err.message}",
 		"Tailscale key save failed: ${err.message}",
 		"Tailscale disconnect failed: ${err.message}",
+		"Exit node save failed: ${err.message}",
 	} {
 		if !strings.Contains(s, want) {
 			t.Fatalf("settings failure reporting missing %q", want)
