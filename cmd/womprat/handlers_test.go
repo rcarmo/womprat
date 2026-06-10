@@ -73,12 +73,20 @@ func TestSettingsUnlockAndMasterPasswordHandlers(t *testing.T) {
 
 func TestHostsAppearanceAndSaveTabsHandlers(t *testing.T) {
 	app := newTestApp(t)
-	rr := performJSON(app.handleHosts, "PATCH", "/api/settings/hosts/smith", map[string]any{"user": "rui", "port": 2222.0, "nickname": "Smith", "url": "http://smith"})
+	rr := performJSON(app.handleHosts, "PATCH", "/api/settings/hosts/smith", map[string]any{"user": "rui", "port": 2222, "nickname": "Smith", "url": "http://smith"})
 	if rr.Code != 200 {
 		t.Fatalf("patch host = %d %s", rr.Code, rr.Body.String())
 	}
 	if got := app.config.Hosts["smith"].Port; got != 2222 {
 		t.Fatalf("host port = %d", got)
+	}
+	rr = performJSON(app.handleHosts, "PATCH", "/api/settings/hosts/smith", map[string]any{"port": 70000})
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("bad host port = %d %s", rr.Code, rr.Body.String())
+	}
+	rr = performJSON(app.handleHosts, "PATCH", "/api/settings/hosts/bad/extra", map[string]any{"port": 22})
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("bad host path = %d %s", rr.Code, rr.Body.String())
 	}
 	rr = performJSON(app.handleHosts, "GET", "/api/settings/hosts", nil)
 	if rr.Code != 200 || !strings.Contains(rr.Body.String(), "smith") {
@@ -94,6 +102,21 @@ func TestHostsAppearanceAndSaveTabsHandlers(t *testing.T) {
 	rr = performJSON(app.handleSaveTabs, "POST", "/api/settings/save-tabs", map[string]any{"tabs": tabs})
 	if rr.Code != 200 || len(app.config.OpenTabs) != 1 {
 		t.Fatalf("save tabs = %d %+v", rr.Code, app.config.OpenTabs)
+	}
+}
+
+func TestSettingsRejectMalformedJSON(t *testing.T) {
+	app := newTestApp(t)
+	req := httptest.NewRequest("POST", "/api/settings/unlock-method", strings.NewReader(`{"method":"master"} trailing`))
+	rr := httptest.NewRecorder()
+	app.handleSetUnlockMethod(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("malformed json = %d %s", rr.Code, rr.Body.String())
+	}
+
+	rr = performJSON(app.handleSetUnlockMethod, "POST", "/api/settings/unlock-method", map[string]any{"method": "master", "extra": true})
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("unknown field json = %d %s", rr.Code, rr.Body.String())
 	}
 }
 

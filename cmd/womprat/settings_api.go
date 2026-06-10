@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -42,6 +43,34 @@ func (a *App) registerSettingsRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/settings/config", a.authMiddleware(a.handleGetConfig))
 }
 
+const maxSettingsJSONBody = 1 << 20
+
+func decodeSettingsJSON(w http.ResponseWriter, r *http.Request, dst any) bool {
+	r.Body = http.MaxBytesReader(w, r.Body, maxSettingsJSONBody)
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(dst); err != nil {
+		http.Error(w, "invalid JSON: "+err.Error(), http.StatusBadRequest)
+		return false
+	}
+	if err := dec.Decode(&struct{}{}); err != io.EOF {
+		http.Error(w, "invalid JSON: multiple JSON values", http.StatusBadRequest)
+		return false
+	}
+	return true
+}
+
+func resourceNameFromPath(path, prefix string) (string, error) {
+	if !strings.HasPrefix(path, prefix) {
+		return "", fmt.Errorf("invalid path")
+	}
+	name := strings.TrimPrefix(path, prefix)
+	if name == "" || strings.Contains(name, "/") || strings.Contains(name, "\\") {
+		return "", fmt.Errorf("missing resource name")
+	}
+	return name, nil
+}
+
 func (a *App) handleSetUnlockMethod(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		http.Error(w, "method not allowed", 405)
@@ -50,7 +79,9 @@ func (a *App) handleSetUnlockMethod(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Method string `json:"method"`
 	}
-	json.NewDecoder(r.Body).Decode(&body)
+	if !decodeSettingsJSON(w, r, &body) {
+		return
+	}
 	if body.Method != "master" && body.Method != "dpapi" {
 		http.Error(w, "unsupported unlock method", 400)
 		return
@@ -74,7 +105,9 @@ func (a *App) handleSetMasterPassword(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Password string `json:"password"`
 	}
-	json.NewDecoder(r.Body).Decode(&body)
+	if !decodeSettingsJSON(w, r, &body) {
+		return
+	}
 	if body.Password == "" {
 		http.Error(w, "empty password", 400)
 		return
@@ -116,7 +149,9 @@ func (a *App) handleSetTailscaleKey(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Key string `json:"key"`
 	}
-	json.NewDecoder(r.Body).Decode(&body)
+	if !decodeSettingsJSON(w, r, &body) {
+		return
+	}
 	if strings.TrimSpace(body.Key) == "" {
 		http.Error(w, "empty tailscale key", 400)
 		return
@@ -154,16 +189,21 @@ func (a *App) handleSSHKeys(w http.ResponseWriter, r *http.Request) {
 			Name    string `json:"name"`
 			Content string `json:"content"`
 		}
-		json.NewDecoder(r.Body).Decode(&body)
+		if !decodeSettingsJSON(w, r, &body) {
+			return
+		}
 		if err := a.importSSHKey(body.Name, body.Content); err != nil {
 			http.Error(w, err.Error(), 400)
 			return
 		}
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	case "DELETE":
-		// DELETE /api/settings/ssh-keys/<name>
-		parts := strings.Split(r.URL.Path, "/")
-		name, err := safeSSHKeyName(parts[len(parts)-1])
+		namePart, err := resourceNameFromPath(r.URL.Path, "/api/settings/ssh-keys/")
+		if err != nil {
+			http.Error(w, err.Error(), 400)
+			return
+		}
+		name, err := safeSSHKeyName(namePart)
 		if err != nil {
 			http.Error(w, err.Error(), 400)
 			return
@@ -186,7 +226,9 @@ func (a *App) handleGenerateSSHKey(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Name string `json:"name"`
 	}
-	json.NewDecoder(r.Body).Decode(&body)
+	if !decodeSettingsJSON(w, r, &body) {
+		return
+	}
 	name, err := safeSSHKeyName(body.Name)
 	if err != nil {
 		http.Error(w, err.Error(), 400)
@@ -234,30 +276,50 @@ func (a *App) handleHosts(w http.ResponseWriter, r *http.Request) {
 		a.mu.Unlock()
 		json.NewEncoder(w).Encode(hosts)
 	case "PATCH":
-		parts := strings.Split(r.URL.Path, "/")
-		host := parts[len(parts)-1]
-		var body map[string]interface{}
-		json.NewDecoder(r.Body).Decode(&body)
-		if host == "" || strings.ContainsAny(host, "/\\") {
+		host, err := resourceNameFromPath(r.URL.Path, "/api/settings/hosts/")
+		if err != nil || validateCustomURLHost("ssh", host) != nil {
 			http.Error(w, "invalid host", 400)
+			return
+		}
+		var body struct {
+			User     *string `json:"user,omitempty"`
+			Port     *int    `json:"port,omitempty"`
+			KeyName  *string `json:"keyName,omitempty"`
+			Nickname *string `json:"nickname,omitempty"`
+			URL      *string `json:"url,omitempty"`
+		}
+		if !decodeSettingsJSON(w, r, &body) {
 			return
 		}
 		a.mu.Lock()
 		conf := a.config.Hosts[host]
-		if v, ok := body["user"].(string); ok {
-			conf.User = v
+		if body.User != nil {
+			conf.User = strings.TrimSpace(*body.User)
 		}
-		if v, ok := body["port"].(float64); ok {
-			conf.Port = int(v)
+		if body.Port != nil {
+			if *body.Port <= 0 || *body.Port > 65535 {
+				a.mu.Unlock()
+				http.Error(w, "invalid port", 400)
+				return
+			}
+			conf.Port = *body.Port
 		}
-		if v, ok := body["keyName"].(string); ok {
-			conf.KeyName = v
+		if body.KeyName != nil {
+			keyName := strings.TrimSpace(*body.KeyName)
+			if keyName != "" {
+				if _, err := safeSSHKeyName(keyName); err != nil {
+					a.mu.Unlock()
+					http.Error(w, err.Error(), 400)
+					return
+				}
+			}
+			conf.KeyName = keyName
 		}
-		if v, ok := body["nickname"].(string); ok {
-			conf.Nickname = v
+		if body.Nickname != nil {
+			conf.Nickname = strings.TrimSpace(*body.Nickname)
 		}
-		if v, ok := body["url"].(string); ok {
-			conf.URL = v
+		if body.URL != nil {
+			conf.URL = strings.TrimSpace(*body.URL)
 		}
 		a.config.Hosts[host] = conf
 		cfg := a.config
@@ -283,7 +345,9 @@ func (a *App) handleAppearance(w http.ResponseWriter, r *http.Request) {
 		RestoreTabs bool   `json:"restoreTabs"`
 		AutoConnect bool   `json:"autoConnect"`
 	}
-	json.NewDecoder(r.Body).Decode(&body)
+	if !decodeSettingsJSON(w, r, &body) {
+		return
+	}
 	a.mu.Lock()
 	a.config.FontSize = body.FontSize
 	a.config.Theme = body.Theme
@@ -373,7 +437,9 @@ func (a *App) handleExitNode(w http.ResponseWriter, r *http.Request) {
 		var body struct {
 			ExitNode string `json:"exitNode"`
 		}
-		json.NewDecoder(r.Body).Decode(&body)
+		if !decodeSettingsJSON(w, r, &body) {
+			return
+		}
 		if err := a.applyExitNodePreference(r.Context(), body.ExitNode); err != nil {
 			http.Error(w, err.Error(), 500)
 			return
@@ -447,7 +513,9 @@ func (a *App) handleSaveTabs(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Tabs []SavedTab `json:"tabs"`
 	}
-	json.NewDecoder(r.Body).Decode(&body)
+	if !decodeSettingsJSON(w, r, &body) {
+		return
+	}
 	a.mu.Lock()
 	a.config.OpenTabs = body.Tabs
 	cfg := a.config
