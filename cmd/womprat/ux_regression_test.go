@@ -56,6 +56,20 @@ func TestReadOnlyHandlersUseSharedGetMethodGuard(t *testing.T) {
 	}
 }
 
+func TestSOCKSConnectUsesBoundedTsnetDial(t *testing.T) {
+	s := readFileForRegression(t, "socks.go")
+	for _, want := range []string{
+		"const socksDialTimeout = 10 * time.Second",
+		"context.WithTimeout(context.Background(), socksDialTimeout)",
+		"ts.Dial(dialCtx, \"tcp\", addr)",
+		"defer cancelDial()",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("SOCKS dial timeout guard missing %q", want)
+		}
+	}
+}
+
 func TestSSHConnectUsesRequestScopedDialTimeout(t *testing.T) {
 	s := readFileForRegression(t, "main.go")
 	for _, want := range []string{

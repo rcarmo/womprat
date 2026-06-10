@@ -8,9 +8,12 @@ import (
 	"log"
 	"net"
 	"strings"
+	"time"
 )
 
 var socksAddr = "127.0.0.1:1080"
+
+const socksDialTimeout = 10 * time.Second
 
 // startSOCKS5Listener starts the SOCKS5 listener immediately.
 // It can serve requests as soon as app.tsServer is non-nil.
@@ -91,7 +94,9 @@ func handleSOCKS5(conn net.Conn, app *App) {
 	// routing policy. If an exit node is configured, tsnet handles it; otherwise
 	// non-tailnet destinations fail closed instead of escaping locally.
 	log.Printf("SOCKS5 connect %s via tsnet", addr)
-	remote, err := ts.Dial(context.Background(), "tcp", addr)
+	dialCtx, cancelDial := context.WithTimeout(context.Background(), socksDialTimeout)
+	defer cancelDial()
+	remote, err := ts.Dial(dialCtx, "tcp", addr)
 	if err != nil {
 		log.Printf("SOCKS5 tsnet dial failed for %s: %v", addr, err)
 		writeSOCKSReply(conn, 0x05)
