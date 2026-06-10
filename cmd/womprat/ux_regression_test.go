@@ -25,6 +25,26 @@ func TestSettingsUsesFetchJSONHelper(t *testing.T) {
 	}
 }
 
+func TestSettingsRemainingActionsUseDataAttributes(t *testing.T) {
+	s := readFileForRegression(t, "frontend/settings.html")
+	for _, want := range []string{
+		"data-action=\"refresh-hosts\"",
+		"data-action=\"clear-cache\"",
+		"data-action=\"save-appearance\"",
+		"document.getElementById('exit-node')?.addEventListener('change'",
+		"document.getElementById('debug-log')?.addEventListener('change'",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("settings remaining action wiring missing %q", want)
+		}
+	}
+	for _, forbidden := range []string{"onchange=\"setExitNode", "onclick=\"refreshHosts()", "onclick=\"clearCache()", "onclick=\"saveAppearance()", "onchange=\"setDebugLog"} {
+		if strings.Contains(s, forbidden) {
+			t.Fatalf("settings action must not use inline handler %q", forbidden)
+		}
+	}
+}
+
 func TestSettingsTailscaleAndKeyActionsUseDataAttributes(t *testing.T) {
 	s := readFileForRegression(t, "frontend/settings.html")
 	for _, want := range []string{

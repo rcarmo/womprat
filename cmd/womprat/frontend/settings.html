@@ -134,7 +134,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
   <div class="section">
     <h3>Exit Node</h3>
     <p style="color:var(--dim);font-size:.82rem;margin-bottom:.6rem">Route all internet traffic through a tailnet peer. Without an exit node, only tailnet hosts are reachable.</p>
-    <select id="exit-node" style="width:100%" onchange="setExitNode(this.value)">
+    <select id="exit-node" style="width:100%">
       <option value="">None — tailnet only</option>
     </select>
     <div id="exit-status" style="margin-top:.5rem"></div>
@@ -179,8 +179,8 @@ tr:hover td{background:rgba(255,255,255,.02)}
       <tbody id="hosts-table"><tr><td colspan="4" style="color:var(--dim)">Connect to Tailscale to discover peers</td></tr></tbody>
     </table>
     <div class="btn-row" style="margin-top:.8rem">
-      <button class="btn-secondary" onclick="refreshHosts()">Refresh from Tailnet</button>
-      <button class="btn-secondary" onclick="addHost()">Add Manual Host</button>
+      <button class="btn-secondary" data-action="refresh-hosts">Refresh from Tailnet</button>
+      <button class="btn-secondary" data-action="add-host">Add Manual Host</button>
     </div>
     <div id="hosts-status" style="margin-top:.5rem"></div>
   </div>
@@ -193,7 +193,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
     <p style="color:var(--dim);font-size:.82rem;margin-bottom:.6rem">Cached pages and assets from browsed tailnet services.</p>
     <div style="display:flex;align-items:center;gap:.8rem">
       <span id="cache-size" style="font-size:.85rem;color:var(--dim)">Calculating…</span>
-      <button class="btn-danger" onclick="clearCache()">Clear Cache</button>
+      <button class="btn-danger" data-action="clear-cache">Clear Cache</button>
     </div>
   </div>
   <div class="section">
@@ -204,7 +204,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
       <tbody id="cookies-table"><tr><td colspan="3" style="color:var(--dim)">Loading…</td></tr></tbody>
     </table>
     <div class="btn-row" style="margin-top:.6rem">
-      <button class="btn-danger" onclick="clearAllCookies()">Clear All Cookies</button>
+      <button class="btn-danger" data-action="clear-all-cookies">Clear All Cookies</button>
     </div>
   </div>
   <div class="section">
@@ -219,14 +219,14 @@ tr:hover td{background:rgba(255,255,255,.02)}
       <tbody id="passwords-table"><tr><td colspan="3" style="color:var(--dim)">Listing disabled</td></tr></tbody>
     </table>
     <div class="btn-row" style="margin-top:.6rem">
-      <button class="btn-danger" onclick="clearAllPasswords()">Clear All Saved Passwords</button>
+      <button class="btn-danger" data-action="clear-all-passwords">Clear All Saved Passwords</button>
     </div>
   </div>
   <div class="section">
     <h3>Browsing Data</h3>
     <p style="color:var(--dim);font-size:.82rem;margin-bottom:.6rem">Clear all browsing data at once.</p>
     <div class="btn-row">
-      <button class="btn-danger" onclick="clearAllBrowsingData()">Clear All Browsing Data</button>
+      <button class="btn-danger" data-action="clear-all-browsing-data">Clear All Browsing Data</button>
     </div>
     <p style="color:var(--dim);font-size:.78rem;margin-top:.5rem">This clears cache, cookies, saved passwords, and browsing history.</p>
   </div>
@@ -257,7 +257,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
     </label>
   </div>
   <div class="btn-row">
-    <button class="btn-primary" onclick="saveAppearance()">Save</button>
+    <button class="btn-primary" data-action="save-appearance">Save</button>
   </div>
 </div>
 
@@ -279,7 +279,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
     <h3>Diagnostics</h3>
     <p style="color:var(--dim);font-size:.82rem;margin-bottom:.6rem">Debug logging writes a runtime log next to the executable and enables WebView dev tooling. Leave off for normal use.</p>
     <label style="display:flex;align-items:center;gap:.6rem;cursor:pointer">
-      <input type="checkbox" id="debug-log" onchange="setDebugLog(this.checked)">
+      <input type="checkbox" id="debug-log">
       <span>Enable debug logging</span>
     </label>
     <div id="debug-log-path" class="mono" style="margin-top:.5rem;color:var(--dim);font-size:.78rem;word-break:break-all"></div>
@@ -370,6 +370,15 @@ document.querySelector('[data-action="save-tailscale"]')?.addEventListener('clic
 document.querySelector('[data-action="import-key"]')?.addEventListener('click', importKey);
 document.querySelector('[data-action="generate-key"]')?.addEventListener('click', generateKey);
 document.getElementById('key-file-input')?.addEventListener('change', ev => handleKeyFile(ev.currentTarget));
+document.getElementById('exit-node')?.addEventListener('change', ev => setExitNode(ev.currentTarget.value));
+document.querySelector('[data-action="refresh-hosts"]')?.addEventListener('click', refreshHosts);
+document.querySelector('[data-action="add-host"]')?.addEventListener('click', addHost);
+document.querySelector('[data-action="clear-cache"]')?.addEventListener('click', clearCache);
+document.querySelector('[data-action="clear-all-cookies"]')?.addEventListener('click', clearAllCookies);
+document.querySelector('[data-action="clear-all-passwords"]')?.addEventListener('click', clearAllPasswords);
+document.querySelector('[data-action="clear-all-browsing-data"]')?.addEventListener('click', clearAllBrowsingData);
+document.querySelector('[data-action="save-appearance"]')?.addEventListener('click', saveAppearance);
+document.getElementById('debug-log')?.addEventListener('change', ev => setDebugLog(ev.currentTarget.checked));
 
 function selectUnlock(method) {
   document.querySelectorAll('.option').forEach(o => o.classList.remove('selected'));
