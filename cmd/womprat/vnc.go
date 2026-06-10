@@ -36,6 +36,9 @@ func parseVNCURL(raw string) (vncTarget, error) {
 }
 
 func (a *App) handleVNCWebSocket(w http.ResponseWriter, r *http.Request) {
+	if !requireGET(w, r) {
+		return
+	}
 	target, err := parseVNCURL(r.URL.Query().Get("target"))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)

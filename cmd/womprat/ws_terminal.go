@@ -59,6 +59,9 @@ func clampTerminalDimension(value, min, max int) int {
 
 // handleSSHWebSocketFull is the production WebSocket PTY handler
 func (a *App) handleSSHWebSocketFull(w http.ResponseWriter, r *http.Request) {
+	if !requireGET(w, r) {
+		return
+	}
 	tabID := r.URL.Query().Get("tab")
 	if !validTabID(tabID) {
 		http.Error(w, "invalid tab param", http.StatusBadRequest)

@@ -57,6 +57,9 @@ func parseRDPURL(raw string) (rdpTarget, error) {
 }
 
 func (a *App) handleRDPWebSocket(w http.ResponseWriter, r *http.Request) {
+	if !requireGET(w, r) {
+		return
+	}
 	queryTarget, err := parseRDPURL(r.URL.Query().Get("target"))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)

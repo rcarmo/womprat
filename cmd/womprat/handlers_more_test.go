@@ -77,6 +77,23 @@ func TestSSHResizePostNoContent(t *testing.T) {
 	}
 }
 
+func TestWebSocketHandlersRejectPost(t *testing.T) {
+	app := newTestApp(t)
+	for _, tc := range []struct {
+		name string
+		h    http.HandlerFunc
+	}{
+		{"ssh-ws", app.handleSSHWebSocketFull},
+		{"vnc-ws", app.handleVNCWebSocket},
+		{"rdp-ws", app.handleRDPWebSocket},
+	} {
+		rr := performJSON(tc.h, "POST", "/", nil)
+		if rr.Code != http.StatusMethodNotAllowed {
+			t.Fatalf("%s POST = %d", tc.name, rr.Code)
+		}
+	}
+}
+
 func TestReadOnlyHandlersRejectPost(t *testing.T) {
 	app := newTestApp(t)
 	for _, tc := range []struct {
