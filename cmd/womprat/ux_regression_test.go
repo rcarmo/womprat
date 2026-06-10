@@ -24,6 +24,8 @@ func TestSettingsValidatesKeyAndHostInputs(t *testing.T) {
 		"setStatus('keys-status', 'ok', 'Key imported')",
 		"setStatus('keys-status', 'ok', 'Key generated')",
 		"setStatus('hosts-status', 'error', 'Invalid host')",
+		"setStatus('hosts-status', 'ok', 'Host updated')",
+		"if (!res.ok) { setStatus('hosts-status', 'error', await res.text()); return false; }",
 		"id=\"keys-status\"",
 		"id=\"hosts-status\"",
 	} {
