@@ -1104,7 +1104,7 @@ func (a *App) handleSSHConnect(w http.ResponseWriter, r *http.Request) {
 		}
 		_, _, _, _ = ssh.NewClientConn(conn2, addr, noneConfig)
 		conn2.Close()
-		tabID := fmt.Sprintf("term-%s-%d", body.Host, time.Now().UnixMilli())
+		tabID := newTabID("term")
 		a.mu.Lock()
 		a.pendingAuth[tabID] = &pendingSSH{host: body.Host, user: body.User, port: body.Port, cols: body.Cols, rows: body.Rows}
 		a.mu.Unlock()
@@ -1113,7 +1113,7 @@ func (a *App) handleSSHConnect(w http.ResponseWriter, r *http.Request) {
 	}
 
 	client := ssh.NewClient(sshConn, chans, reqs)
-	tabID := fmt.Sprintf("term-%s-%d", body.Host, time.Now().UnixMilli())
+	tabID := newTabID("term")
 	a.mu.Lock()
 	a.sshConns[tabID] = client
 	a.mu.Unlock()

@@ -33,6 +33,14 @@ func newTestApp(t *testing.T) *App {
 	}
 }
 
+func TestNewTabIDIsValidAndUnique(t *testing.T) {
+	a := newTabID("term")
+	b := newTabID("term")
+	if a == b || !validTabID(a) || !validTabID(b) {
+		t.Fatalf("tab ids = %q %q", a, b)
+	}
+}
+
 func TestJSStringFallsBackOnMarshalError(t *testing.T) {
 	if got := jsString(func() {}); got != "null" {
 		t.Fatalf("jsString unsupported = %q", got)
