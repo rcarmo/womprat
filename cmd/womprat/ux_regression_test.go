@@ -436,6 +436,7 @@ func TestShellLogsNativeAndCleanupFailures(t *testing.T) {
 	for _, want := range []string{
 		"console.warn('native tab switch failed'",
 		"console.warn('native settings open failed'",
+		"console.warn('native tab registration failed'",
 		"console.warn('save open tabs failed'",
 		"console.warn('rdp disconnect failed'",
 	} {

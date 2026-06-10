@@ -378,7 +378,8 @@ function validTabID(id) {
 }
 async function registerLocalTab(tab) {
   if (window.womprat_registerLocalTab) {
-    await womprat_registerLocalTab(JSON.stringify(tab));
+    try { await womprat_registerLocalTab(JSON.stringify(tab)); }
+    catch (err) { console.warn('native tab registration failed', err); }
   }
 }
 function loadURLHistory() {
