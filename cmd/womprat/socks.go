@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"strings"
 )
 
 var socksAddr = "127.0.0.1:1080"
@@ -46,6 +47,10 @@ func handleSOCKS5(conn net.Conn, app *App) {
 	}
 	methods := make([]byte, int(head[1]))
 	if _, err := io.ReadFull(conn, methods); err != nil {
+		return
+	}
+	if !socksMethodsContain(methods, 0x00) {
+		_, _ = conn.Write([]byte{0x05, 0xff})
 		return
 	}
 	// No-auth method.
@@ -102,6 +107,15 @@ func handleSOCKS5(conn net.Conn, app *App) {
 	<-done
 }
 
+func socksMethodsContain(methods []byte, method byte) bool {
+	for _, m := range methods {
+		if m == method {
+			return true
+		}
+	}
+	return false
+}
+
 func readSOCKSAddr(r io.Reader, atyp byte) (string, uint16, error) {
 	switch atyp {
 	case 0x01: // IPv4
@@ -109,26 +123,46 @@ func readSOCKSAddr(r io.Reader, atyp byte) (string, uint16, error) {
 		if _, err := io.ReadFull(r, buf); err != nil {
 			return "", 0, err
 		}
-		return net.IP(buf[:4]).String(), binary.BigEndian.Uint16(buf[4:]), nil
+		return validateSOCKSTarget(net.IP(buf[:4]).String(), binary.BigEndian.Uint16(buf[4:]))
 	case 0x03: // domain
 		var l [1]byte
 		if _, err := io.ReadFull(r, l[:]); err != nil {
 			return "", 0, err
 		}
+		if l[0] == 0 {
+			return "", 0, fmt.Errorf("empty domain")
+		}
 		buf := make([]byte, int(l[0])+2)
 		if _, err := io.ReadFull(r, buf); err != nil {
 			return "", 0, err
 		}
-		return string(buf[:len(buf)-2]), binary.BigEndian.Uint16(buf[len(buf)-2:]), nil
+		return validateSOCKSTarget(string(buf[:len(buf)-2]), binary.BigEndian.Uint16(buf[len(buf)-2:]))
 	case 0x04: // IPv6
 		buf := make([]byte, 16+2)
 		if _, err := io.ReadFull(r, buf); err != nil {
 			return "", 0, err
 		}
-		return net.IP(buf[:16]).String(), binary.BigEndian.Uint16(buf[16:]), nil
+		return validateSOCKSTarget(net.IP(buf[:16]).String(), binary.BigEndian.Uint16(buf[16:]))
 	default:
 		return "", 0, fmt.Errorf("unsupported address type %d", atyp)
 	}
+}
+
+func validateSOCKSTarget(host string, port uint16) (string, uint16, error) {
+	host = strings.TrimSpace(host)
+	if host == "" {
+		return "", 0, fmt.Errorf("empty host")
+	}
+	if port == 0 {
+		return "", 0, fmt.Errorf("invalid port")
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		return ip.String(), port, nil
+	}
+	if len(host) > 253 || strings.ContainsAny(host, " /?#\\@%") {
+		return "", 0, fmt.Errorf("invalid host")
+	}
+	return host, port, nil
 }
 
 func writeSOCKSReply(w io.Writer, rep byte) error {
@@ -136,12 +170,28 @@ func writeSOCKSReply(w io.Writer, rep byte) error {
 	return err
 }
 
+func writeFull(w io.Writer, data []byte) error {
+	for len(data) > 0 {
+		n, err := w.Write(data)
+		if err != nil {
+			return err
+		}
+		if n <= 0 {
+			return io.ErrShortWrite
+		}
+		data = data[n:]
+	}
+	return nil
+}
+
 func relay(dst, src net.Conn) {
 	buf := make([]byte, 32*1024)
 	for {
 		n, err := src.Read(buf)
 		if n > 0 {
-			_, _ = dst.Write(buf[:n])
+			if werr := writeFull(dst, buf[:n]); werr != nil {
+				return
+			}
 		}
 		if err != nil {
 			return

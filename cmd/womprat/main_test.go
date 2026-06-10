@@ -120,6 +120,15 @@ func TestAuthMiddleware(t *testing.T) {
 	}
 }
 
+func TestSOCKSMethodsContain(t *testing.T) {
+	if !socksMethodsContain([]byte{0x02, 0x00}, 0x00) {
+		t.Fatal("no-auth method not detected")
+	}
+	if socksMethodsContain([]byte{0x02}, 0x00) {
+		t.Fatal("unexpected no-auth method")
+	}
+}
+
 func TestReadSOCKSAddr(t *testing.T) {
 	buf := bytes.NewBuffer(nil)
 	buf.WriteByte(11)
@@ -137,5 +146,37 @@ func TestReadSOCKSAddr(t *testing.T) {
 	host, port, err = readSOCKSAddr(buf, 0x01)
 	if err != nil || host != "127.0.0.1" || port != 80 {
 		t.Fatalf("ipv4 addr = %q %d %v", host, port, err)
+	}
+
+	buf.Reset()
+	buf.WriteByte(0)
+	if _, _, err := readSOCKSAddr(buf, 0x03); err == nil {
+		t.Fatal("empty domain accepted")
+	}
+
+	buf.Reset()
+	buf.WriteByte(11)
+	buf.WriteString("example.com")
+	_ = binary.Write(buf, binary.BigEndian, uint16(0))
+	if _, _, err := readSOCKSAddr(buf, 0x03); err == nil {
+		t.Fatal("port 0 accepted")
+	}
+}
+
+func TestValidateSOCKSTarget(t *testing.T) {
+	if host, port, err := validateSOCKSTarget(" example.com ", 443); err != nil || host != "example.com" || port != 443 {
+		t.Fatalf("valid target = %q %d %v", host, port, err)
+	}
+	for _, tc := range []struct {
+		host string
+		port uint16
+	}{
+		{"", 443},
+		{"bad host", 443},
+		{"example.com", 0},
+	} {
+		if _, _, err := validateSOCKSTarget(tc.host, tc.port); err == nil {
+			t.Fatalf("validateSOCKSTarget(%q,%d) succeeded", tc.host, tc.port)
+		}
 	}
 }
