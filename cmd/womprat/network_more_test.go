@@ -43,7 +43,9 @@ func TestListCookieDomainsWithSQLite(t *testing.T) {
 	if len(domains) != 2 {
 		t.Fatalf("domains = %+v", domains)
 	}
-	deleteCookiesForDomain(".example.com")
+	if err := deleteCookiesForDomain(".example.com"); err != nil {
+		t.Fatal(err)
+	}
 	domains = listCookieDomains()
 	if len(domains) != 1 || domains[0].Domain != "smith.local" {
 		t.Fatalf("after delete domains = %+v", domains)

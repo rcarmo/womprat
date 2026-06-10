@@ -113,8 +113,12 @@ func TestBrowserHelpers(t *testing.T) {
 	if len(paths) != 2 || firstExistingCookieDB() != "" {
 		t.Fatalf("cookie paths/db = %+v %q", paths, firstExistingCookieDB())
 	}
-	deleteCookiesForDomain("example.com")
-	clearAllSavedPasswords()
+	if err := deleteCookiesForDomain("example.com"); err != nil {
+		t.Fatal(err)
+	}
+	if err := clearAllSavedPasswords(); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestGetDownloadsDir(t *testing.T) {

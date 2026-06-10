@@ -86,7 +86,10 @@ func (a *App) handleClearCookies(w http.ResponseWriter, r *http.Request) {
 
 	if body.Domain != "" {
 		// Clear cookies for specific domain
-		deleteCookiesForDomain(body.Domain)
+		if err := deleteCookiesForDomain(body.Domain); err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
 	} else {
 		// Clear all cookies
 		if err := removeExistingFiles(cookieDBPaths()...); err != nil {
@@ -290,21 +293,28 @@ func firstExistingCookieDB() string {
 	return ""
 }
 
-func deleteCookiesForDomain(domain string) {
+func deleteCookiesForDomain(domain string) error {
 	if domain == "" {
-		return
+		return nil
 	}
+	var errs []error
 	for _, cookieFile := range cookieDBPaths() {
 		if _, err := os.Stat(cookieFile); err != nil {
 			continue
 		}
 		db, err := sql.Open("sqlite", "file:"+filepath.ToSlash(cookieFile)+"?mode=rw")
 		if err != nil {
+			errs = append(errs, err)
 			continue
 		}
-		_, _ = db.Exec(`DELETE FROM cookies WHERE host_key = ? OR host_key = ? OR host_key LIKE ?`, domain, strings.TrimPrefix(domain, "."), "%"+strings.TrimPrefix(domain, "."))
-		db.Close()
+		if _, err := db.Exec(`DELETE FROM cookies WHERE host_key = ? OR host_key = ? OR host_key LIKE ?`, domain, strings.TrimPrefix(domain, "."), "%"+strings.TrimPrefix(domain, ".")); err != nil {
+			errs = append(errs, err)
+		}
+		if err := db.Close(); err != nil {
+			errs = append(errs, err)
+		}
 	}
+	return errors.Join(errs...)
 }
 
 func clearBrowserArtifacts() error {
