@@ -361,6 +361,8 @@ func TestCustomSchemesUseSingleFrontendDispatcher(t *testing.T) {
 	s := readFileForRegression(t, "frontend/index.html")
 	for _, want := range []string{
 		"function parseCustomURL(url)",
+		"function decodeURLComponent(value)",
+		"if (user === null || !validCustomHost(host)",
 		"const defaults = { ssh: 22, vnc: 5900, rdp: 3389 }",
 		"function openCustomViewerFallback(target)",
 		"function callNativeCustomViewer(target, text)",

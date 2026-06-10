@@ -426,6 +426,10 @@ function validCustomHost(host) {
 function validCustomUser(user) {
   return user.length <= 256 && !/[\s\/?#\\@]/.test(user);
 }
+function decodeURLComponent(value) {
+  try { return decodeURIComponent(value); }
+  catch { return null; }
+}
 function parseCustomURL(url) {
   const text = String(url || '').trim();
   if (!text || !text.includes('://')) return null;
@@ -436,9 +440,9 @@ function parseCustomURL(url) {
   if (!Object.prototype.hasOwnProperty.call(defaults, scheme)) return null;
   if (parsed.pathname || parsed.search || parsed.hash || !parsed.hostname || parsed.password) return null;
   const host = parsed.hostname.replace(/^\[|\]$/g, '');
-  const user = decodeURIComponent(parsed.username || '');
+  const user = decodeURLComponent(parsed.username || '');
   const port = parsed.port ? Number(parsed.port) : defaults[scheme];
-  if (!validCustomHost(host) || !validCustomUser(user) || !Number.isInteger(port) || port <= 0 || port > 65535) return null;
+  if (user === null || !validCustomHost(host) || !validCustomUser(user) || !Number.isInteger(port) || port <= 0 || port > 65535) return null;
   return { scheme, host, port, user };
 }
 function normalizedCustomURL(target) {
