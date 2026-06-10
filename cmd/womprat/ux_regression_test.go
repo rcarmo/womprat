@@ -148,6 +148,19 @@ func TestSettingsReportsAsyncOperationFailures(t *testing.T) {
 	}
 }
 
+func TestSettingsBoundsSSHKeyImportSize(t *testing.T) {
+	s := readFileForRegression(t, "frontend/settings.html")
+	for _, want := range []string{
+		"const MAX_SSH_KEY_BYTES = 64 * 1024;",
+		"file.size > MAX_SSH_KEY_BYTES",
+		"SSH key file too large",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("settings SSH key size guard missing %q", want)
+		}
+	}
+}
+
 func TestSettingsValidatesKeyAndHostInputs(t *testing.T) {
 	s := readFileForRegression(t, "frontend/settings.html")
 	for _, want := range []string{

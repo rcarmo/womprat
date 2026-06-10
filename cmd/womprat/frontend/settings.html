@@ -554,9 +554,11 @@ async function clearAllBrowsingData() {
 }
 
 function importKey() { document.getElementById('key-file-input').click(); }
+const MAX_SSH_KEY_BYTES = 64 * 1024;
 async function handleKeyFile(input) {
   const file = input.files[0];
   if (!file) return;
+  if (file.size > MAX_SSH_KEY_BYTES) { setStatus('keys-status', 'error', 'SSH key file too large'); input.value = ''; return; }
   const content = await file.text();
   const name = safeSSHKeyName(file.name.replace(/\.(pem|key|pub)$/,''));
   if (!name) { setStatus('keys-status', 'error', 'Invalid key name'); input.value = ''; return; }
