@@ -68,6 +68,10 @@ func stderrUsable() bool {
 }
 
 func (a *App) handleLogs(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	data, err := os.ReadFile(logFilePath())
@@ -75,11 +79,22 @@ func (a *App) handleLogs(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "no log file yet: %v\n", err)
 		return
 	}
-	const maxBytes = 64 * 1024
-	if len(data) > maxBytes {
-		data = data[len(data)-maxBytes:]
+	data = tailBytesAtLineBoundary(data, 64*1024)
+	_, _ = w.Write(data)
+}
+
+func tailBytesAtLineBoundary(data []byte, maxBytes int) []byte {
+	if maxBytes <= 0 || len(data) <= maxBytes {
+		return data
 	}
-	w.Write(data)
+	start := len(data) - maxBytes
+	for start < len(data) && data[start] != '\n' {
+		start++
+	}
+	if start < len(data)-1 {
+		start++
+	}
+	return data[start:]
 }
 
 func (a *App) handleDebugLog(w http.ResponseWriter, r *http.Request) {
