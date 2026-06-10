@@ -293,7 +293,7 @@ func (a *App) handleHosts(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "GET":
 		a.mu.Lock()
-		hosts := a.config.Hosts
+		hosts := cloneConfig(a.config).Hosts
 		a.mu.Unlock()
 		writeJSON(w, http.StatusOK, hosts)
 	case "PATCH":
@@ -396,7 +396,7 @@ func (a *App) handleGetConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.mu.Lock()
-	cfg := a.config
+	cfg := cloneConfig(a.config)
 	a.mu.Unlock()
 	writeJSON(w, http.StatusOK, cfg)
 }

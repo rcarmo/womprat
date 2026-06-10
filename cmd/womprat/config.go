@@ -147,6 +147,23 @@ func LoadConfig() (*AppConfig, error) {
 	return &cfg, nil
 }
 
+func cloneConfig(cfg *AppConfig) *AppConfig {
+	if cfg == nil {
+		return nil
+	}
+	out := *cfg
+	if cfg.OpenTabs != nil {
+		out.OpenTabs = append([]SavedTab(nil), cfg.OpenTabs...)
+	}
+	if cfg.Hosts != nil {
+		out.Hosts = make(map[string]HostConfig, len(cfg.Hosts))
+		for host, conf := range cfg.Hosts {
+			out.Hosts[host] = conf
+		}
+	}
+	return &out
+}
+
 func normalizeConfig(cfg *AppConfig) {
 	if cfg.Hosts == nil {
 		cfg.Hosts = make(map[string]HostConfig)

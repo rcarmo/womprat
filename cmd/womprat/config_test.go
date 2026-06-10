@@ -48,6 +48,18 @@ func TestSaveLoadDeleteCredential(t *testing.T) {
 	}
 }
 
+func TestCloneConfigCopiesMutableFields(t *testing.T) {
+	cfg := defaultConfig()
+	cfg.Hosts["smith"] = HostConfig{User: "rui"}
+	cfg.OpenTabs = []SavedTab{{Type: "browser", URL: "https://example.com"}}
+	clone := cloneConfig(cfg)
+	clone.Hosts["smith"] = HostConfig{User: "other"}
+	clone.OpenTabs[0].URL = "https://changed.example.com"
+	if cfg.Hosts["smith"].User != "rui" || cfg.OpenTabs[0].URL != "https://example.com" {
+		t.Fatalf("clone shared mutable fields: cfg=%+v clone=%+v", cfg, clone)
+	}
+}
+
 func TestNormalizeConfigRepairsInvalidDefaults(t *testing.T) {
 	cfg := &AppConfig{UnlockMethod: "bad", WindowWidth: -1, WindowHeight: 0, FontSize: 999}
 	normalizeConfig(cfg)
