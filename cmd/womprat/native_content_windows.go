@@ -328,12 +328,13 @@ const browserTitleReporterJS = `(function(){
       return location.origin + '/favicon.ico';
     } catch(e){ return ''; }
   }
-  function send(){ try{ window.chrome.webview.postMessage(JSON.stringify({wompratTitle: document.title || location.hostname || location.href, wompratFavicon: favicon()})); }catch(e){} }
+  function reportBridgeError(context, error){ try { console.debug('womprat bridge '+context+' failed', error); } catch(e) { /* console unavailable */ } }
+  function send(){ try{ window.chrome.webview.postMessage(JSON.stringify({wompratTitle: document.title || location.hostname || location.href, wompratFavicon: favicon()})); }catch(e){ reportBridgeError('metadata post', e); } }
   document.addEventListener('DOMContentLoaded', send);
   window.addEventListener('load', send);
-  try { var t=document.querySelector('title'); if(t){ new MutationObserver(send).observe(t,{childList:true}); } } catch(e){}
-  try { new MutationObserver(function(){ send(); }).observe(document.head||document.documentElement,{subtree:true,childList:true}); } catch(e){}
-  function fire(action, arg){ try{ window.chrome.webview.postMessage(JSON.stringify({wompratKey: action, wompratArg: arg||''})); }catch(e){} }
+  try { var t=document.querySelector('title'); if(t){ new MutationObserver(send).observe(t,{childList:true}); } } catch(e){ reportBridgeError('title observer', e); }
+  try { new MutationObserver(function(){ send(); }).observe(document.head||document.documentElement,{subtree:true,childList:true}); } catch(e){ reportBridgeError('head observer', e); }
+  function fire(action, arg){ try{ window.chrome.webview.postMessage(JSON.stringify({wompratKey: action, wompratArg: arg||''})); }catch(e){ reportBridgeError('hotkey post', e); } }
   document.addEventListener('keydown', function(e){
     var ctrl = e.ctrlKey || e.metaKey;
     var k = (e.key||'').toLowerCase();

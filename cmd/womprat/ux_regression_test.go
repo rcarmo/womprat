@@ -463,6 +463,18 @@ func TestShellHasNoEmptyCatchBlocks(t *testing.T) {
 	}
 }
 
+func TestNativeWebViewBridgeHasNoEmptyCatchBlocks(t *testing.T) {
+	s := readFileForRegression(t, "native_content_windows.go")
+	for _, forbidden := range []string{"catch(e){}", "catch (e) {}"} {
+		if strings.Contains(s, forbidden) {
+			t.Fatalf("native WebView bridge must not contain empty catch block %q", forbidden)
+		}
+	}
+	if !strings.Contains(s, "reportBridgeError") {
+		t.Fatal("native WebView bridge should report swallowed bridge failures")
+	}
+}
+
 func TestSetupAuthReportsFailures(t *testing.T) {
 	s := readFileForRegression(t, "frontend/index.html")
 	for _, want := range []string{
