@@ -284,7 +284,7 @@ func TestSettingsActivationIsResilient(t *testing.T) {
 	s := readFileForRegression(t, "frontend/index.html")
 	for _, want := range []string{
 		"window.openSettings = function()",
-		"if (window.womprat_openSettings) { try { womprat_openSettings(); } catch {} }",
+		"if (window.womprat_openSettings) { try { womprat_openSettings(); } catch (err) { console.warn('native settings open failed', err); } }",
 		"activateTab(tabId, { skipNative: true });",
 		"window.showBrowserTab = function",
 		"setBrowserStatus(id, `Loading ${navUrl}…`)",
@@ -316,6 +316,20 @@ func TestCustomSchemesUseSingleFrontendDispatcher(t *testing.T) {
 	for _, forbidden := range []string{"const rdpMatch =", "const vncMatch =", "const sshMatch ="} {
 		if strings.Contains(s, forbidden) {
 			t.Fatalf("frontend must not use per-scheme URL parser %q", forbidden)
+		}
+	}
+}
+
+func TestShellLogsNativeAndCleanupFailures(t *testing.T) {
+	s := readFileForRegression(t, "frontend/index.html")
+	for _, want := range []string{
+		"console.warn('native tab switch failed'",
+		"console.warn('native settings open failed'",
+		"console.warn('save open tabs failed'",
+		"console.warn('rdp disconnect failed'",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("shell failure logging missing %q", want)
 		}
 	}
 }

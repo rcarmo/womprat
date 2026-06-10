@@ -303,7 +303,7 @@ window.wompratReportChrome = function() {
     const bottom = bar.getBoundingClientRect().bottom;
     const px = Math.round(bottom * (window.devicePixelRatio || 1));
     if (px > 0) womprat_setChromeHeight(px);
-  } catch {}
+  } catch (err) { console.warn('chrome height report failed', err); }
 };
 window.wompratOnHostResize = function() {
   wompratReportChrome();
@@ -311,7 +311,7 @@ window.wompratOnHostResize = function() {
   if (tab && tab.type === 'terminal') {
     const s = terminalSessions.get(tab.id);
     if (s && s.fit) {
-      try { s.fit.fit(); } catch {}
+      try { s.fit.fit(); } catch (err) { console.warn('terminal fit failed', err); }
     }
   }
 };
@@ -862,18 +862,18 @@ window.closeTab = function(id, e) {
   state.tabs = state.tabs.filter(t => t.id !== id);
   const terminalSession = terminalSessions.get(id);
   if (terminalSession) {
-    try { terminalSession.ws?.close?.(); } catch {}
-    try { terminalSession.term?.dispose?.(); } catch {}
+    try { terminalSession.ws?.close?.(); } catch (err) { console.warn('terminal websocket close failed', err); }
+    try { terminalSession.term?.dispose?.(); } catch (err) { console.warn('terminal dispose failed', err); }
     terminalSessions.delete(id);
   }
   const panel = document.getElementById(`panel-${id}`);
   if (closing?.type === 'vnc') {
     const root = panel?.querySelector?.('.vnc-panel');
-    try { root?.__wompratVncViewer?.dispose?.(); } catch {}
+    try { root?.__wompratVncViewer?.dispose?.(); } catch (err) { console.warn('vnc dispose failed', err); }
   }
   if (closing?.type === 'rdp') {
     const root = panel?.querySelector?.('.rdp-panel');
-    try { root?.__wompratRdp?.disconnect?.(); } catch {}
+    try { root?.__wompratRdp?.disconnect?.(); } catch (err) { console.warn('rdp disconnect failed', err); }
   }
   panel?.remove();
 
@@ -1009,7 +1009,7 @@ function activateTab(id, options = {}) {
   const tab = state.tabs.find(t => t.id === id);
   if (!tab) return;
   state.activeTab = id;
-  if (!options.skipNative && window.womprat_switchTab) { try { womprat_switchTab(id); } catch {} }
+  if (!options.skipNative && window.womprat_switchTab) { try { womprat_switchTab(id); } catch (err) { console.warn('native tab switch failed', err); } }
 
   // Update URL bar with active tab's address
   const urlInput = document.getElementById('url-input');
@@ -1274,7 +1274,7 @@ window.openSettings = function() {
   }
   renderTabs();
   // Tell the native host to hide browser views and restore the full-height shell.
-  if (window.womprat_openSettings) { try { womprat_openSettings(); } catch {} }
+  if (window.womprat_openSettings) { try { womprat_openSettings(); } catch (err) { console.warn('native settings open failed', err); } }
   // Render the settings panel locally regardless of native timing.
   activateTab(tabId, { skipNative: true });
 };
@@ -1349,7 +1349,7 @@ async function loadRecentTabs() {
       item.append(iconSpan, title, detailSpan);
       list.appendChild(item);
     });
-  } catch {}
+  } catch (err) { console.warn('recent tabs load failed', err); }
 }
 
 async function hydrateNativeTabs() {
@@ -1369,7 +1369,7 @@ async function hydrateNativeTabs() {
       if (!state.tabs.find(t => t.id === 'settings')) state.tabs.push(target);
       activateTab('settings');
     }
-  } catch {}
+  } catch (err) { console.warn('native tab hydration failed', err); }
 }
 
 // Save tabs on changes
@@ -1392,7 +1392,7 @@ function saveOpenTabs() {
   fetch('/api/settings/save-tabs', {
     method: 'POST', headers: {'Content-Type':'application/json'},
     body: JSON.stringify({tabs})
-  }).catch(() => {});
+  }).catch(err => console.warn('save open tabs failed', err));
 }
 
 // Show/hide home panel
@@ -1479,7 +1479,7 @@ document.addEventListener('readystatechange', () => {
   if (document.readyState === 'complete') setURLProgress(false, true);
 });
 window.addEventListener('resize', () => wompratReportChrome());
-try { matchMedia('(resolution: 1dppx)').addEventListener('change', () => wompratReportChrome()); } catch {}
+try { matchMedia('(resolution: 1dppx)').addEventListener('change', () => wompratReportChrome()); } catch (err) { console.warn('resolution listener install failed', err); }
 wompratReportChrome();
 setTimeout(wompratReportChrome, 300);
 checkAuth();
