@@ -94,6 +94,10 @@ func (a *App) handleVNCWebSocket(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if msgType != websocket.MessageBinary {
+			log.Printf("vnc: ignoring non-binary websocket message type %v", msgType)
+			continue
+		}
+		if len(data) == 0 {
 			continue
 		}
 		if err := writeFull(upstream, data); err != nil {
