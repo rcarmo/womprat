@@ -183,6 +183,10 @@ func (a *App) handleSetTailscaleKey(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleTailscaleDisconnect(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
 	a.mu.Lock()
 	ts := a.tsServer
 	a.tsServer = nil

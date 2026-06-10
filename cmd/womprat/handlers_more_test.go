@@ -60,6 +60,7 @@ func TestMethodBranches(t *testing.T) {
 	}{
 		{"master", app.handleSetMasterPassword, "GET"},
 		{"tailscale-key", app.handleSetTailscaleKey, "GET"},
+		{"tailscale-disconnect", app.handleTailscaleDisconnect, "GET"},
 		{"generate-key", app.handleGenerateSSHKey, "GET"},
 		{"appearance", app.handleAppearance, "GET"},
 		{"save-tabs", app.handleSaveTabs, "GET"},
