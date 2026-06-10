@@ -14,6 +14,7 @@ import (
 	"os"
 	"runtime"
 	"runtime/debug"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -50,7 +51,7 @@ type pendingSSH struct {
 
 type Tab struct {
 	ID      string `json:"id"`
-	Type    string `json:"type"` // "terminal", "browser", "settings"
+	Type    string `json:"type"` // "terminal", "browser", "settings", "vnc"
 	Title   string `json:"title"`
 	URL     string `json:"url,omitempty"`
 	Favicon string `json:"favicon,omitempty"`
@@ -323,7 +324,7 @@ func (a *App) switchTab(tabID string) {
 				a.contentViews.Show(tabID)
 			})
 		}
-	case "terminal", "settings":
+	case "terminal", "settings", "vnc":
 		a.showFullShellOnUI()
 		a.evalShell("window.activateTab(%s,{skipNative:true})", jsString(tabID))
 	}
@@ -469,6 +470,23 @@ func (a *App) openSettingsTab() {
 	a.evalShell("window.activateTab(%s,{skipNative:true})", jsString(tab.ID))
 }
 
+func (a *App) newVNCTab(raw string) {
+	target, err := parseVNCURL(raw)
+	if err != nil {
+		log.Printf("vnc: invalid target %q: %v", raw, err)
+		return
+	}
+	tabID := newTabID("vnc")
+	url := fmt.Sprintf("vnc://%s", net.JoinHostPort(target.Host, strconv.Itoa(target.Port)))
+	a.mu.Lock()
+	a.tabs = upsertTab(a.tabs, Tab{ID: tabID, Type: "vnc", Title: url, URL: url, Host: target.Host, Port: target.Port})
+	a.activeTab = tabID
+	a.mu.Unlock()
+	a.persistOpenTabs()
+	a.hideBrowserContentOnUI()
+	a.evalShell("window.activateTab(%s,{skipNative:true})", jsString(tabID))
+}
+
 func (a *App) newTerminalTab(host, user string, port int) {
 	if user == "" {
 		user = "root"
@@ -580,6 +598,7 @@ func (a *App) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/settings/debug-log", a.authMiddleware(a.handleDebugLog))
 	mux.HandleFunc("/api/ssh/connect", a.authMiddleware(a.handleSSHConnect))
 	mux.HandleFunc("/api/ssh/resize", a.authMiddleware(a.handleSSHResize))
+	mux.HandleFunc("/api/vnc/ws", a.authMiddleware(a.handleVNCWebSocket))
 	mux.HandleFunc("/api/ssh/ws", a.authMiddleware(a.handleSSHWebSocketFull))
 	mux.HandleFunc("/api/ssh/auth-password", a.authMiddleware(a.handleSSHAuthPassword))
 }

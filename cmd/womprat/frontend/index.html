@@ -368,7 +368,7 @@ function refreshURLHistoryDatalist(extra = []) {
   if (!list) return;
   const urls = new Set(loadURLHistory());
   for (const t of state.tabs || []) {
-    if (t.type === 'browser' && t.url) urls.add(t.url);
+    if ((t.type === 'browser' || t.type === 'vnc') && t.url) urls.add(t.url);
     if (t.type === 'terminal' && t.host) urls.add(formatSSHURL(t.user, t.host, t.port));
   }
   for (const u of extra || []) if (u) urls.add(u);
@@ -768,7 +768,7 @@ function tabIconHTML(tab) {
     }
     return `<span class="tab-icon-slot">${icon('globe')}</span>`;
   }
-  return `<span class="tab-icon-slot">${icon(tab.type === 'terminal' ? 'terminal' : tab.type === 'settings' ? 'settings' : 'globe')}</span>`;
+  return `<span class="tab-icon-slot">${icon(tab.type === 'terminal' || tab.type === 'vnc' ? 'terminal' : tab.type === 'settings' ? 'settings' : 'globe')}</span>`;
 }
 
 function renderTabs() {
@@ -843,7 +843,7 @@ function activateTab(id, options = {}) {
   // Update URL bar with active tab's address
   const urlInput = document.getElementById('url-input');
   if (urlInput) {
-    if (tab.type === 'browser') urlInput.value = tab.url || '';
+    if (tab.type === 'browser' || tab.type === 'vnc') urlInput.value = tab.url || '';
     else if (tab.type === 'terminal') urlInput.value = 'ssh://' + (tab.user||'root') + '@' + (tab.host||'') + ':' + (tab.port||22);
     else if (tab.type === 'settings') urlInput.value = 'settings:';
     else urlInput.value = '';
@@ -854,7 +854,17 @@ function activateTab(id, options = {}) {
   if (!document.getElementById(`panel-${id}`)) {
     const panel = document.createElement('div');
     panel.id = `panel-${id}`;
-    if (tab.type === 'browser') {
+    if (tab.type === 'vnc') {
+      panel.className = 'panel browser-panel';
+      panel.innerHTML = `<div class="vnc-panel" style="flex:1;display:flex;flex-direction:column;min-height:0;background:#05070f">
+        <div style="height:28px;display:flex;align-items:center;gap:8px;padding:4px 8px;color:var(--dim);font-size:12px;border-bottom:1px solid var(--border)">
+          <span data-vnc-status>Preparing VNC…</span>
+          <input data-vnc-clipboard placeholder="Clipboard" style="margin-left:auto;max-width:320px;height:22px;background:var(--layer);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:0 6px">
+          <button data-vnc-send-clipboard class="icon-button text-button" style="height:22px;min-width:44px">Send</button>
+        </div>
+        <div style="flex:1;min-height:0;display:grid;place-items:center;overflow:hidden"><canvas style="max-width:100%;max-height:100%;image-rendering:pixelated;background:#000"></canvas></div>
+      </div>`;
+    } else if (tab.type === 'browser') {
       panel.className = 'panel browser-panel';
       panel.innerHTML = '<div class="browser-placeholder" aria-hidden="true"></div>';
     } else if (tab.type === 'terminal') {
@@ -874,6 +884,13 @@ function activateTab(id, options = {}) {
   registerLocalTab(tab);
   updateHomeVisibility();
   renderTabs();
+  if (tab.type === 'vnc') {
+    const root = document.querySelector(`#panel-${CSS.escape(id)} .vnc-panel`);
+    if (root && !root.dataset.started) {
+      root.dataset.started = '1';
+      import('./vnc.js').then(m => m.startVNC(root, tab.url || `vnc://${tab.host}:${tab.port||5900}`));
+    }
+  }
   if (tab.type === 'terminal') {
     requestAnimationFrame(() => {
       terminalSessions.get(id)?.fit?.fit?.();
@@ -1020,6 +1037,11 @@ window.navigateFromBar = function() {
     openSettings();
     return;
   }
+  const vncMatch = url.match(/^vnc:\/\/(.+)$/i);
+  if (vncMatch) {
+    if (window.womprat_newVNC) womprat_newVNC(url);
+    return;
+  }
   const sshMatch = url.match(/^ssh:\/\/(?:([^@]+)@)?([^:\/]+)(?::(\d+))?/);
   if (sshMatch) {
     const user = sshMatch[1] || 'root';
@@ -1125,7 +1147,7 @@ async function hydrateNativeTabs() {
   if (!window.womprat_getTabs) return;
   try {
     const native = JSON.parse(await womprat_getTabs());
-    const localTabs = (native.tabs || []).filter(t => t.type === 'terminal' || t.type === 'settings' || t.type === 'browser');
+    const localTabs = (native.tabs || []).filter(t => t.type === 'terminal' || t.type === 'settings' || t.type === 'browser' || t.type === 'vnc');
     const requested = new URLSearchParams(location.search).get('tab') || '';
     const target = localTabs.find(t => t.id === requested && (t.type === 'terminal' || t.type === 'settings'));
     state.tabs = localTabs;
