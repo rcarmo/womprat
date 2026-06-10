@@ -103,6 +103,16 @@ func TestSSHConnectUsesRequestScopedDialTimeout(t *testing.T) {
 	}
 }
 
+func TestAuthMiddlewareUsesConstantTimeTokenCompare(t *testing.T) {
+	s := readFileForRegression(t, "main.go")
+	if !strings.Contains(s, "subtle.ConstantTimeCompare([]byte(token), []byte(a.sessionToken))") {
+		t.Fatal("auth middleware should compare session tokens in constant time")
+	}
+	if strings.Contains(s, "token != a.sessionToken") {
+		t.Fatal("auth middleware must not use direct token string comparison")
+	}
+}
+
 func TestMainHandlersUseSharedPostMethodGuard(t *testing.T) {
 	s := readFileForRegression(t, "main.go")
 	for _, want := range []string{

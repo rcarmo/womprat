@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"crypto/subtle"
 	"embed"
 	"encoding/hex"
 	"encoding/json"
@@ -767,7 +768,7 @@ func (a *App) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		if token == "" {
 			token = r.URL.Query().Get("token")
 		}
-		if token != a.sessionToken {
+		if subtle.ConstantTimeCompare([]byte(token), []byte(a.sessionToken)) != 1 {
 			httpError(w, 403, "Forbidden", "Invalid session token")
 			return
 		}
