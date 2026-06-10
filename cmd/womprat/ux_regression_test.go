@@ -27,8 +27,19 @@ func TestSettingsUsesFetchJSONHelper(t *testing.T) {
 
 func TestSettingsHasNoEmptyCatchBlocks(t *testing.T) {
 	s := readFileForRegression(t, "frontend/settings.html")
-	if strings.Contains(s, "catch {}") {
-		t.Fatal("settings must not contain empty catch blocks")
+	for _, forbidden := range []string{"catch {}", "catch(e){}", "catch (e) {}"} {
+		if strings.Contains(s, forbidden) {
+			t.Fatalf("settings must not contain empty catch block %q", forbidden)
+		}
+	}
+	for _, want := range []string{
+		"console.warn(`fetch JSON failed for ${url}`, err);",
+		"console.warn('tailscale key response parse failed', err);",
+		"console.warn('tailscale status refresh failed', err);",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("settings failure reporting missing %q", want)
+		}
 	}
 	if !strings.Contains(s, "id=\"browser-status\"") {
 		t.Fatal("settings browser status area missing")

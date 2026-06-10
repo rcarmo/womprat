@@ -337,7 +337,10 @@ async function fetchJSON(url, fallback) {
     const res = await fetch(url);
     if (!res.ok) return fallback;
     return await res.json();
-  } catch { return fallback; }
+  } catch (err) {
+    console.warn(`fetch JSON failed for ${url}`, err);
+    return fallback;
+  }
 }
 function safeSSHKeyName(name) {
   const value = String(name || '').trim();
@@ -434,7 +437,7 @@ async function saveTailscale() {
     method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({key})
   });
-  const data = await res.json().catch(()=>({}));
+  const data = await res.json().catch(err => { console.warn('tailscale key response parse failed', err); return {}; });
   document.getElementById('ts-key').value = '';
   if (!res.ok) { setStatus('ts-status', 'error', data.error || data.message || 'Failed to save key'); return; }
   await checkTailscale();
@@ -466,7 +469,8 @@ async function checkTailscale() {
       document.getElementById('ts-ip').textContent = '—';
       document.getElementById('ts-peers').textContent = '—';
     }
-  } catch {
+  } catch (err) {
+    console.warn('tailscale status refresh failed', err);
     el.className='status err'; el.textContent = 'Error';
   }
 }
