@@ -75,6 +75,10 @@ func TestHandleSaveKeyValidation(t *testing.T) {
 	if rr.Code != http.StatusBadRequest {
 		t.Fatalf("empty save key = %d", rr.Code)
 	}
+	rr = performJSON(app.handleSaveKey, "POST", "/api/auth/save-key", map[string]string{"key": "abc\nxyz"})
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("invalid save key = %d", rr.Code)
+	}
 }
 
 func TestSSHDisconnectedHandlers(t *testing.T) {

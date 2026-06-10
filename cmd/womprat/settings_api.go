@@ -119,8 +119,8 @@ func (a *App) handleSetMasterPassword(w http.ResponseWriter, r *http.Request) {
 	if !decodeSettingsJSON(w, r, &body) {
 		return
 	}
-	if body.Password == "" {
-		http.Error(w, "empty password", 400)
+	if err := validateMasterPasswordInput(body.Password); err != nil {
+		http.Error(w, err.Error(), 400)
 		return
 	}
 	salt := make([]byte, masterSaltBytes)
@@ -166,11 +166,12 @@ func (a *App) handleSetTailscaleKey(w http.ResponseWriter, r *http.Request) {
 	if !decodeSettingsJSON(w, r, &body) {
 		return
 	}
-	if strings.TrimSpace(body.Key) == "" {
-		http.Error(w, "empty tailscale key", 400)
+	body.Key = strings.TrimSpace(body.Key)
+	if err := validateTailscaleAuthKeyInput(body.Key); err != nil {
+		http.Error(w, err.Error(), 400)
 		return
 	}
-	if err := SaveCredential("tailscale-key", strings.TrimSpace(body.Key)); err != nil {
+	if err := SaveCredential("tailscale-key", body.Key); err != nil {
 		http.Error(w, err.Error(), 500)
 		return
 	}

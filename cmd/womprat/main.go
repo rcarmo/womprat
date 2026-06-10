@@ -889,8 +889,8 @@ func (a *App) handleSaveKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	body.Key = strings.TrimSpace(body.Key)
-	if body.Key == "" {
-		http.Error(w, "empty tailscale key", 400)
+	if err := validateTailscaleAuthKeyInput(body.Key); err != nil {
+		http.Error(w, err.Error(), 400)
 		return
 	}
 	if err := SaveCredential("tailscale-key", body.Key); err != nil {

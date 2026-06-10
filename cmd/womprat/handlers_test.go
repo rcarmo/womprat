@@ -105,6 +105,10 @@ func TestSettingsUnlockAndMasterPasswordHandlers(t *testing.T) {
 		t.Fatalf("set method = %d %s", rr.Code, rr.Body.String())
 	}
 
+	rr = performJSON(app.handleSetMasterPassword, "POST", "/api/settings/master-password", map[string]string{"password": strings.Repeat("x", 4097)})
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("oversized master password = %d %s", rr.Code, rr.Body.String())
+	}
 	rr = performJSON(app.handleSetMasterPassword, "POST", "/api/settings/master-password", map[string]string{"password": "secret"})
 	if rr.Code != 200 {
 		t.Fatalf("set master password = %d %s", rr.Code, rr.Body.String())

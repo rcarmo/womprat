@@ -5,6 +5,8 @@ import (
 	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
+	"strings"
 
 	"golang.org/x/crypto/pbkdf2"
 )
@@ -23,6 +25,26 @@ type masterHashRecord struct {
 	Iterations int    `json:"iterations"`
 	Salt       string `json:"salt"`
 	Hash       string `json:"hash"`
+}
+
+func validateMasterPasswordInput(password string) error {
+	if password == "" {
+		return fmt.Errorf("empty password")
+	}
+	if len(password) > 4096 {
+		return fmt.Errorf("password too long")
+	}
+	return nil
+}
+
+func validateTailscaleAuthKeyInput(key string) error {
+	if key == "" {
+		return fmt.Errorf("empty tailscale key")
+	}
+	if len(key) > 4096 || strings.ContainsAny(key, "\r\n\x00") {
+		return fmt.Errorf("invalid tailscale key")
+	}
+	return nil
 }
 
 func shouldStartLocked(cfg *AppConfig) bool {
