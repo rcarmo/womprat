@@ -229,6 +229,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
       <button class="btn-danger" data-action="clear-all-browsing-data">Clear All Browsing Data</button>
     </div>
     <p style="color:var(--dim);font-size:.78rem;margin-top:.5rem">This clears cache, cookies, saved passwords, and browsing history.</p>
+    <div id="browser-status" style="margin-top:.5rem"></div>
   </div>
 </div>
 
@@ -520,7 +521,7 @@ async function loadBrowserSettings() {
     } else {
       emptyTableRow(pt, 3, 'Listing disabled');
     }
-  } catch {}
+  } catch (err) { setStatus('browser-status', 'error', err.message); }
 }
 
 async function clearCache() {
@@ -676,7 +677,7 @@ async function loadDebugLog() {
     if (cb) cb.checked = !!d.enabled;
     const p = document.getElementById('debug-log-path');
     if (p) p.textContent = d.enabled ? (d.logPath || '') : '';
-  } catch {}
+  } catch (err) { setStatus('debug-status', 'error', err.message); }
 }
 async function setDebugLog(enabled) {
   try {
@@ -714,7 +715,7 @@ async function loadAbout() {
     setText('about-webview-data', about.webviewData);
     setText('about-restore-tabs', about.restoreTabs ? 'enabled' : 'disabled');
     setText('about-auto-connect', about.autoConnect ? 'enabled' : 'disabled');
-  } catch {}
+  } catch (err) { console.warn('about load failed', err); }
 }
 
 async function initSettings() {

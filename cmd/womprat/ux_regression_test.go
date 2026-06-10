@@ -25,6 +25,16 @@ func TestSettingsUsesFetchJSONHelper(t *testing.T) {
 	}
 }
 
+func TestSettingsHasNoEmptyCatchBlocks(t *testing.T) {
+	s := readFileForRegression(t, "frontend/settings.html")
+	if strings.Contains(s, "catch {}") {
+		t.Fatal("settings must not contain empty catch blocks")
+	}
+	if !strings.Contains(s, "id=\"browser-status\"") {
+		t.Fatal("settings browser status area missing")
+	}
+}
+
 func TestSettingsHasNoInlineEventHandlers(t *testing.T) {
 	s := readFileForRegression(t, "frontend/settings.html")
 	for _, forbidden := range []string{"onclick=", "onchange=", "onerror="} {
