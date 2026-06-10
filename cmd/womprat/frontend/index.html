@@ -816,7 +816,8 @@ function connectWebSocket(sshTabId, term, tabId, host, name, user, port, cols, r
   rows = clampTerminalRows(rows);
   term.write(`\x1b[2m Connected.\x1b[0m\r\n\r\n`);
   const params = new URLSearchParams({ tab: String(sshTabId || ''), cols: String(cols), rows: String(rows), token: TOKEN });
-  const ws = new WebSocket(`ws://${location.host}/api/ssh/ws?${params.toString()}`);
+  const wsProtocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const ws = new WebSocket(`${wsProtocol}//${location.host}/api/ssh/ws?${params.toString()}`);
   const session = terminalSessions.get(tabId);
   if (session) session.ws = ws;
 

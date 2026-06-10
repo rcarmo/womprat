@@ -667,6 +667,21 @@ func TestRDPWebSocketReportsMalformedControlMessages(t *testing.T) {
 	}
 }
 
+func TestSSHWebSocketUsesPageProtocol(t *testing.T) {
+	s := readFileForRegression(t, "frontend/index.html")
+	for _, want := range []string{
+		"const wsProtocol = location.protocol === 'https:' ? 'wss:' : 'ws:';",
+		"new WebSocket(`${wsProtocol}//${location.host}/api/ssh/ws?${params.toString()}`)",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("SSH websocket protocol handling missing %q", want)
+		}
+	}
+	if strings.Contains(s, "new WebSocket(`ws://${location.host}/api/ssh/ws?") {
+		t.Fatal("SSH websocket must not hard-code ws://")
+	}
+}
+
 func TestSSHWebSocketIgnoresMalformedControlMessages(t *testing.T) {
 	s := readFileForRegression(t, "ws_terminal.go")
 	for _, want := range []string{
