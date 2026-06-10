@@ -89,6 +89,10 @@ func TestDownloadStatusAndError(t *testing.T) {
 
 func TestHandleDownloadValidation(t *testing.T) {
 	app := newTestApp(t)
+	rr := performJSON(app.handleDownload, "POST", "/api/download?url=https://example.com/file.txt", nil)
+	if rr.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("POST download status = %d", rr.Code)
+	}
 	cases := []string{"/api/download", "/api/download?url=file:///tmp/x", "/api/download?url=not-a-url"}
 	for _, path := range cases {
 		rr := performJSON(app.handleDownload, "GET", path, nil)
