@@ -34,8 +34,14 @@ func newTestApp(t *testing.T) *App {
 }
 
 func TestGenerateSessionToken(t *testing.T) {
-	a := generateSessionToken()
-	b := generateSessionToken()
+	a, err := generateSessionToken()
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := generateSessionToken()
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(a) != 64 || len(b) != 64 {
 		t.Fatalf("token length = %d/%d, want 64", len(a), len(b))
 	}

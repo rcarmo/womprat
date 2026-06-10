@@ -111,7 +111,10 @@ func main() {
 	if err != nil {
 		log.Printf("config load failed, using defaults: %v", err)
 	}
-	token := generateSessionToken()
+	token, err := generateSessionToken()
+	if err != nil {
+		log.Fatalf("session token generation failed: %v", err)
+	}
 	app := &App{
 		config:       cfg,
 		sshConns:     make(map[string]*ssh.Client),
@@ -717,12 +720,12 @@ func (a *App) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/ssh/auth-password", a.authMiddleware(a.handleSSHAuthPassword))
 }
 
-func generateSessionToken() string {
+func generateSessionToken() (string, error) {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
-		panic(err)
+		return "", err
 	}
-	return hex.EncodeToString(b)
+	return hex.EncodeToString(b), nil
 }
 
 func (a *App) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
