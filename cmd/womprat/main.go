@@ -809,8 +809,7 @@ func (a *App) serveFrontend(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Pragma", "no-cache")
 	w.Header().Set("Expires", "0")
 
-	if r.Method != http.MethodGet && r.Method != http.MethodHead {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	if !requireGET(w, r) {
 		return
 	}
 	path, ok := frontendAssetPath(r.URL.Path)

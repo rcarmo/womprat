@@ -68,8 +68,7 @@ func stderrUsable() bool {
 }
 
 func (a *App) handleLogs(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet && r.Method != http.MethodHead {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	if !requireGET(w, r) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
@@ -101,12 +100,12 @@ func tailBytesAtLineBoundary(data []byte, maxBytes int) []byte {
 
 func (a *App) handleDebugLog(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
-	case "GET":
+	case http.MethodGet, http.MethodHead:
 		a.mu.Lock()
 		enabled := a.config.DebugLog
 		a.mu.Unlock()
 		writeJSON(w, http.StatusOK, map[string]any{"enabled": enabled, "logPath": logFilePath()})
-	case "POST":
+	case http.MethodPost:
 		var body struct {
 			Enabled bool `json:"enabled"`
 		}
@@ -130,7 +129,7 @@ func (a *App) handleDebugLog(w http.ResponseWriter, r *http.Request) {
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"status": "ok", "enabled": body.Enabled, "logPath": logFilePath()})
 	default:
-		http.Error(w, "method not allowed", 405)
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	}
 }
 

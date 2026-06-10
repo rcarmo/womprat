@@ -15,6 +15,22 @@ func readFileForRegression(t *testing.T, path string) string {
 	return string(b)
 }
 
+func TestReadOnlyHandlersUseSharedGetMethodGuard(t *testing.T) {
+	mainSource := readFileForRegression(t, "main.go")
+	loggingSource := readFileForRegression(t, "logging.go")
+	for _, tc := range []struct{ name, source string }{
+		{"frontend", mainSource},
+		{"logs", loggingSource},
+	} {
+		if !strings.Contains(tc.source, "if !requireGET(w, r)") {
+			t.Fatalf("%s handler should use shared GET method guard", tc.name)
+		}
+	}
+	if !strings.Contains(loggingSource, "case http.MethodGet, http.MethodHead:") || !strings.Contains(loggingSource, "case http.MethodPost:") {
+		t.Fatal("debug log handler should use http method constants")
+	}
+}
+
 func TestMainHandlersUseSharedPostMethodGuard(t *testing.T) {
 	s := readFileForRegression(t, "main.go")
 	for _, want := range []string{
