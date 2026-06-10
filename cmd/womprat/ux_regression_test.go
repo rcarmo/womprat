@@ -655,6 +655,18 @@ func TestRemoteDisplayPasswordFieldsAreBounded(t *testing.T) {
 	}
 }
 
+func TestRDPWebSocketReportsMalformedControlMessages(t *testing.T) {
+	s := readFileForRegression(t, "rdp.go")
+	for _, want := range []string{
+		"ignoring malformed text control message",
+		"ignoring unknown text control message",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("RDP websocket control-message guard missing %q", want)
+		}
+	}
+}
+
 func TestSSHWebSocketIgnoresMalformedControlMessages(t *testing.T) {
 	s := readFileForRegression(t, "ws_terminal.go")
 	for _, want := range []string{

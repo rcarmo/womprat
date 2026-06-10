@@ -209,16 +209,20 @@ func rdpWsToClient(ctx context.Context, cancel context.CancelFunc, ws *websocket
 		}
 		if msgType == websocket.MessageText {
 			var req rdpResizeRequest
-			if json.Unmarshal(data, &req) == nil && req.Type == "resize" {
-				width := clampRDPDim(strconv.Itoa(req.Width), 0)
-				height := clampRDPDim(strconv.Itoa(req.Height), 0)
-				if client.IsDisplayControlReady() && width > 0 && height > 0 {
-					if err := client.RequestResize(width, height); err != nil {
-						log.Printf("rdp resize failed: %v", err)
-					}
+			if err := json.Unmarshal(data, &req); err != nil {
+				log.Printf("rdp: ignoring malformed text control message: %v", err)
+				continue
+			}
+			if req.Type != "resize" {
+				log.Printf("rdp: ignoring unknown text control message %q", req.Type)
+				continue
+			}
+			width := clampRDPDim(strconv.Itoa(req.Width), 0)
+			height := clampRDPDim(strconv.Itoa(req.Height), 0)
+			if client.IsDisplayControlReady() && width > 0 && height > 0 {
+				if err := client.RequestResize(width, height); err != nil {
+					log.Printf("rdp resize failed: %v", err)
 				}
-			} else {
-				log.Printf("rdp: ignoring unrecognized text message")
 			}
 			continue
 		}
