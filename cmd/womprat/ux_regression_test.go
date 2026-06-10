@@ -103,6 +103,18 @@ func TestSSHConnectUsesRequestScopedDialTimeout(t *testing.T) {
 	}
 }
 
+func TestConfigFallbacksAreDiagnosable(t *testing.T) {
+	s := readFileForRegression(t, "config.go")
+	for _, want := range []string{
+		"config decrypt failed, using defaults",
+		"config JSON decode failed, using defaults",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("config fallback diagnostic missing %q", want)
+		}
+	}
+}
+
 func TestAuthMiddlewareUsesConstantTimeTokenCompare(t *testing.T) {
 	s := readFileForRegression(t, "main.go")
 	if !strings.Contains(s, "subtle.ConstantTimeCompare([]byte(token), []byte(a.sessionToken))") {

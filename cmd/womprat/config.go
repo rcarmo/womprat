@@ -135,12 +135,15 @@ func LoadConfig() (*AppConfig, error) {
 
 	decrypted, err := decryptConfig(data)
 	if err != nil {
-		// If decryption fails (corrupt, wrong user, etc.), start fresh
+		// If decryption fails (corrupt, wrong user, etc.), start fresh but make
+		// the reset diagnosable so settings do not appear to vanish silently.
+		log.Printf("config decrypt failed, using defaults: %v", err)
 		return defaultConfig(), nil
 	}
 
 	var cfg AppConfig
 	if err := json.Unmarshal(decrypted, &cfg); err != nil {
+		log.Printf("config JSON decode failed, using defaults: %v", err)
 		return defaultConfig(), nil
 	}
 	normalizeConfig(&cfg)
