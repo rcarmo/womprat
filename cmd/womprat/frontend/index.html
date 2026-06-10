@@ -896,7 +896,7 @@ function activateTab(id, options = {}) {
           <select class="rdp-field rdp-depth" data-rdp-depth aria-label="RDP color depth"><option value="16" selected>16bpp</option><option value="24">24bpp</option><option value="32">32bpp</option><option value="15">15bpp</option><option value="8">8bpp</option></select>
           <label class="rdp-toggle" title="Use Network Level Authentication"><input data-rdp-nla type="checkbox" checked>NLA</label>
           <label class="rdp-toggle" title="Enable RDP audio redirection"><input data-rdp-audio type="checkbox">Audio</label>
-          <label class="rdp-toggle" title="Request RemoteFX/NSCodec surface codecs; requires optional decoder WASM"><input data-rdp-rfx type="checkbox">RFX</label>
+          <label class="rdp-toggle" title="RemoteFX/NSCodec surface codecs use the embedded WASM decoder"><input data-rdp-rfx type="checkbox" checked disabled>RFX</label>
           <button data-rdp-connect class="icon-button text-button rdp-connect">Connect</button>
           <button data-rdp-scale class="icon-button text-button rdp-scale" aria-pressed="true">Fit</button>
         </div>

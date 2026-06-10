@@ -71,9 +71,18 @@ func TestRDPFrontendEmbedsWASMCodecs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"/rle/wasm_exec.js", "/rle/rle.wasm", "WASM codecs loaded", "rfx"} {
+	for _, want := range []string{"/rle/wasm_exec.js", "/rle/rle.wasm", "all RDP decode paths use WASM", "WASM bitmap decode failed", "WASM surface decode failed", "rfx"} {
 		if !strings.Contains(string(js), want) {
 			t.Fatalf("rdp.js missing %q", want)
 		}
+	}
+}
+
+func TestRDPDefaultsEnableWASMBackedRFX(t *testing.T) {
+	if got := rdpRFXEnabled(""); !got {
+		t.Fatal("RFX should default to enabled")
+	}
+	if got := rdpRFXEnabled("false"); got {
+		t.Fatal("explicit rfx=false should disable RFX")
 	}
 }

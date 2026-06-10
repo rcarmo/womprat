@@ -122,9 +122,9 @@ func (a *App) handleRDPWebSocket(w http.ResponseWriter, r *http.Request) {
 	colorDepth := parseRDPColorDepth(r.URL.Query().Get("colorDepth"), 16)
 	enableAudio := r.URL.Query().Get("audio") == "true"
 	disableNLA := r.URL.Query().Get("disableNLA") == "true"
-	// RemoteFX/NSCodec surface codecs are enabled only when the frontend has
-	// successfully loaded the embedded go-rdp TinyGo decoder and requests them.
-	enableRFX := r.URL.Query().Get("rfx") == "true"
+	// RemoteFX/NSCodec surface codecs are backed by the embedded go-rdp TinyGo
+	// decoder bundle and are negotiated by default for Womprat RDP sessions.
+	enableRFX := rdpRFXEnabled(r.URL.Query().Get("rfx"))
 
 	dial := func(ctx context.Context, network, address string) (net.Conn, error) {
 		// Ignore any client-supplied host in credentials; fail closed via tsnet to URL target.
@@ -177,6 +177,10 @@ func parseRDPColorDepth(raw string, fallback int) int {
 		return cd
 	}
 	return fallback
+}
+
+func rdpRFXEnabled(raw string) bool {
+	return raw != "false"
 }
 
 func wsjsonError(ctx context.Context, ws *websocket.Conn, message string) error {
