@@ -26,6 +26,48 @@ func performJSON(handler http.HandlerFunc, method, path string, body any) *httpt
 	return rr
 }
 
+func TestAuthAndSSHHandlersRejectMalformedJSON(t *testing.T) {
+	app := newTestApp(t)
+	for _, tc := range []struct {
+		name    string
+		handler http.HandlerFunc
+		path    string
+	}{
+		{name: "unlock", handler: app.handleUnlock, path: "/api/auth/unlock"},
+		{name: "save key", handler: app.handleSaveKey, path: "/api/key"},
+		{name: "ssh connect", handler: app.handleSSHConnect, path: "/api/ssh/connect"},
+		{name: "ssh password", handler: app.handleSSHAuthPassword, path: "/api/ssh/auth-password"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest("POST", tc.path, strings.NewReader(`{"x":true} trailing`))
+			rr := httptest.NewRecorder()
+			tc.handler(rr, req)
+			if rr.Code != http.StatusBadRequest {
+				t.Fatalf("status = %d body=%s", rr.Code, rr.Body.String())
+			}
+		})
+	}
+}
+
+func TestSSHConnectValidatesBoundaryInputs(t *testing.T) {
+	app := newTestApp(t)
+	for _, tc := range []struct {
+		name string
+		body map[string]any
+	}{
+		{name: "bad host", body: map[string]any{"host": "bad host", "user": "root", "port": 22}},
+		{name: "bad user", body: map[string]any{"host": "platinum", "user": "bad user", "port": 22}},
+		{name: "bad port", body: map[string]any{"host": "platinum", "user": "root", "port": 70000}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rr := performJSON(app.handleSSHConnect, "POST", "/api/ssh/connect", tc.body)
+			if rr.Code != http.StatusBadRequest {
+				t.Fatalf("status = %d body=%s", rr.Code, rr.Body.String())
+			}
+		})
+	}
+}
+
 func TestAuthStatusAndUnlock(t *testing.T) {
 	app := newTestApp(t)
 	app.config.UnlockMethod = "master"

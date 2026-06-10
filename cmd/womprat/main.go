@@ -763,7 +763,9 @@ func (a *App) handleUnlock(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Password string `json:"password"`
 	}
-	json.NewDecoder(r.Body).Decode(&body)
+	if !decodeSettingsJSON(w, r, &body) {
+		return
+	}
 	if ok, err := verifyMasterPassword(body.Password); err != nil || !ok {
 		httpError(w, 401, "Unlock failed", "Invalid master password")
 		return
@@ -786,7 +788,9 @@ func (a *App) handleSaveKey(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Key string `json:"key"`
 	}
-	json.NewDecoder(r.Body).Decode(&body)
+	if !decodeSettingsJSON(w, r, &body) {
+		return
+	}
 	body.Key = strings.TrimSpace(body.Key)
 	if body.Key == "" {
 		http.Error(w, "empty tailscale key", 400)
@@ -925,18 +929,40 @@ func (a *App) handleSSHConnect(w http.ResponseWriter, r *http.Request) {
 		Cols int    `json:"cols"`
 		Rows int    `json:"rows"`
 	}
-	json.NewDecoder(r.Body).Decode(&body)
+	if !decodeSettingsJSON(w, r, &body) {
+		return
+	}
 	body.Host = strings.TrimSpace(body.Host)
 	body.User = strings.TrimSpace(body.User)
 	if body.Host == "" {
 		httpError(w, 400, "Missing host", "")
 		return
 	}
+	if err := validateCustomURLHost("ssh", body.Host); err != nil {
+		httpError(w, 400, "Invalid host", err.Error())
+		return
+	}
 	if body.User == "" {
 		body.User = "root"
 	}
+	if err := validateCustomURLUser("ssh", body.User); err != nil {
+		httpError(w, 400, "Invalid user", err.Error())
+		return
+	}
 	if body.Port == 0 {
 		body.Port = 22
+	}
+	if body.Port <= 0 || body.Port > 65535 {
+		httpError(w, 400, "Invalid port", "")
+		return
+	}
+	body.Cols = clampTerminalDimension(body.Cols, minTerminalCols, maxTerminalCols)
+	if body.Cols == 0 {
+		body.Cols = 80
+	}
+	body.Rows = clampTerminalDimension(body.Rows, minTerminalRows, maxTerminalRows)
+	if body.Rows == 0 {
+		body.Rows = 24
 	}
 
 	ts := a.ts()
@@ -1029,7 +1055,14 @@ func (a *App) handleSSHAuthPassword(w http.ResponseWriter, r *http.Request) {
 		TabId    string `json:"tabId"`
 		Password string `json:"password"`
 	}
-	json.NewDecoder(r.Body).Decode(&body)
+	if !decodeSettingsJSON(w, r, &body) {
+		return
+	}
+	body.TabId = strings.TrimSpace(body.TabId)
+	if body.TabId == "" {
+		httpError(w, 400, "Missing tabId", "")
+		return
+	}
 	a.mu.Lock()
 	pending := a.pendingAuth[body.TabId]
 	delete(a.pendingAuth, body.TabId)
