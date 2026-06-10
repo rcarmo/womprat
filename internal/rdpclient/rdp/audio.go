@@ -13,15 +13,15 @@ type AudioCallback func(data []byte, format *audio.AudioFormat, timestamp uint16
 
 // AudioHandler manages RDPSND protocol for audio output
 type AudioHandler struct {
-	client           *Client
-	callback         AudioCallback
-	enabled          bool
-	preferPCM        bool // If true, prefer PCM over compressed; if false, prefer AAC/MP3
-	serverFormats    []audio.AudioFormat
-	clientFormats    []audio.AudioFormat // formats we sent back to server (FormatNo indexes this)
-	selectedFormat   int
-	defragmenter     audio.ChannelDefragmenter
-	pendingWaveInfo  *audio.WaveInfoPDU
+	client          *Client
+	callback        AudioCallback
+	enabled         bool
+	preferPCM       bool // If true, prefer PCM over compressed; if false, prefer AAC/MP3
+	serverFormats   []audio.AudioFormat
+	clientFormats   []audio.AudioFormat // formats we sent back to server (FormatNo indexes this)
+	selectedFormat  int
+	defragmenter    audio.ChannelDefragmenter
+	pendingWaveInfo *audio.WaveInfoPDU
 }
 
 // NewAudioHandler creates a new audio handler
@@ -210,9 +210,9 @@ func (h *AudioHandler) sendClientFormats(formats []audio.AudioFormat, version ui
 	// Echo back formats we support (PCM, AAC, MP3)
 	var supportedFormats []audio.AudioFormat
 	for _, format := range formats {
-		if format.FormatTag == audio.WAVE_FORMAT_PCM || 
-		   format.FormatTag == audio.WAVE_FORMAT_AAC ||
-		   format.FormatTag == audio.WAVE_FORMAT_MPEGLAYER3 {
+		if format.FormatTag == audio.WAVE_FORMAT_PCM ||
+			format.FormatTag == audio.WAVE_FORMAT_AAC ||
+			format.FormatTag == audio.WAVE_FORMAT_MPEGLAYER3 {
 			supportedFormats = append(supportedFormats, format)
 		}
 	}
@@ -255,6 +255,9 @@ func (h *AudioHandler) sendClientFormats(formats []audio.AudioFormat, version ui
 
 	body := clientFormats.Serialize()
 	pdu := audio.BuildChannelPDU(audio.SND_FORMATS, body)
+	if pdu == nil {
+		return fmt.Errorf("audio formats PDU too large")
+	}
 
 	// Send on rdpsnd channel
 	channelID, ok := h.client.channelIDMap[audio.ChannelRDPSND]
@@ -282,6 +285,9 @@ func (h *AudioHandler) handleTraining(body []byte) error {
 	}
 
 	pdu := audio.BuildChannelPDU(audio.SND_TRAINING, confirm.Serialize())
+	if pdu == nil {
+		return fmt.Errorf("audio training PDU too large")
+	}
 
 	channelID, ok := h.client.channelIDMap[audio.ChannelRDPSND]
 	if !ok {
@@ -361,6 +367,9 @@ func (h *AudioHandler) sendWaveConfirm(timestamp uint16, blockNo uint8) error {
 	}
 
 	pdu := audio.BuildChannelPDU(audio.SND_WAVE_CONFIRM, confirm.Serialize())
+	if pdu == nil {
+		return fmt.Errorf("audio wave confirm PDU too large")
+	}
 
 	channelID, ok := h.client.channelIDMap[audio.ChannelRDPSND]
 	if !ok {

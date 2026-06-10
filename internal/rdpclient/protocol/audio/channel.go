@@ -11,13 +11,13 @@ import (
 
 // Channel PDU flags (MS-RDPBCGR 2.2.6.1)
 const (
-	ChannelFlagFirst    uint32 = 0x00000001
-	ChannelFlagLast     uint32 = 0x00000002
-	ChannelFlagShowProtocol uint32 = 0x00000010
-	ChannelFlagSuspend  uint32 = 0x00000020
-	ChannelFlagResume   uint32 = 0x00000040
-	ChannelFlagCompress uint32 = 0x00200000
-	ChannelFlagPacketAt uint32 = 0x00100000
+	ChannelFlagFirst         uint32 = 0x00000001
+	ChannelFlagLast          uint32 = 0x00000002
+	ChannelFlagShowProtocol  uint32 = 0x00000010
+	ChannelFlagSuspend       uint32 = 0x00000020
+	ChannelFlagResume        uint32 = 0x00000040
+	ChannelFlagCompress      uint32 = 0x00200000
+	ChannelFlagPacketAt      uint32 = 0x00100000
 	ChannelFlagPacketFlushed uint32 = 0x00080000
 )
 
@@ -79,18 +79,18 @@ func (d *ChannelDefragmenter) Process(chunk *ChannelChunk) ([]byte, bool) {
 		d.totalLen = chunk.Header.Length
 		d.receiving = true
 	}
-	
+
 	if !d.receiving {
 		return nil, false
 	}
-	
+
 	d.buffer.Write(chunk.Data)
-	
+
 	if chunk.Header.IsLast() {
 		d.receiving = false
 		return d.buffer.Bytes(), true
 	}
-	
+
 	return nil, false
 }
 
@@ -99,14 +99,14 @@ func ParseChannelData(data []byte) (*ChannelChunk, error) {
 	if len(data) < 8 {
 		return nil, fmt.Errorf("channel data too short: %d bytes", len(data))
 	}
-	
+
 	chunk := &ChannelChunk{}
 	r := bytes.NewReader(data)
-	
+
 	if err := chunk.Header.Deserialize(r); err != nil {
 		return nil, err
 	}
-	
+
 	chunk.Data = data[8:]
 	return chunk, nil
 }
@@ -117,7 +117,7 @@ func BuildChannelData(data []byte) []byte {
 		Length: uint32(len(data)), // #nosec G115
 		Flags:  ChannelFlagFirst | ChannelFlagLast,
 	}
-	
+
 	buf := make([]byte, 8+len(data))
 	copy(buf[0:8], header.Serialize())
 	copy(buf[8:], data)
@@ -126,12 +126,15 @@ func BuildChannelData(data []byte) []byte {
 
 // BuildChannelPDU creates a complete RDPSND PDU
 func BuildChannelPDU(msgType uint8, body []byte) []byte {
+	if len(body) > 0xffff {
+		return nil
+	}
 	header := PDUHeader{
 		MsgType:  msgType,
 		Reserved: 0,
-		BodySize: uint16(len(body)), // #nosec G115
+		BodySize: uint16(len(body)),
 	}
-	
+
 	pdu := append(header.Serialize(), body...)
 	return BuildChannelData(pdu)
 }

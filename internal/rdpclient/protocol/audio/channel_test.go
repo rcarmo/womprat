@@ -204,6 +204,12 @@ func TestBuildChannelData(t *testing.T) {
 	}
 }
 
+func TestBuildChannelPDURejectsOversizedBody(t *testing.T) {
+	if got := BuildChannelPDU(SND_FORMATS, bytes.Repeat([]byte{0}, 0x10000)); got != nil {
+		t.Fatalf("oversized audio PDU built with %d bytes", len(got))
+	}
+}
+
 func TestBuildChannelPDU(t *testing.T) {
 	body := []byte{0x01, 0x02}
 	result := BuildChannelPDU(SND_FORMATS, body)
