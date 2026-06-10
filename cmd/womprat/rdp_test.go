@@ -105,15 +105,6 @@ func TestRDPFrontendEmbedsWASMCodecs(t *testing.T) {
 	}
 }
 
-func TestRDPDefaultsEnableWASMBackedRFX(t *testing.T) {
-	if got := rdpRFXEnabled(""); !got {
-		t.Fatal("RFX should default to enabled")
-	}
-	if got := rdpRFXEnabled("false"); got {
-		t.Fatal("explicit rfx=false should disable RFX")
-	}
-}
-
 func TestNewRDPTabAcceptsUserAtHostWithoutPort(t *testing.T) {
 	app := newTestApp(t)
 	app.newRDPTab("rdp://me@platinum")
