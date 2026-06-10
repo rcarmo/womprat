@@ -40,13 +40,19 @@ func darkBrush() windows.Handle {
 
 var childClassName *uint16
 
-func registerChildClass() {
+func registerChildClass() error {
 	if childClassName != nil {
-		return
+		return nil
 	}
 	var hinstance windows.Handle
-	_ = windows.GetModuleHandleEx(0, nil, &hinstance)
-	childClassName, _ = windows.UTF16PtrFromString("womprat-child")
+	if err := windows.GetModuleHandleEx(0, nil, &hinstance); err != nil {
+		return fmt.Errorf("get module handle: %w", err)
+	}
+	var err error
+	childClassName, err = windows.UTF16PtrFromString("womprat-child")
+	if err != nil {
+		return fmt.Errorf("child class name: %w", err)
+	}
 	wc := wndClassExW{
 		CbSize:        uint32(unsafe.Sizeof(wndClassExW{})),
 		HInstance:     hinstance,
@@ -57,7 +63,11 @@ func registerChildClass() {
 		}),
 		HbrBackground: darkBrush(),
 	}
-	procRegisterClassExW.Call(uintptr(unsafe.Pointer(&wc)))
+	ret, _, err := procRegisterClassExW.Call(uintptr(unsafe.Pointer(&wc)))
+	if ret == 0 && err != windows.ERROR_CLASS_ALREADY_EXISTS {
+		return fmt.Errorf("register child class: %w", err)
+	}
+	return nil
 }
 
 const (
@@ -113,11 +123,22 @@ func hostWndProc(hwnd, msg, wParam, lParam uintptr) uintptr {
 
 func createHostWindow(title string, width, height int) (uintptr, error) {
 	var hinstance windows.Handle
-	_ = windows.GetModuleHandleEx(0, nil, &hinstance)
-	className, _ := windows.UTF16PtrFromString("womprat-host")
+	if err := windows.GetModuleHandleEx(0, nil, &hinstance); err != nil {
+		return 0, fmt.Errorf("get module handle: %w", err)
+	}
+	className, err := windows.UTF16PtrFromString("womprat-host")
+	if err != nil {
+		return 0, fmt.Errorf("host class name: %w", err)
+	}
 	wc := wndClassExW{CbSize: uint32(unsafe.Sizeof(wndClassExW{})), HInstance: hinstance, LpszClassName: className, LpfnWndProc: windows.NewCallback(hostWndProc), HbrBackground: darkBrush()}
-	procRegisterClassExW.Call(uintptr(unsafe.Pointer(&wc)))
-	windowName, _ := windows.UTF16PtrFromString(title)
+	ret, _, err := procRegisterClassExW.Call(uintptr(unsafe.Pointer(&wc)))
+	if ret == 0 && err != windows.ERROR_CLASS_ALREADY_EXISTS {
+		return 0, fmt.Errorf("register host class: %w", err)
+	}
+	windowName, err := windows.UTF16PtrFromString(title)
+	if err != nil {
+		return 0, fmt.Errorf("host window title: %w", err)
+	}
 	hwnd, _, err := procCreateWindowExWHost.Call(0, uintptr(unsafe.Pointer(className)), uintptr(unsafe.Pointer(windowName)), wsOverlappedWindow,
 		cwUseDefault, cwUseDefault, uintptr(width), uintptr(height), 0, 0, uintptr(hinstance), 0)
 	if hwnd == 0 {
@@ -145,7 +166,9 @@ func resizeChildToClient(parent, child uintptr, top, bottomInset int32) {
 }
 
 func createHostChild(parent uintptr) (uintptr, error) {
-	registerChildClass()
+	if err := registerChildClass(); err != nil {
+		return 0, err
+	}
 	hwnd, _, err := procCreateWindowExWHost.Call(0, uintptr(unsafe.Pointer(childClassName)), 0,
 		wsChild|wsVisible|wsClipChildren|wsClipSiblings, 0, 0, 100, 100, parent, 0, 0, 0)
 	if hwnd == 0 {

@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"unsafe"
@@ -234,7 +233,9 @@ type nativeContentView struct {
 }
 
 func newNativeContentView(parent uintptr, dataPath, tabID string, shell shellWebView) (*nativeContentView, error) {
-	registerChildClass()
+	if err := registerChildClass(); err != nil {
+		return nil, err
+	}
 	hwnd, _, err := procCreateWindowExW.Call(0, uintptr(unsafe.Pointer(childClassName)), 0,
 		wsChild|wsVisible|wsClipChildren|wsClipSiblings, 0, browserChromeHeight, 100, 100, parent, 0, 0, 0)
 	if hwnd == 0 {
