@@ -195,17 +195,13 @@ func rdpRFXEnabled(raw string) bool {
 }
 
 func sendRDPError(ctx context.Context, ws *websocket.Conn, message string) {
-	if err := wsjsonError(ctx, ws, message); err != nil {
+	body, err := json.Marshal(map[string]string{"type": "error", "message": message})
+	if err == nil {
+		err = ws.Write(ctx, websocket.MessageText, body)
+	}
+	if err != nil {
 		log.Printf("rdp error send failed: %v", err)
 	}
-}
-
-func wsjsonError(ctx context.Context, ws *websocket.Conn, message string) error {
-	body, err := json.Marshal(map[string]string{"type": "error", "message": message})
-	if err != nil {
-		return err
-	}
-	return ws.Write(ctx, websocket.MessageText, body)
 }
 
 func rdpWsToClient(ctx context.Context, cancel context.CancelFunc, ws *websocket.Conn, client *rdp.Client) {
