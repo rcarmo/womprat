@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"crypto/rc4" // #nosec G503 -- RC4 is required by NTLMv2 authentication protocol
 	"encoding/binary"
+	"fmt"
 	"time"
 	"unicode/utf16"
 )
@@ -246,11 +247,20 @@ type Security struct {
 	seqNum     uint32
 }
 
-// GetAuthenticateMessage processes challenge and returns Type 3 message and security context
+// GetAuthenticateMessage processes challenge and returns Type 3 message and security context.
 func (n *NTLMv2) GetAuthenticateMessage(challengeData []byte) ([]byte, *Security) {
-	challenge, err := ParseChallengeMessage(challengeData)
+	msg, sec, err := n.GetAuthenticateMessageWithError(challengeData)
 	if err != nil {
 		return nil, nil
+	}
+	return msg, sec
+}
+
+// GetAuthenticateMessageWithError processes challenge and returns Type 3 message, security context, and detailed errors.
+func (n *NTLMv2) GetAuthenticateMessageWithError(challengeData []byte) ([]byte, *Security, error) {
+	challenge, err := ParseChallengeMessage(challengeData)
+	if err != nil {
+		return nil, nil, fmt.Errorf("parse NTLM challenge: %w", err)
 	}
 	n.challengeMsg = challenge
 
@@ -271,7 +281,7 @@ func (n *NTLMv2) GetAuthenticateMessage(challengeData []byte) ([]byte, *Security
 	// Generate client challenge
 	clientChallenge := make([]byte, 8)
 	if _, err := rand.Read(clientChallenge); err != nil {
-		return nil, nil
+		return nil, nil, fmt.Errorf("generate NTLM client challenge: %w", err)
 	}
 
 	// Modify TargetInfo to include MIC_PROVIDED flag when MIC will be computed
@@ -287,7 +297,7 @@ func (n *NTLMv2) GetAuthenticateMessage(challengeData []byte) ([]byte, *Security
 	// Key exchange
 	exportedSessionKey := make([]byte, 16)
 	if _, err := rand.Read(exportedSessionKey); err != nil {
-		return nil, nil
+		return nil, nil, fmt.Errorf("generate NTLM exported session key: %w", err)
 	}
 
 	encryptedRandomSessionKey := make([]byte, 16)
@@ -331,7 +341,7 @@ func (n *NTLMv2) GetAuthenticateMessage(challengeData []byte) ([]byte, *Security
 		signingKey: clientSigningKey,
 		verifyKey:  serverSigningKey,
 		seqNum:     0,
-	}
+	}, nil
 }
 
 func (n *NTLMv2) computeResponseV2(serverChallenge, clientChallenge, timestamp, targetInfo []byte) ([]byte, []byte, []byte) {
@@ -373,38 +383,38 @@ func (n *NTLMv2) buildAuthenticateMessage(flags uint32, domain, user, workstatio
 	currentOffset := payloadOffset
 
 	// LmChallengeResponseFields
-	_ = binary.Write(buf, binary.LittleEndian, uint16(len(lmResponse)))  // #nosec G115
-	_ = binary.Write(buf, binary.LittleEndian, uint16(len(lmResponse)))  // #nosec G115
+	_ = binary.Write(buf, binary.LittleEndian, uint16(len(lmResponse))) // #nosec G115
+	_ = binary.Write(buf, binary.LittleEndian, uint16(len(lmResponse))) // #nosec G115
 	_ = binary.Write(buf, binary.LittleEndian, currentOffset)
 	currentOffset += uint32(len(lmResponse)) // #nosec G115
 
 	// NtChallengeResponseFields
-	_ = binary.Write(buf, binary.LittleEndian, uint16(len(ntResponse)))  // #nosec G115
-	_ = binary.Write(buf, binary.LittleEndian, uint16(len(ntResponse)))  // #nosec G115
+	_ = binary.Write(buf, binary.LittleEndian, uint16(len(ntResponse))) // #nosec G115
+	_ = binary.Write(buf, binary.LittleEndian, uint16(len(ntResponse))) // #nosec G115
 	_ = binary.Write(buf, binary.LittleEndian, currentOffset)
 	currentOffset += uint32(len(ntResponse)) // #nosec G115
 
 	// DomainNameFields
-	_ = binary.Write(buf, binary.LittleEndian, uint16(len(domain)))  // #nosec G115
-	_ = binary.Write(buf, binary.LittleEndian, uint16(len(domain)))  // #nosec G115
+	_ = binary.Write(buf, binary.LittleEndian, uint16(len(domain))) // #nosec G115
+	_ = binary.Write(buf, binary.LittleEndian, uint16(len(domain))) // #nosec G115
 	_ = binary.Write(buf, binary.LittleEndian, currentOffset)
 	currentOffset += uint32(len(domain)) // #nosec G115
 
 	// UserNameFields
-	_ = binary.Write(buf, binary.LittleEndian, uint16(len(user)))  // #nosec G115
-	_ = binary.Write(buf, binary.LittleEndian, uint16(len(user)))  // #nosec G115
+	_ = binary.Write(buf, binary.LittleEndian, uint16(len(user))) // #nosec G115
+	_ = binary.Write(buf, binary.LittleEndian, uint16(len(user))) // #nosec G115
 	_ = binary.Write(buf, binary.LittleEndian, currentOffset)
 	currentOffset += uint32(len(user)) // #nosec G115
 
 	// WorkstationFields
-	_ = binary.Write(buf, binary.LittleEndian, uint16(len(workstation)))  // #nosec G115
-	_ = binary.Write(buf, binary.LittleEndian, uint16(len(workstation)))  // #nosec G115
+	_ = binary.Write(buf, binary.LittleEndian, uint16(len(workstation))) // #nosec G115
+	_ = binary.Write(buf, binary.LittleEndian, uint16(len(workstation))) // #nosec G115
 	_ = binary.Write(buf, binary.LittleEndian, currentOffset)
 	currentOffset += uint32(len(workstation)) // #nosec G115
 
 	// EncryptedRandomSessionKeyFields
-	_ = binary.Write(buf, binary.LittleEndian, uint16(len(encryptedKey)))  // #nosec G115
-	_ = binary.Write(buf, binary.LittleEndian, uint16(len(encryptedKey)))  // #nosec G115
+	_ = binary.Write(buf, binary.LittleEndian, uint16(len(encryptedKey))) // #nosec G115
+	_ = binary.Write(buf, binary.LittleEndian, uint16(len(encryptedKey))) // #nosec G115
 	_ = binary.Write(buf, binary.LittleEndian, currentOffset)
 
 	// NegotiateFlags

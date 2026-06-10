@@ -102,8 +102,11 @@ func (c *Client) StartNLA() error {
 	}
 
 	// Step 3: Process challenge and get authenticate message
-	authMsg, ntlmSec := ntlmCtx.GetAuthenticateMessage(tsResp.NegoTokens[0].Data)
-	if authMsg == nil || ntlmSec == nil {
+	authMsg, ntlmSec, err := ntlmCtx.GetAuthenticateMessageWithError(tsResp.NegoTokens[0].Data)
+	if err != nil || authMsg == nil || ntlmSec == nil {
+		if err != nil {
+			return fmt.Errorf("NLA: failed to generate authenticate message: %w", err)
+		}
 		return fmt.Errorf("NLA: failed to generate authenticate message")
 	}
 

@@ -229,18 +229,18 @@ func TestParseChallengeMessage(t *testing.T) {
 			name: "valid challenge without target info",
 			data: func() []byte {
 				buf := &bytes.Buffer{}
-				buf.Write(ntlmSignature)                                // Signature (8)
-				_ = binary.Write(buf, binary.LittleEndian, uint32(2))   // MessageType (4)
-				_ = binary.Write(buf, binary.LittleEndian, uint16(0))   // TargetNameLen
-				_ = binary.Write(buf, binary.LittleEndian, uint16(0))   // TargetNameMaxLen
-				_ = binary.Write(buf, binary.LittleEndian, uint32(0))   // TargetNameOffset
+				buf.Write(ntlmSignature)                                   // Signature (8)
+				_ = binary.Write(buf, binary.LittleEndian, uint32(2))      // MessageType (4)
+				_ = binary.Write(buf, binary.LittleEndian, uint16(0))      // TargetNameLen
+				_ = binary.Write(buf, binary.LittleEndian, uint16(0))      // TargetNameMaxLen
+				_ = binary.Write(buf, binary.LittleEndian, uint32(0))      // TargetNameOffset
 				_ = binary.Write(buf, binary.LittleEndian, uint32(0x1234)) // NegotiateFlags
-				buf.Write([]byte{1, 2, 3, 4, 5, 6, 7, 8})               // ServerChallenge
-				buf.Write(make([]byte, 8))                              // Reserved
-				_ = binary.Write(buf, binary.LittleEndian, uint16(0))   // TargetInfoLen
-				_ = binary.Write(buf, binary.LittleEndian, uint16(0))   // TargetInfoMaxLen
-				_ = binary.Write(buf, binary.LittleEndian, uint32(0))   // TargetInfoOffset
-				buf.Write(make([]byte, 16))                             // Padding to reach 56 bytes
+				buf.Write([]byte{1, 2, 3, 4, 5, 6, 7, 8})                  // ServerChallenge
+				buf.Write(make([]byte, 8))                                 // Reserved
+				_ = binary.Write(buf, binary.LittleEndian, uint16(0))      // TargetInfoLen
+				_ = binary.Write(buf, binary.LittleEndian, uint16(0))      // TargetInfoMaxLen
+				_ = binary.Write(buf, binary.LittleEndian, uint32(0))      // TargetInfoOffset
+				buf.Write(make([]byte, 16))                                // Padding to reach 56 bytes
 				return buf.Bytes()
 			}(),
 			wantErr: false,
@@ -258,17 +258,17 @@ func TestParseChallengeMessage(t *testing.T) {
 			name: "valid challenge with target info and timestamp",
 			data: func() []byte {
 				buf := &bytes.Buffer{}
-				buf.Write(ntlmSignature)                                         // Signature (8)
-				_ = binary.Write(buf, binary.LittleEndian, uint32(2))            // MessageType (4)
-				_ = binary.Write(buf, binary.LittleEndian, uint16(0))            // TargetNameLen
-				_ = binary.Write(buf, binary.LittleEndian, uint16(0))            // TargetNameMaxLen
-				_ = binary.Write(buf, binary.LittleEndian, uint32(0))            // TargetNameOffset
-				_ = binary.Write(buf, binary.LittleEndian, uint32(0xabcd1234))   // NegotiateFlags
+				buf.Write(ntlmSignature)                                          // Signature (8)
+				_ = binary.Write(buf, binary.LittleEndian, uint32(2))             // MessageType (4)
+				_ = binary.Write(buf, binary.LittleEndian, uint16(0))             // TargetNameLen
+				_ = binary.Write(buf, binary.LittleEndian, uint16(0))             // TargetNameMaxLen
+				_ = binary.Write(buf, binary.LittleEndian, uint32(0))             // TargetNameOffset
+				_ = binary.Write(buf, binary.LittleEndian, uint32(0xabcd1234))    // NegotiateFlags
 				buf.Write([]byte{0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88}) // ServerChallenge
-				buf.Write(make([]byte, 8))                                       // Reserved
-				_ = binary.Write(buf, binary.LittleEndian, uint16(16))           // TargetInfoLen
-				_ = binary.Write(buf, binary.LittleEndian, uint16(16))           // TargetInfoMaxLen
-				_ = binary.Write(buf, binary.LittleEndian, uint32(56))           // TargetInfoOffset
+				buf.Write(make([]byte, 8))                                        // Reserved
+				_ = binary.Write(buf, binary.LittleEndian, uint16(16))            // TargetInfoLen
+				_ = binary.Write(buf, binary.LittleEndian, uint16(16))            // TargetInfoMaxLen
+				_ = binary.Write(buf, binary.LittleEndian, uint32(56))            // TargetInfoOffset
 
 				// Pad to offset 56
 				for buf.Len() < 56 {
@@ -319,9 +319,9 @@ func TestParseChallengeMessage(t *testing.T) {
 
 func TestExtractTimestamp(t *testing.T) {
 	tests := []struct {
-		name           string
-		targetInfo     []byte
-		wantTimestamp  []byte
+		name          string
+		targetInfo    []byte
+		wantTimestamp []byte
 	}{
 		{
 			name:          "empty target info",
@@ -615,6 +615,14 @@ func TestGetEncodedCredentials(t *testing.T) {
 			t.Errorf("pass = %v, want %v", pass, expectedPass)
 		}
 	})
+}
+
+func TestGetAuthenticateMessageWithErrorInvalidChallenge(t *testing.T) {
+	n := NewNTLMv2("DOMAIN", "User", "Password")
+	msg, sec, err := n.GetAuthenticateMessageWithError([]byte{1, 2, 3})
+	if err == nil || msg != nil || sec != nil {
+		t.Fatalf("GetAuthenticateMessageWithError invalid = msg=%v sec=%v err=%v", msg, sec, err)
+	}
 }
 
 func TestGetAuthenticateMessage(t *testing.T) {
@@ -933,11 +941,11 @@ func TestEncodeInteger(t *testing.T) {
 
 func TestParseTag(t *testing.T) {
 	tests := []struct {
-		name          string
-		data          []byte
-		wantTag       byte
-		wantContent   []byte
-		wantErr       bool
+		name        string
+		data        []byte
+		wantTag     byte
+		wantContent []byte
+		wantErr     bool
 	}{
 		{
 			name:    "too short",
@@ -1262,7 +1270,7 @@ func TestDecodeTSRequest(t *testing.T) {
 }
 
 func TestEncodeCredentials(t *testing.T) {
-	domain := []byte{0x44, 0x00, 0x4F, 0x00, 0x4D, 0x00} // "DOM" in UTF-16LE
+	domain := []byte{0x44, 0x00, 0x4F, 0x00, 0x4D, 0x00}   // "DOM" in UTF-16LE
 	username := []byte{0x55, 0x00, 0x53, 0x00, 0x52, 0x00} // "USR" in UTF-16LE
 	password := []byte{0x50, 0x00, 0x57, 0x00, 0x44, 0x00} // "PWD" in UTF-16LE
 
@@ -1426,7 +1434,7 @@ func TestNTLMv2WithSpecialCharacters(t *testing.T) {
 	if n == nil {
 		t.Fatal("NewNTLMv2 returned nil")
 	}
-	
+
 	msg := n.GetNegotiateMessage()
 	if msg == nil {
 		t.Fatal("GetNegotiateMessage returned nil")
@@ -1436,9 +1444,9 @@ func TestNTLMv2WithSpecialCharacters(t *testing.T) {
 func TestDecodeTSRequestWithMalformedData(t *testing.T) {
 	// Test various malformed inputs
 	malformedInputs := [][]byte{
-		{0x30, 0x00},                     // Empty sequence
-		{0x30, 0xFF},                     // Invalid length
-		{0x30, 0x02, 0xA0, 0x00},         // Context tag with empty content
+		{0x30, 0x00},             // Empty sequence
+		{0x30, 0xFF},             // Invalid length
+		{0x30, 0x02, 0xA0, 0x00}, // Context tag with empty content
 	}
 
 	for i, input := range malformedInputs {
@@ -1450,70 +1458,70 @@ func TestDecodeTSRequestWithMalformedData(t *testing.T) {
 }
 
 func TestComputeClientPubKeyAuth(t *testing.T) {
-pubKey := []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08}
-nonce := []byte{0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f,
-0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2a, 0x2b, 0x2c, 0x2d, 0x2e, 0x2f}
+	pubKey := []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08}
+	nonce := []byte{0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f,
+		0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2a, 0x2b, 0x2c, 0x2d, 0x2e, 0x2f}
 
-// Test version 2-4: should return pubKey unchanged
-result := ComputeClientPubKeyAuth(2, pubKey, nil)
-if !bytes.Equal(result, pubKey) {
-t.Errorf("Version 2 should return pubKey unchanged")
-}
+	// Test version 2-4: should return pubKey unchanged
+	result := ComputeClientPubKeyAuth(2, pubKey, nil)
+	if !bytes.Equal(result, pubKey) {
+		t.Errorf("Version 2 should return pubKey unchanged")
+	}
 
-result = ComputeClientPubKeyAuth(4, pubKey, nonce)
-if !bytes.Equal(result, pubKey) {
-t.Errorf("Version 4 should return pubKey unchanged")
-}
+	result = ComputeClientPubKeyAuth(4, pubKey, nonce)
+	if !bytes.Equal(result, pubKey) {
+		t.Errorf("Version 4 should return pubKey unchanged")
+	}
 
-// Test version 5+: should return SHA256 hash
-result = ComputeClientPubKeyAuth(5, pubKey, nonce)
-if len(result) != 32 { // SHA256 hash length
-t.Errorf("Version 5 should return 32-byte SHA256 hash, got %d bytes", len(result))
-}
-if bytes.Equal(result, pubKey) {
-t.Errorf("Version 5 result should not equal original pubKey")
-}
+	// Test version 5+: should return SHA256 hash
+	result = ComputeClientPubKeyAuth(5, pubKey, nonce)
+	if len(result) != 32 { // SHA256 hash length
+		t.Errorf("Version 5 should return 32-byte SHA256 hash, got %d bytes", len(result))
+	}
+	if bytes.Equal(result, pubKey) {
+		t.Errorf("Version 5 result should not equal original pubKey")
+	}
 
-// Test version 6 with nonce
-result = ComputeClientPubKeyAuth(6, pubKey, nonce)
-if len(result) != 32 {
-t.Errorf("Version 6 should return 32-byte SHA256 hash")
-}
+	// Test version 6 with nonce
+	result = ComputeClientPubKeyAuth(6, pubKey, nonce)
+	if len(result) != 32 {
+		t.Errorf("Version 6 should return 32-byte SHA256 hash")
+	}
 }
 
 func TestVerifyServerPubKeyAuth(t *testing.T) {
-clientPubKey := []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08}
-nonce := []byte{0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f,
-0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2a, 0x2b, 0x2c, 0x2d, 0x2e, 0x2f}
+	clientPubKey := []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08}
+	nonce := []byte{0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f,
+		0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2a, 0x2b, 0x2c, 0x2d, 0x2e, 0x2f}
 
-// Test version 2-4: server should send pubKey with first byte + 1
-serverResponse := make([]byte, len(clientPubKey))
-copy(serverResponse, clientPubKey)
-serverResponse[0]++
+	// Test version 2-4: server should send pubKey with first byte + 1
+	serverResponse := make([]byte, len(clientPubKey))
+	copy(serverResponse, clientPubKey)
+	serverResponse[0]++
 
-if !VerifyServerPubKeyAuth(2, serverResponse, clientPubKey, nil) {
-t.Errorf("Version 2 should verify correctly")
-}
+	if !VerifyServerPubKeyAuth(2, serverResponse, clientPubKey, nil) {
+		t.Errorf("Version 2 should verify correctly")
+	}
 
-// Test with wrong response
-wrongResponse := make([]byte, len(clientPubKey))
-copy(wrongResponse, clientPubKey)
-if VerifyServerPubKeyAuth(2, wrongResponse, clientPubKey, nil) {
-t.Errorf("Version 2 should fail with wrong response")
-}
+	// Test with wrong response
+	wrongResponse := make([]byte, len(clientPubKey))
+	copy(wrongResponse, clientPubKey)
+	if VerifyServerPubKeyAuth(2, wrongResponse, clientPubKey, nil) {
+		t.Errorf("Version 2 should fail with wrong response")
+	}
 
-// Test version 5+: need to compute correct hash
-// Server sends SHA256(ServerClientHashMagic || nonce || pubKey)
-// We can't easily compute this without importing crypto/sha256 in test
-// but we can test that it returns false for wrong response
-if VerifyServerPubKeyAuth(5, serverResponse, clientPubKey, nonce) {
-t.Errorf("Version 5 should fail with old-style response")
-}
+	// Test version 5+: need to compute correct hash
+	// Server sends SHA256(ServerClientHashMagic || nonce || pubKey)
+	// We can't easily compute this without importing crypto/sha256 in test
+	// but we can test that it returns false for wrong response
+	if VerifyServerPubKeyAuth(5, serverResponse, clientPubKey, nonce) {
+		t.Errorf("Version 5 should fail with old-style response")
+	}
 
-// Test length mismatch
-if VerifyServerPubKeyAuth(2, []byte{0x01}, clientPubKey, nil) {
-t.Errorf("Should fail with length mismatch")
-}
+	// Test length mismatch
+	if VerifyServerPubKeyAuth(2, []byte{0x01}, clientPubKey, nil) {
+		t.Errorf("Should fail with length mismatch")
+	}
 }
 
 // ============================================================================
@@ -1578,9 +1586,9 @@ func TestS_NTLM_NegotiateFlags(t *testing.T) {
 	)
 
 	tests := []struct {
-		name  string
-		flag  uint32
-		desc  string
+		name string
+		flag uint32
+		desc string
 	}{
 		{"NEGOTIATE_56", NTLMSSP_NEGOTIATE_56, "56-bit encryption"},
 		{"NEGOTIATE_KEY_EXCH", NTLMSSP_NEGOTIATE_KEY_EXCH, "Key exchange"},
@@ -1607,11 +1615,11 @@ func TestS_NTLM_Signature(t *testing.T) {
 	// NTLM signature per MS-NLMP Section 2.2.1
 	// "NTLMSSP\0" as ASCII bytes
 	signature := []byte{'N', 'T', 'L', 'M', 'S', 'S', 'P', 0x00}
-	
+
 	if len(signature) != 8 {
 		t.Errorf("NTLM signature should be 8 bytes, got %d", len(signature))
 	}
-	
+
 	expected := "NTLMSSP"
 	actual := string(signature[:7])
 	if actual != expected {
@@ -1649,10 +1657,10 @@ func TestS_CredSSP_TSRequest_Versions(t *testing.T) {
 func TestS_CredSSP_NegoData(t *testing.T) {
 	// negoData contains SPNEGO tokens
 	// First token must be NegTokenInit (GSSAPI)
-	
+
 	// SPNEGO OID: 1.3.6.1.5.5.2
 	spnegoOID := []byte{0x06, 0x06, 0x2b, 0x06, 0x01, 0x05, 0x05, 0x02}
-	
+
 	if len(spnegoOID) != 8 {
 		t.Errorf("SPNEGO OID should be 8 bytes")
 	}
