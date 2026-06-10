@@ -1056,7 +1056,7 @@ function activateTab(id, options = {}) {
           <span class="rdp-caps" data-rdp-caps title="Negotiated codecs and channels">codec status pending</span>
           <input class="rdp-field rdp-host" data-rdp-host aria-label="RDP host" readonly>
           <input class="rdp-field rdp-user" data-rdp-user placeholder="User" aria-label="RDP user" autocomplete="username">
-          <input class="rdp-field rdp-password" data-rdp-password type="password" placeholder="Password" aria-label="RDP password" autocomplete="current-password">
+          <input class="rdp-field rdp-password" data-rdp-password type="password" placeholder="Password" aria-label="RDP password" autocomplete="current-password" maxlength="1024">
           <select class="rdp-field rdp-depth" data-rdp-depth aria-label="RDP color depth"><option value="16" selected>16bpp</option><option value="24">24bpp</option><option value="32">32bpp</option><option value="15">15bpp</option><option value="8">8bpp</option></select>
           <label class="rdp-toggle" title="Use Network Level Authentication"><input data-rdp-nla type="checkbox" checked>NLA</label>
           <label class="rdp-toggle" title="Enable RDP audio redirection"><input data-rdp-audio type="checkbox">Audio</label>
@@ -1071,7 +1071,7 @@ function activateTab(id, options = {}) {
       panel.innerHTML = `<div class="vnc-panel">
         <div class="vnc-toolbar">
           <span class="vnc-status" data-vnc-status>Preparing VNC…</span>
-          <input class="vnc-field vnc-password" data-vnc-password type="password" placeholder="Password" aria-label="VNC password" autocomplete="current-password">
+          <input class="vnc-field vnc-password" data-vnc-password type="password" placeholder="Password" aria-label="VNC password" autocomplete="current-password" maxlength="8">
           <button data-vnc-reconnect class="icon-button text-button vnc-reconnect">Reconnect</button>
           <button data-vnc-scale class="icon-button text-button vnc-scale" aria-pressed="true">Fit</button>
           <input class="vnc-field vnc-clipboard" data-vnc-clipboard placeholder="Clipboard text" aria-label="VNC clipboard text">

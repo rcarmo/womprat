@@ -509,6 +509,18 @@ func TestShellControlsUseCentralHandlers(t *testing.T) {
 	}
 }
 
+func TestRemoteDisplayPasswordFieldsAreBounded(t *testing.T) {
+	s := readFileForRegression(t, "frontend/index.html")
+	for _, want := range []string{
+		"data-rdp-password type=\"password\" placeholder=\"Password\" aria-label=\"RDP password\" autocomplete=\"current-password\" maxlength=\"1024\"",
+		"data-vnc-password type=\"password\" placeholder=\"Password\" aria-label=\"VNC password\" autocomplete=\"current-password\" maxlength=\"8\"",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("remote display password field bound missing %q", want)
+		}
+	}
+}
+
 func TestSSHPromptPasswordInputIsBounded(t *testing.T) {
 	s := readFileForRegression(t, "frontend/index.html")
 	for _, want := range []string{
