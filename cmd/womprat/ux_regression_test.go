@@ -154,6 +154,7 @@ func TestSettingsBoundsSSHKeyImportSize(t *testing.T) {
 		"const MAX_SSH_KEY_BYTES = 64 * 1024;",
 		"file.size > MAX_SSH_KEY_BYTES",
 		"SSH key file too large",
+		"Could not read key file",
 	} {
 		if !strings.Contains(s, want) {
 			t.Fatalf("settings SSH key size guard missing %q", want)
