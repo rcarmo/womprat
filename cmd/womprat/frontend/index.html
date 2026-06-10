@@ -1380,7 +1380,11 @@ async function hydrateNativeTabs() {
   if (!window.womprat_getTabs) return;
   try {
     const native = JSON.parse(await womprat_getTabs());
-    const localTabs = (native.tabs || []).filter(t => validTabID(t.id) && (t.type === 'terminal' || t.type === 'settings' || t.type === 'browser' || t.type === 'vnc' || t.type === 'rdp'));
+    const localTabs = (native.tabs || []).map(t => {
+      if (t?.type === 'settings' && validTabID(t.id)) return { id: 'settings', type: 'settings', title: 'Settings', url: 'settings:' };
+      const clean = sanitizeTabForSave(t);
+      return clean ? { ...clean, id: String(t.id) } : null;
+    }).filter(Boolean);
     const requested = new URLSearchParams(location.search).get('tab') || '';
     const target = localTabs.find(t => t.id === requested && (t.type === 'terminal' || t.type === 'settings'));
     state.tabs = localTabs;

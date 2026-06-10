@@ -594,7 +594,7 @@ func TestFrontendValidatesTabIDsBeforeDOMUse(t *testing.T) {
 		"const tabId = validTabID(options.id) ? options.id : newLocalTabID('term');",
 		"if (!t || t.id === 'settings' || !validTabID(t.id)) return null;",
 		"if (!validTabID(fromId) || !validTabID(beforeId) || fromId === beforeId) return;",
-		"filter(t => validTabID(t.id) &&",
+		"validTabID(t.id)",
 	} {
 		if !strings.Contains(s, want) {
 			t.Fatalf("frontend tab id validation missing %q", want)
@@ -609,6 +609,8 @@ func TestFrontendPersistsOnlySanitizedURLState(t *testing.T) {
 		"return parsed.map(normalizeHistoryURL).filter(Boolean).slice(0, 100);",
 		"function sanitizeTabForSave(t)",
 		"const tabs = state.tabs.map(sanitizeTabForSave).filter(Boolean).slice(0, 100);",
+		"const clean = sanitizeTabForSave(t);",
+		"return clean ? { ...clean, id: String(t.id) } : null;",
 	} {
 		if !strings.Contains(s, want) {
 			t.Fatalf("frontend persistence sanitizer missing %q", want)
