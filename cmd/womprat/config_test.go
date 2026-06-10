@@ -45,6 +45,20 @@ func TestSaveLoadDeleteCredential(t *testing.T) {
 	}
 }
 
+func TestNormalizeConfigRepairsInvalidDefaults(t *testing.T) {
+	cfg := &AppConfig{UnlockMethod: "bad", WindowWidth: -1, WindowHeight: 0, FontSize: 999}
+	normalizeConfig(cfg)
+	if cfg.UnlockMethod != "dpapi" || cfg.WindowWidth != 1200 || cfg.WindowHeight != 800 || cfg.FontSize != 0 || cfg.Hosts == nil {
+		t.Fatalf("normalized config = %+v", cfg)
+	}
+}
+
+func TestSaveConfigRejectsNil(t *testing.T) {
+	if err := SaveConfig(nil); err == nil {
+		t.Fatal("SaveConfig(nil) succeeded")
+	}
+}
+
 func TestSaveLoadConfigDefaults(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	cfg := defaultConfig()

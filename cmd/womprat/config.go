@@ -77,14 +77,43 @@ func defaultConfig() *AppConfig {
 }
 
 func configDir() string {
-	appData, _ := os.UserConfigDir()
-	dir := filepath.Join(appData, "womprat")
-	os.MkdirAll(dir, 0700)
+	dir, err := configDirPath()
+	if err != nil {
+		return filepath.Join(".", "womprat")
+	}
+	_ = os.MkdirAll(dir, 0700)
 	return dir
+}
+
+func configDirPath() (string, error) {
+	appData, err := os.UserConfigDir()
+	if err != nil || strings.TrimSpace(appData) == "" {
+		return "", fmt.Errorf("user config dir unavailable: %w", err)
+	}
+	return filepath.Join(appData, "womprat"), nil
+}
+
+func ensureConfigDir() (string, error) {
+	dir, err := configDirPath()
+	if err != nil {
+		return "", err
+	}
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return "", err
+	}
+	return dir, nil
 }
 
 func configPath() string {
 	return filepath.Join(configDir(), "config.enc")
+}
+
+func configPathForWrite() (string, error) {
+	dir, err := ensureConfigDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, "config.enc"), nil
 }
 
 // LoadConfig reads and decrypts the config file
@@ -109,17 +138,34 @@ func LoadConfig() (*AppConfig, error) {
 	if err := json.Unmarshal(decrypted, &cfg); err != nil {
 		return defaultConfig(), nil
 	}
+	normalizeConfig(&cfg)
+	return &cfg, nil
+}
+
+func normalizeConfig(cfg *AppConfig) {
 	if cfg.Hosts == nil {
 		cfg.Hosts = make(map[string]HostConfig)
 	}
-	if cfg.UnlockMethod == "hello" || cfg.UnlockMethod == "" {
+	if cfg.UnlockMethod == "hello" || cfg.UnlockMethod == "" || (cfg.UnlockMethod != "master" && cfg.UnlockMethod != "dpapi") {
 		cfg.UnlockMethod = "dpapi"
 	}
-	return &cfg, nil
+	if cfg.WindowWidth <= 0 {
+		cfg.WindowWidth = 1200
+	}
+	if cfg.WindowHeight <= 0 {
+		cfg.WindowHeight = 800
+	}
+	if cfg.FontSize < 0 || cfg.FontSize > 72 {
+		cfg.FontSize = 0
+	}
 }
 
 // SaveConfig encrypts and writes the config
 func SaveConfig(cfg *AppConfig) error {
+	if cfg == nil {
+		return fmt.Errorf("nil config")
+	}
+	normalizeConfig(cfg)
 	data, err := json.MarshalIndent(cfg, "", "  ")
 	if err != nil {
 		return err
@@ -130,7 +176,11 @@ func SaveConfig(cfg *AppConfig) error {
 		return err
 	}
 
-	return os.WriteFile(configPath(), encrypted, 0600)
+	path, err := configPathForWrite()
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, encrypted, 0600)
 }
 
 // Credential store operations (Windows Credential Manager)
@@ -147,8 +197,14 @@ func SaveCredential(name, value string) error {
 	if err != nil {
 		return err
 	}
-	path := filepath.Join(configDir(), "creds", name)
-	os.MkdirAll(filepath.Dir(path), 0700)
+	dir, err := ensureConfigDir()
+	if err != nil {
+		return err
+	}
+	path := filepath.Join(dir, "creds", name)
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+		return err
+	}
 	return os.WriteFile(path, encrypted, 0600)
 }
 
