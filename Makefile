@@ -178,6 +178,7 @@ dev: run ## Alias for local run
 
 clean-generated: ## Remove generated temporary files
 	rm -rf $(TMP_DIR)
+	rm -f $(RSRC_ARM64) $(RSRC_AMD64)
 
 clean-dist: ## Remove dist directory
 	rm -rf $(DIST_DIR)
