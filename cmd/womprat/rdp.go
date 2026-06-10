@@ -119,10 +119,13 @@ func (a *App) handleRDPWebSocket(w http.ResponseWriter, r *http.Request) {
 
 	width := clampRDPDim(r.URL.Query().Get("width"), 1280)
 	height := clampRDPDim(r.URL.Query().Get("height"), 720)
-	colorDepth := 16
-	if cd, err := strconv.Atoi(r.URL.Query().Get("colorDepth")); err == nil && (cd == 8 || cd == 15 || cd == 16 || cd == 24 || cd == 32) {
-		colorDepth = cd
-	}
+	colorDepth := parseRDPColorDepth(r.URL.Query().Get("colorDepth"), 16)
+	enableAudio := r.URL.Query().Get("audio") == "true"
+	disableNLA := r.URL.Query().Get("disableNLA") == "true"
+	// RemoteFX/NSCodec surface codecs require the optional go-rdp TinyGo WASM
+	// decoder in the browser. Keep negotiation off by default so Womprat's
+	// single-binary build stays robust with the embedded JS fallback codecs.
+	enableRFX := r.URL.Query().Get("rfx") == "true"
 
 	dial := func(ctx context.Context, network, address string) (net.Conn, error) {
 		// Ignore any client-supplied host in credentials; fail closed via tsnet to URL target.
@@ -138,9 +141,10 @@ func (a *App) handleRDPWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 	defer client.Close()
 	client.SetTLSConfig(true, "")
-	client.SetUseNLA(r.URL.Query().Get("disableNLA") != "true")
+	client.SetUseNLA(!disableNLA)
+	client.SetEnableRFX(enableRFX)
 	client.EnableDisplayControl()
-	if r.URL.Query().Get("audio") == "true" {
+	if enableAudio {
 		client.EnableAudio()
 	}
 	if err := client.Connect(); err != nil {
@@ -151,7 +155,7 @@ func (a *App) handleRDPWebSocket(w http.ResponseWriter, r *http.Request) {
 
 	var mu sync.Mutex
 	sendRDPCapabilities(ctx, ws, &mu, client)
-	if r.URL.Query().Get("audio") == "true" && client.GetAudioHandler() != nil {
+	if enableAudio && client.GetAudioHandler() != nil {
 		client.GetAudioHandler().SetCallback(func(data []byte, format *audio.AudioFormat, timestamp uint16) {
 			sendRDPAudio(ctx, ws, &mu, data, format, timestamp)
 		})
@@ -167,6 +171,13 @@ func clampRDPDim(raw string, fallback int) int {
 		return fallback
 	}
 	return v
+}
+
+func parseRDPColorDepth(raw string, fallback int) int {
+	if cd, err := strconv.Atoi(raw); err == nil && (cd == 8 || cd == 15 || cd == 16 || cd == 24 || cd == 32) {
+		return cd
+	}
+	return fallback
 }
 
 func wsjsonError(ctx context.Context, ws *websocket.Conn, message string) error {
@@ -242,6 +253,7 @@ func sendRDPCapabilities(ctx context.Context, ws *websocket.Conn, mu *sync.Mutex
 		"audioEnabled":        caps.AudioEnabled,
 		"channels":            caps.Channels,
 		"displayControlReady": client.IsDisplayControlReady(),
+		"wasmRequiredCodecs":  []string{"RemoteFX", "RemoteFX-Image", "NSCodec"},
 	})
 	if err != nil {
 		return

@@ -122,9 +122,10 @@ button,a,.tab,.recent-item,.option{
 .vnc-viewport canvas:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(96,205,255,.22),0 8px 30px rgba(0,0,0,.45)}
 .rdp-panel{flex:1;display:flex;flex-direction:column;min-height:0;background:linear-gradient(180deg,#111318 0%,#08090d 100%);color:var(--text)}
 .rdp-toolbar{height:36px;display:flex;align-items:center;gap:8px;padding:4px 8px;border-bottom:1px solid var(--border);background:var(--surface-solid);color:var(--text-secondary);font-size:12px}
-.rdp-status{display:inline-flex;align-items:center;gap:6px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.rdp-status::before{content:"";width:8px;height:8px;border-radius:999px;background:var(--accent);box-shadow:0 0 0 3px rgba(96,205,255,.12)}
+.rdp-status{display:inline-flex;align-items:center;gap:6px;min-width:130px;max-width:30vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.rdp-status::before{content:"";width:8px;height:8px;border-radius:999px;background:var(--accent);box-shadow:0 0 0 3px rgba(96,205,255,.12)}.rdp-panel[data-busy] .rdp-status::before{animation:vncPulse 1.2s ease-in-out infinite;background:#f2c94c}
+.rdp-caps{min-width:120px;max-width:24vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--dim)}
 .rdp-field{height:24px;background:var(--layer);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);padding:0 8px;font:12px var(--font);outline:none;color-scheme:dark}.rdp-field:focus{border-color:var(--accent);background:var(--bg)}
-.rdp-host{margin-left:auto;width:180px}.rdp-user{width:120px}.rdp-password{width:128px}.rdp-connect,.rdp-scale{height:24px;min-width:52px;padding:0 10px;font-size:12px;font-weight:600}
+.rdp-host{margin-left:auto;width:170px}.rdp-user{width:110px}.rdp-password{width:118px}.rdp-depth{width:74px}.rdp-toggle{display:inline-flex;align-items:center;gap:4px;height:24px;color:var(--text-secondary);white-space:nowrap}.rdp-toggle input{accent-color:var(--accent)}.rdp-connect,.rdp-scale{height:24px;min-width:52px;padding:0 10px;font-size:12px;font-weight:600}
 .rdp-viewport{flex:1;min-height:0;display:grid;place-items:center;overflow:hidden;background:radial-gradient(circle at 50% 30%,rgba(255,255,255,.06),transparent 42%),#050609}.rdp-viewport canvas{display:block;background:#000;border:1px solid rgba(255,255,255,.14);border-radius:var(--radius);box-shadow:0 8px 30px rgba(0,0,0,.45);outline:none}.rdp-viewport canvas:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(96,205,255,.22),0 8px 30px rgba(0,0,0,.45)}
 @keyframes vncPulse{0%,100%{opacity:.55}50%{opacity:1}}
 
@@ -888,9 +889,14 @@ function activateTab(id, options = {}) {
       panel.innerHTML = `<div class="rdp-panel">
         <div class="rdp-toolbar">
           <span class="rdp-status" data-rdp-status>Preparing RDP…</span>
+          <span class="rdp-caps" data-rdp-caps title="Negotiated codecs and channels">codec status pending</span>
           <input class="rdp-field rdp-host" data-rdp-host aria-label="RDP host" readonly>
           <input class="rdp-field rdp-user" data-rdp-user placeholder="User" aria-label="RDP user" autocomplete="username">
           <input class="rdp-field rdp-password" data-rdp-password type="password" placeholder="Password" aria-label="RDP password" autocomplete="current-password">
+          <select class="rdp-field rdp-depth" data-rdp-depth aria-label="RDP color depth"><option value="16" selected>16bpp</option><option value="24">24bpp</option><option value="32">32bpp</option><option value="15">15bpp</option><option value="8">8bpp</option></select>
+          <label class="rdp-toggle" title="Use Network Level Authentication"><input data-rdp-nla type="checkbox" checked>NLA</label>
+          <label class="rdp-toggle" title="Enable RDP audio redirection"><input data-rdp-audio type="checkbox">Audio</label>
+          <label class="rdp-toggle" title="Request RemoteFX/NSCodec surface codecs; requires optional decoder WASM"><input data-rdp-rfx type="checkbox">RFX</label>
           <button data-rdp-connect class="icon-button text-button rdp-connect">Connect</button>
           <button data-rdp-scale class="icon-button text-button rdp-scale" aria-pressed="true">Fit</button>
         </div>

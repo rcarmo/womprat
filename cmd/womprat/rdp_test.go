@@ -38,3 +38,16 @@ func TestParseRDPURLRejectsInvalidTargets(t *testing.T) {
 		})
 	}
 }
+
+func TestParseRDPColorDepth(t *testing.T) {
+	for _, depth := range []int{8, 15, 16, 24, 32} {
+		if got := parseRDPColorDepth(string(rune('0'+depth/10))+string(rune('0'+depth%10)), 16); got != depth {
+			t.Fatalf("parseRDPColorDepth(%d) = %d", depth, got)
+		}
+	}
+	for _, raw := range []string{"", "12", "33", "abc"} {
+		if got := parseRDPColorDepth(raw, 16); got != 16 {
+			t.Fatalf("parseRDPColorDepth(%q) = %d, want fallback", raw, got)
+		}
+	}
+}
