@@ -108,6 +108,21 @@ func TestCustomSchemesUseSingleFrontendDispatcher(t *testing.T) {
 	}
 }
 
+func TestFrontendSanitizesBrowserMetadata(t *testing.T) {
+	s := readFileForRegression(t, "frontend/index.html")
+	for _, want := range []string{
+		"const MAX_BROWSER_TITLE_RUNES = 200",
+		"const MAX_FAVICON_URL_BYTES = 2048",
+		"function sanitizeBrowserTitle(value)",
+		"function sanitizeFaviconURL(value)",
+		"const cleanFavicon = sanitizeFaviconURL(favicon)",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("frontend browser metadata sanitizer missing %q", want)
+		}
+	}
+}
+
 func TestFrontendPersistsOnlySanitizedURLState(t *testing.T) {
 	s := readFileForRegression(t, "frontend/index.html")
 	for _, want := range []string{
