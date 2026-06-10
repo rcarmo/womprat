@@ -25,6 +25,27 @@ func TestSettingsUsesFetchJSONHelper(t *testing.T) {
 	}
 }
 
+func TestSettingsTailscaleAndKeyActionsUseDataAttributes(t *testing.T) {
+	s := readFileForRegression(t, "frontend/settings.html")
+	for _, want := range []string{
+		"data-action=\"toggle-ts-key\"",
+		"data-action=\"save-tailscale\"",
+		"data-action=\"import-key\"",
+		"data-action=\"generate-key\"",
+		"addEventListener('click', saveTailscale)",
+		"addEventListener('change', ev => handleKeyFile(ev.currentTarget))",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("settings action data-attribute wiring missing %q", want)
+		}
+	}
+	for _, forbidden := range []string{"onclick=\"toggleVis('ts-key')", "onclick=\"saveTailscale()", "onclick=\"importKey()", "onclick=\"generateKey()", "onchange=\"handleKeyFile"} {
+		if strings.Contains(s, forbidden) {
+			t.Fatalf("settings action must not use inline handler %q", forbidden)
+		}
+	}
+}
+
 func TestSettingsUnlockOptionsUseDataAttributes(t *testing.T) {
 	s := readFileForRegression(t, "frontend/settings.html")
 	for _, want := range []string{
