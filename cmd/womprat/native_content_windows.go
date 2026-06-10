@@ -48,8 +48,20 @@ var reportedChromePx int32
 
 func setReportedChromePx(px int32) {
 	if px > 0 {
-		atomic.StoreInt32(&reportedChromePx, px)
+		atomic.StoreInt32(&reportedChromePx, clampChromePx(px))
 	}
+}
+
+func clampChromePx(px int32) int32 {
+	const minChromePx int32 = 24
+	const maxChromePx int32 = 512
+	if px < minChromePx {
+		return minChromePx
+	}
+	if px > maxChromePx {
+		return maxChromePx
+	}
+	return px
 }
 
 // chromePx returns the shell chrome height in physical pixels for the given
@@ -57,7 +69,7 @@ func setReportedChromePx(px int32) {
 // chrome height by the window DPI.
 func chromePx(hwnd uintptr) int32 {
 	if r := atomic.LoadInt32(&reportedChromePx); r > 0 {
-		return r
+		return clampChromePx(r)
 	}
 	dpi, _, _ := procGetDpiForWindow.Call(hwnd)
 	if dpi == 0 {

@@ -336,6 +336,19 @@ func (a *App) switchTab(tabID string) {
 	}
 }
 
+func clampTabIndex(toIndex, count int) int {
+	if count <= 0 {
+		return 0
+	}
+	if toIndex < 0 {
+		return 0
+	}
+	if toIndex >= count {
+		return count - 1
+	}
+	return toIndex
+}
+
 func (a *App) reorderTab(tabID string, toIndex int) {
 	a.mu.Lock()
 	from := -1
@@ -349,12 +362,7 @@ func (a *App) reorderTab(tabID string, toIndex int) {
 		a.mu.Unlock()
 		return
 	}
-	if toIndex < 0 {
-		toIndex = 0
-	}
-	if toIndex >= len(a.tabs) {
-		toIndex = len(a.tabs) - 1
-	}
+	toIndex = clampTabIndex(toIndex, len(a.tabs))
 	if from == toIndex {
 		a.mu.Unlock()
 		return

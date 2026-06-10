@@ -119,6 +119,14 @@ func TestCloseTabSelectsAdjacent(t *testing.T) {
 	}
 }
 
+func TestClampTabIndex(t *testing.T) {
+	for _, tt := range []struct{ in, count, want int }{{-1, 3, 0}, {0, 3, 0}, {2, 3, 2}, {3, 3, 2}, {10, 3, 2}, {1, 0, 0}} {
+		if got := clampTabIndex(tt.in, tt.count); got != tt.want {
+			t.Fatalf("clampTabIndex(%d,%d) = %d, want %d", tt.in, tt.count, got, tt.want)
+		}
+	}
+}
+
 func TestReorderTab(t *testing.T) {
 	app := newTestApp(t)
 	app.tabs = []Tab{{ID: "a"}, {ID: "b"}, {ID: "c"}}
