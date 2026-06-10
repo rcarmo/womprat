@@ -320,6 +320,25 @@ func TestCustomSchemesUseSingleFrontendDispatcher(t *testing.T) {
 	}
 }
 
+func TestShellControlsUseCentralHandlers(t *testing.T) {
+	s := readFileForRegression(t, "frontend/index.html")
+	for _, want := range []string{
+		"function installShellControlHandlers()",
+		"document.getElementById('setup-action')?.addEventListener('click', saveKey)",
+		"document.getElementById('url-input')?.addEventListener('keydown'",
+		"installShellControlHandlers();",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("shell control handler wiring missing %q", want)
+		}
+	}
+	for _, forbidden := range []string{"onclick=\"saveKey()", "onclick=\"newBlankTab()", "onclick=\"openSettings()", "onclick=\"historyBack", "onkeydown=\"if(event.key==='Enter')navigateFromBar()"} {
+		if strings.Contains(s, forbidden) {
+			t.Fatalf("shell controls must not use inline handler %q", forbidden)
+		}
+	}
+}
+
 func TestFrontendCentralizesBrowserURLNormalization(t *testing.T) {
 	s := readFileForRegression(t, "frontend/index.html")
 	if !strings.Contains(s, "function normalizeBrowserURL(url)") {

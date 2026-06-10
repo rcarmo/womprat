@@ -182,27 +182,27 @@ button,a,.tab,.recent-item,.option{
     <p id="setup-help">Enter your Tailscale auth key to connect.<br>It will be saved encrypted for this Windows user.</p>
     <input id="auth-key" type="password" placeholder="tskey-auth-...">
     <input id="unlock-password" type="password" placeholder="Master password" style="display:none">
-    <button id="setup-action" onclick="saveKey()">Connect</button>
+    <button id="setup-action">Connect</button>
     <div class="status" id="setup-status"></div>
   </div>
 </div>
 
 <div id="tab-bar">
   <div id="tab-list" aria-label="Open tabs"></div>
-  <button id="new-tab" class="icon-button" onclick="newBlankTab()" title="New tab" aria-label="New tab" data-icon="add"></button>
+  <button id="new-tab" class="icon-button" title="New tab" aria-label="New tab" data-icon="add"></button>
   <div id="tab-trailing-controls" style="display:flex;gap:4px;flex:0 0 auto;margin-left:auto">
-    <button id="settings-btn" class="icon-button" onclick="openSettings()" title="Settings" aria-label="Settings" data-icon="settings"></button>
+    <button id="settings-btn" class="icon-button" title="Settings" aria-label="Settings" data-icon="settings"></button>
   </div>
 </div>
 
 <div id="url-bar">
-  <button class="icon-button" onclick="historyBack(state.activeTab)" title="Back" aria-label="Back" data-icon="arrowLeft"></button>
-  <button class="icon-button" onclick="historyForward(state.activeTab)" title="Forward" aria-label="Forward" data-icon="arrowRight"></button>
-  <button class="icon-button" onclick="historyReload(state.activeTab)" title="Reload" aria-label="Reload" data-icon="arrowClockwise"></button>
-  <input id="url-input" list="url-history" placeholder="Enter URL, ssh://user@host, vnc://host or rdp://user@host" onkeydown="if(event.key==='Enter')navigateFromBar()">
+  <button id="nav-back" class="icon-button" title="Back" aria-label="Back" data-icon="arrowLeft"></button>
+  <button id="nav-forward" class="icon-button" title="Forward" aria-label="Forward" data-icon="arrowRight"></button>
+  <button id="nav-reload" class="icon-button" title="Reload" aria-label="Reload" data-icon="arrowClockwise"></button>
+  <input id="url-input" list="url-history" placeholder="Enter URL, ssh://user@host, vnc://host or rdp://user@host">
   <datalist id="url-history"></datalist>
   <span id="route-pill" class="route-pill" title="Exit node route status"></span>
-  <button class="icon-button text-button" onclick="navigateFromBar()">Go</button>
+  <button id="url-go" class="icon-button text-button">Go</button>
 </div>
 
 <div id="panels">
@@ -1177,6 +1177,17 @@ function resetActiveContentZoom() {
   applyShellContentZoom();
 }
 
+function installShellControlHandlers() {
+  document.getElementById('setup-action')?.addEventListener('click', saveKey);
+  document.getElementById('new-tab')?.addEventListener('click', newBlankTab);
+  document.getElementById('settings-btn')?.addEventListener('click', openSettings);
+  document.getElementById('nav-back')?.addEventListener('click', () => historyBack(state.activeTab));
+  document.getElementById('nav-forward')?.addEventListener('click', () => historyForward(state.activeTab));
+  document.getElementById('nav-reload')?.addEventListener('click', () => historyReload(state.activeTab));
+  document.getElementById('url-go')?.addEventListener('click', () => navigateFromBar());
+  document.getElementById('url-input')?.addEventListener('keydown', (event) => { if (event.key === 'Enter') navigateFromBar(); });
+}
+
 function installBrowserHotkeys() {
   document.addEventListener('wheel', (e) => {
     if (!e.ctrlKey) return;
@@ -1220,6 +1231,7 @@ function installBrowserHotkeys() {
     if (e.altKey && !ctrl && key === 'home') { e.preventDefault(); newBlankTab(); return; }
   }, true);
 }
+installShellControlHandlers();
 installBrowserHotkeys();
 
 window.navigateFromBar = function() {
