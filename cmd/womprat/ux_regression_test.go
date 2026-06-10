@@ -465,6 +465,15 @@ func TestFrontendCentralizesBrowserURLNormalization(t *testing.T) {
 	if !strings.Contains(s, "function normalizeBrowserURL(url)") {
 		t.Fatal("frontend missing normalizeBrowserURL")
 	}
+	for _, want := range []string{
+		"!u.username && !u.password",
+		"const browserURL = normalizeBrowserURL(text);",
+		"if (browserURL) return browserURL;",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("frontend browser URL normalization missing %q", want)
+		}
+	}
 	if strings.Contains(s, "navUrl = 'http://' + navUrl") || strings.Contains(s, "'http://' + url") {
 		t.Fatal("frontend must not use ad-hoc browser URL prefixing")
 	}

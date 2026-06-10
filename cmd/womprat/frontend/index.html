@@ -397,7 +397,7 @@ function normalizeBrowserURL(url) {
   if (!text) return '';
   if (!text.includes('://')) text = 'http://' + text;
   const u = safeURL(text);
-  if (u && (u.protocol === 'http:' || u.protocol === 'https:') && !!u.hostname) return u.href;
+  if (u && (u.protocol === 'http:' || u.protocol === 'https:') && !!u.hostname && !u.username && !u.password) return u.href;
   return '';
 }
 function isHTTPURL(url) {
@@ -405,7 +405,8 @@ function isHTTPURL(url) {
 }
 function normalizeHistoryURL(url) {
   const text = String(url || '').trim();
-  if (isHTTPURL(text)) return text;
+  const browserURL = normalizeBrowserURL(text);
+  if (browserURL) return browserURL;
   const target = parseCustomURL(text);
   if (target) return normalizedCustomURL(target);
   return '';

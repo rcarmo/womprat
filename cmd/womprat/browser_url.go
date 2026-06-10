@@ -24,6 +24,9 @@ func normalizeBrowserURL(raw string) (string, error) {
 	if parsed.Host == "" {
 		return "", fmt.Errorf("missing browser URL host")
 	}
+	if parsed.User != nil {
+		return "", fmt.Errorf("browser URL must not include userinfo")
+	}
 	return parsed.String(), nil
 }
 
