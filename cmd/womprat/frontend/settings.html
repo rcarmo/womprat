@@ -348,6 +348,15 @@ function safeHostName(host) {
   if (!value || value.length > 253 || /[\s\/?#\\@%]/.test(value)) return '';
   return value;
 }
+function safeHostURL(url) {
+  const value = String(url || '').trim();
+  if (!value) return '';
+  try {
+    const parsed = new URL(value);
+    if ((parsed.protocol === 'http:' || parsed.protocol === 'https:') && parsed.hostname && !parsed.username && !parsed.password) return parsed.href;
+  } catch {}
+  return null;
+}
 function setStatus(id, kind, text) {
   const el = document.getElementById(id);
   if (!el) return;
@@ -658,6 +667,10 @@ function openHostURL(url) {
 async function updateHost(host, field, value) {
   const safeHost = safeHostName(host);
   if (!safeHost) { setStatus('hosts-status', 'error', 'Invalid host'); return false; }
+  if (field === 'url') {
+    value = safeHostURL(value);
+    if (value === null) { setStatus('hosts-status', 'error', 'Invalid browser URL'); return false; }
+  }
   const res = await fetch('/api/settings/hosts/'+encodeURIComponent(safeHost), {method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({[field]: value})});
   if (!res.ok) { setStatus('hosts-status', 'error', await res.text()); return false; }
   setStatus('hosts-status', 'ok', 'Host updated');

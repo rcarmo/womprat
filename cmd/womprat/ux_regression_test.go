@@ -168,10 +168,12 @@ func TestSettingsValidatesKeyAndHostInputs(t *testing.T) {
 	for _, want := range []string{
 		"function safeSSHKeyName(name)",
 		"function safeHostName(host)",
+		"function safeHostURL(url)",
 		"setStatus('keys-status', 'error', 'Invalid key name')",
 		"setStatus('keys-status', 'ok', 'Key imported')",
 		"setStatus('keys-status', 'ok', 'Key generated')",
 		"setStatus('hosts-status', 'error', 'Invalid host')",
+		"setStatus('hosts-status', 'error', 'Invalid browser URL')",
 		"setStatus('hosts-status', 'ok', 'Host updated')",
 		"if (!res.ok) { setStatus('hosts-status', 'error', await res.text()); return false; }",
 		"id=\"keys-status\"",
