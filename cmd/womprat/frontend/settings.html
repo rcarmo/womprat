@@ -51,7 +51,7 @@ button{height:32px;padding:0 12px;border:none;border-radius:var(--radius);font-f
 .status{display:inline-flex;align-items:center;gap:.4rem;font-size:.8rem;padding:.3rem .6rem;
   border-radius:var(--radius);margin:.5rem 0}
 .status.ok{background:rgba(108,203,95,.1);color:var(--success)}
-.status.err{background:rgba(248,81,73,.1);color:var(--danger)}
+.status.err,.status.error{background:rgba(248,81,73,.1);color:var(--danger)}
 .status.warn{background:rgba(210,153,34,.1);color:#d2992a}
 
 /* Table */
@@ -260,6 +260,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
   <div class="btn-row">
     <button class="btn-primary" data-action="save-appearance">Save</button>
   </div>
+  <div id="appearance-status" style="margin-top:.5rem"></div>
 </div>
 
 <!-- ═══ About ═══ -->
@@ -350,7 +351,8 @@ function safeHostName(host) {
 function setStatus(id, kind, text) {
   const el = document.getElementById(id);
   if (!el) return;
-  const safeKind = ['ok','error','warn','info'].includes(String(kind || '')) ? String(kind) : 'info';
+  const requestedKind = String(kind || '');
+  const safeKind = requestedKind === 'err' ? 'error' : (['ok','error','warn','info'].includes(requestedKind) ? requestedKind : 'info');
   el.textContent = '';
   const span = document.createElement('span');
   span.className = `status ${safeKind}`;
@@ -382,16 +384,17 @@ document.querySelector('[data-action="clear-all-browsing-data"]')?.addEventListe
 document.querySelector('[data-action="save-appearance"]')?.addEventListener('click', saveAppearance);
 document.getElementById('debug-log')?.addEventListener('change', ev => setDebugLog(ev.currentTarget.checked));
 
-function selectUnlock(method) {
+async function selectUnlock(method) {
   document.querySelectorAll('.option').forEach(o => o.classList.remove('selected'));
   window.event?.currentTarget?.classList.add('selected');
   const input = document.querySelector(`input[value="${CSS.escape(method)}"]`);
   if (input) input.checked = true;
   document.getElementById('master-pw-section').style.display = method==='master' ? 'block' : 'none';
-  fetch('/api/settings/unlock-method', {
+  const res = await fetch('/api/settings/unlock-method', {
     method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({method})
   });
+  if (!res.ok) setStatus('pw-status', 'error', await res.text());
 }
 
 function toggleVis(id) {
@@ -426,7 +429,8 @@ async function saveTailscale() {
 }
 
 async function disconnectTailscale() {
-  await fetch('/api/settings/tailscale-disconnect', {method:'POST'});
+  const res = await fetch('/api/settings/tailscale-disconnect', {method:'POST'});
+  if (!res.ok) { setStatus('ts-status', 'error', await res.text()); return; }
   await checkTailscale();
   await loadExitNodes();
 }
@@ -605,7 +609,9 @@ async function loadKeys() {
 }
 async function deleteKey(name) {
   if (!confirm(`Delete key "${name}"?`)) return;
-  await fetch('/api/settings/ssh-keys/'+encodeURIComponent(name), {method:'DELETE'});
+  const res = await fetch('/api/settings/ssh-keys/'+encodeURIComponent(name), {method:'DELETE'});
+  if (!res.ok) { setStatus('keys-status', 'error', await res.text()); return; }
+  setStatus('keys-status', 'ok', 'Key deleted');
   loadKeys();
 }
 
@@ -662,12 +668,13 @@ function addHost() {
 }
 
 async function saveAppearance() {
-  await fetch('/api/settings/appearance', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({
+  const res = await fetch('/api/settings/appearance', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({
     fontSize: +document.getElementById('font-size').value,
     theme: document.getElementById('theme').value,
     restoreTabs: document.getElementById('restore-tabs').checked,
     autoConnect: document.getElementById('auto-connect').checked,
   })});
+  setStatus('appearance-status', res.ok ? 'ok' : 'error', res.ok ? 'Appearance saved' : await res.text());
 }
 
 function setText(id, value) {
