@@ -21,6 +21,8 @@ func TestSettingsValidatesKeyAndHostInputs(t *testing.T) {
 		"function safeSSHKeyName(name)",
 		"function safeHostName(host)",
 		"setStatus('keys-status', 'error', 'Invalid key name')",
+		"setStatus('keys-status', 'ok', 'Key imported')",
+		"setStatus('keys-status', 'ok', 'Key generated')",
 		"setStatus('hosts-status', 'error', 'Invalid host')",
 		"id=\"keys-status\"",
 		"id=\"hosts-status\"",

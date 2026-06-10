@@ -530,14 +530,16 @@ async function handleKeyFile(input) {
   const name = safeSSHKeyName(file.name.replace(/\.(pem|key|pub)$/,''));
   if (!name) { setStatus('keys-status', 'error', 'Invalid key name'); input.value = ''; return; }
   const res = await fetch('/api/settings/ssh-keys', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name, content})});
-  if (res.ok) loadKeys();
+  if (res.ok) { setStatus('keys-status', 'ok', 'Key imported'); loadKeys(); }
+  else setStatus('keys-status', 'error', await res.text());
   input.value = '';
 }
 async function generateKey() {
   const name = safeSSHKeyName(prompt('Key name:'));
   if (!name) { setStatus('keys-status', 'error', 'Invalid key name'); return; }
-  await fetch('/api/settings/ssh-keys/generate', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name})});
-  loadKeys();
+  const res = await fetch('/api/settings/ssh-keys/generate', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name})});
+  if (res.ok) { setStatus('keys-status', 'ok', 'Key generated'); loadKeys(); }
+  else setStatus('keys-status', 'error', await res.text());
 }
 function emptyTableRow(tbody, cols, text) {
   tbody.textContent = '';
