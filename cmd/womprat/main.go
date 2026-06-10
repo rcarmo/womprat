@@ -14,7 +14,6 @@ import (
 	"os"
 	"runtime"
 	"runtime/debug"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -506,15 +505,19 @@ func (a *App) openSettingsTab() {
 }
 
 func (a *App) newVNCTab(raw string) {
-	target, err := parseVNCURL(raw)
-	if err != nil {
+	text := strings.TrimSpace(raw)
+	if text != "" && !strings.Contains(text, "://") {
+		text = "vnc://" + text
+	}
+	custom, err := parseCustomURL(text)
+	if err != nil || custom.Scheme != "vnc" {
 		log.Printf("vnc: invalid target %q: %v", raw, err)
 		return
 	}
 	tabID := newTabID("vnc")
-	url := fmt.Sprintf("vnc://%s", net.JoinHostPort(target.Host, strconv.Itoa(target.Port)))
+	url := custom.canonicalURL()
 	a.mu.Lock()
-	a.tabs = upsertTab(a.tabs, Tab{ID: tabID, Type: "vnc", Title: url, URL: url, Host: target.Host, Port: target.Port})
+	a.tabs = upsertTab(a.tabs, Tab{ID: tabID, Type: "vnc", Title: url, URL: url, Host: custom.Host, Port: custom.Port})
 	a.activeTab = tabID
 	a.mu.Unlock()
 	a.persistOpenTabs()
@@ -523,19 +526,19 @@ func (a *App) newVNCTab(raw string) {
 }
 
 func (a *App) newRDPTab(raw string) {
-	target, err := parseRDPURL(raw)
-	if err != nil {
+	text := strings.TrimSpace(raw)
+	if text != "" && !strings.Contains(text, "://") {
+		text = "rdp://" + text
+	}
+	custom, err := parseCustomURL(text)
+	if err != nil || custom.Scheme != "rdp" {
 		log.Printf("rdp: invalid target %q: %v", raw, err)
 		return
 	}
 	tabID := newTabID("rdp")
-	userinfo := ""
-	if target.User != "" {
-		userinfo = target.User + "@"
-	}
-	url := fmt.Sprintf("rdp://%s%s", userinfo, net.JoinHostPort(target.Host, strconv.Itoa(target.Port)))
+	url := custom.canonicalURL()
 	a.mu.Lock()
-	a.tabs = upsertTab(a.tabs, Tab{ID: tabID, Type: "rdp", Title: url, URL: url, Host: target.Host, User: target.User, Port: target.Port})
+	a.tabs = upsertTab(a.tabs, Tab{ID: tabID, Type: "rdp", Title: url, URL: url, Host: custom.Host, User: custom.User, Port: custom.Port})
 	a.activeTab = tabID
 	a.mu.Unlock()
 	a.persistOpenTabs()

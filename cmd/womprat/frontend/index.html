@@ -371,6 +371,14 @@ function loadURLHistory() {
 function isHistoryURL(url) {
   return /^(https?:\/\/|ssh:\/\/|vnc:\/\/|rdp:\/\/)/i.test(String(url || ''));
 }
+function validCustomHost(host) {
+  if (!host || host.length > 253 || /[\s\/?#\\@%]/.test(host)) return false;
+  if (host.includes(':')) return /^[0-9a-f:.]+$/i.test(host);
+  return host.split('.').every(label => label && label.length <= 63 && !label.startsWith('-') && !label.endsWith('-') && /^[A-Za-z0-9_-]+$/.test(label));
+}
+function validCustomUser(user) {
+  return user.length <= 256 && !/[\s\/?#\\@]/.test(user);
+}
 function parseCustomURL(url) {
   const text = String(url || '').trim();
   if (!text || !text.includes('://')) return null;
@@ -379,10 +387,12 @@ function parseCustomURL(url) {
   const scheme = parsed.protocol.replace(':','').toLowerCase();
   const defaults = { ssh: 22, vnc: 5900, rdp: 3389 };
   if (!Object.prototype.hasOwnProperty.call(defaults, scheme)) return null;
-  if (parsed.pathname && parsed.pathname !== '/' || parsed.search || parsed.hash || !parsed.hostname) return null;
+  if (parsed.pathname || parsed.search || parsed.hash || !parsed.hostname || parsed.password) return null;
+  const host = parsed.hostname.replace(/^\[|\]$/g, '');
+  const user = decodeURIComponent(parsed.username || '');
   const port = parsed.port ? Number(parsed.port) : defaults[scheme];
-  if (!Number.isInteger(port) || port <= 0 || port > 65535) return null;
-  return { scheme, host: parsed.hostname.replace(/^\[|\]$/g, ''), port, user: decodeURIComponent(parsed.username || '') };
+  if (!validCustomHost(host) || !validCustomUser(user) || !Number.isInteger(port) || port <= 0 || port > 65535) return null;
+  return { scheme, host, port, user };
 }
 function normalizedCustomURL(target) {
   const host = target.host.includes(':') ? `[${target.host}]` : target.host;
