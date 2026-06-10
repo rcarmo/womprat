@@ -50,7 +50,9 @@ func handleSOCKS5(conn net.Conn, app *App) {
 		return
 	}
 	if !socksMethodsContain(methods, 0x00) {
-		_, _ = conn.Write([]byte{0x05, 0xff})
+		if _, err := conn.Write([]byte{0x05, 0xff}); err != nil {
+			log.Printf("SOCKS5 method rejection write failed: %v", err)
+		}
 		return
 	}
 	// No-auth method.
