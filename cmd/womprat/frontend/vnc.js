@@ -2821,9 +2821,14 @@ function resolveVncKeysymFromKeyboardEvent(event) {
 // cmd/womprat/frontend/vnc-src.ts
 var textEncoder = new TextEncoder;
 var MAX_VNC_CLIPBOARD_CHARS = 256 * 1024;
+var MAX_VNC_PASSWORD_CHARS = 8;
 function boundedVncClipboardText(text) {
   const value = String(text || "");
   return value.length > MAX_VNC_CLIPBOARD_CHARS ? value.slice(0, MAX_VNC_CLIPBOARD_CHARS) : value;
+}
+function boundedVncPasswordText(text) {
+  const value = String(text || "");
+  return value.length > MAX_VNC_PASSWORD_CHARS ? value.slice(0, MAX_VNC_PASSWORD_CHARS) : value;
 }
 function clientCutText(text) {
   const payload = textEncoder.encode(boundedVncClipboardText(text));
@@ -2887,7 +2892,8 @@ class WompratVncViewer {
   }
   readPassword() {
     const input = this.root.querySelector("[data-vnc-password]");
-    return input?.value || this.root.getAttribute("data-vnc-password") || null;
+    const value = input?.value || this.root.getAttribute("data-vnc-password") || "";
+    return value ? boundedVncPasswordText(value) : null;
   }
   async init() {
     setStatus(this.root, "Loading VNC decoder…");
@@ -2979,7 +2985,7 @@ class WompratVncViewer {
       case "clipboard": {
         const input = this.root.querySelector("[data-vnc-clipboard]");
         if (input)
-          input.value = event.text || "";
+          input.value = boundedVncClipboardText(event.text || "");
         setStatus(this.root, "Remote clipboard updated.");
         break;
       }

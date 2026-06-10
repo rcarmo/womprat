@@ -381,9 +381,13 @@ func TestVNCClipboardIsBounded(t *testing.T) {
 	s := readFileForRegression(t, "frontend/vnc.js")
 	for _, want := range []string{
 		"var MAX_VNC_CLIPBOARD_CHARS = 256 * 1024;",
+		"var MAX_VNC_PASSWORD_CHARS = 8;",
 		"function boundedVncClipboardText(text)",
+		"function boundedVncPasswordText(text)",
+		"return value ? boundedVncPasswordText(value) : null;",
 		"this.send(clientCutText(text));",
 		"input.value = boundedVncClipboardText(text);",
+		"input.value = boundedVncClipboardText(event.text || \"\");",
 	} {
 		if !strings.Contains(s, want) {
 			t.Fatalf("VNC clipboard bound missing %q", want)
