@@ -158,13 +158,18 @@ func showHostWindow(hwnd uintptr) {
 
 func resizeChildToClient(parent, child uintptr, top, bottomInset int32) {
 	var r winRect
-	procGetClientRect.Call(parent, uintptr(unsafe.Pointer(&r)))
+	if ret, _, err := procGetClientRect.Call(parent, uintptr(unsafe.Pointer(&r))); ret == 0 {
+		log.Printf("resize child get client rect failed: %v", err)
+		return
+	}
 	width := r.Right - r.Left
 	height := r.Bottom - r.Top - top - bottomInset
 	if height < 0 {
 		height = 0
 	}
-	procSetWindowPos.Call(child, hwndTop, 0, uintptr(top), uintptr(width), uintptr(height), swpNoActivate)
+	if ret, _, err := procSetWindowPos.Call(child, hwndTop, 0, uintptr(top), uintptr(width), uintptr(height), swpNoActivate); ret == 0 {
+		log.Printf("resize child set window pos failed: %v", err)
+	}
 }
 
 func createHostChild(parent uintptr) (uintptr, error) {
