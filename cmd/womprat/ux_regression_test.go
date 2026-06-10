@@ -123,6 +123,21 @@ func TestFrontendSanitizesBrowserMetadata(t *testing.T) {
 	}
 }
 
+func TestFrontendValidatesTabIDsBeforeDOMUse(t *testing.T) {
+	s := readFileForRegression(t, "frontend/index.html")
+	for _, want := range []string{
+		"function validTabID(id)",
+		"function newLocalTabID(prefix)",
+		"const tabId = validTabID(options.id) ? options.id : newLocalTabID('term');",
+		"if (!t || t.id === 'settings' || !validTabID(t.id)) return null;",
+		"filter(t => validTabID(t.id) &&",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("frontend tab id validation missing %q", want)
+		}
+	}
+}
+
 func TestFrontendPersistsOnlySanitizedURLState(t *testing.T) {
 	s := readFileForRegression(t, "frontend/index.html")
 	for _, want := range []string{
