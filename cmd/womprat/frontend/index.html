@@ -921,15 +921,27 @@ function isUsableFavicon(value) {
   return !!sanitizeFaviconURL(value);
 }
 
-function tabIconHTML(tab) {
+function tabIconName(tab) {
+  return tab.type === 'terminal' || tab.type === 'vnc' || tab.type === 'rdp' ? 'terminal' : tab.type === 'settings' ? 'settings' : 'globe';
+}
+function tabIconElement(tab) {
+  const slot = document.createElement('span');
+  slot.className = 'tab-icon-slot';
   if (tab.type === 'browser') {
     const favicon = sanitizeFaviconURL(tab.favicon);
     if (favicon) {
-      return `<span class="tab-icon-slot"><img class="tab-favicon" src="${escapeHTML(favicon)}" alt="" referrerpolicy="no-referrer" onerror="failedFavicons.add(this.src);this.closest('.tab-icon-slot').innerHTML=icon('globe')"></span>`;
+      const img = document.createElement('img');
+      img.className = 'tab-favicon';
+      img.src = favicon;
+      img.alt = '';
+      img.referrerPolicy = 'no-referrer';
+      img.addEventListener('error', () => { failedFavicons.add(img.src); slot.textContent = ''; slot.innerHTML = icon('globe'); });
+      slot.appendChild(img);
+      return slot;
     }
-    return `<span class="tab-icon-slot">${icon('globe')}</span>`;
   }
-  return `<span class="tab-icon-slot">${icon(tab.type === 'terminal' || tab.type === 'vnc' || tab.type === 'rdp' ? 'terminal' : tab.type === 'settings' ? 'settings' : 'globe')}</span>`;
+  slot.innerHTML = icon(tabIconName(tab));
+  return slot;
 }
 
 function renderTabs() {
@@ -962,7 +974,11 @@ function renderTabs() {
       const fromId = e.dataTransfer.getData('text/plain');
       reorderTab(fromId, tab.id);
     });
-    el.innerHTML = `${tabIconHTML(tab)} <span class="tab-title">${escapeHTML(tab.title)}</span>`;
+    el.appendChild(tabIconElement(tab));
+    const title = document.createElement('span');
+    title.className = 'tab-title';
+    title.textContent = tab.title || '';
+    el.appendChild(title);
     const close = document.createElement('button');
     close.type = 'button';
     close.className = 'tab-close';
@@ -1319,9 +1335,17 @@ async function loadRecentTabs() {
 
       const iconSpan = document.createElement('span');
       const favicon = t.type === 'browser' ? sanitizeFaviconURL(t.favicon) : '';
-      iconSpan.innerHTML = favicon
-        ? `<img class="tab-favicon" src="${escapeHTML(favicon)}" alt="" referrerpolicy="no-referrer" onerror="failedFavicons.add(this.src);this.remove()">`
-        : icon(t.type === 'terminal' ? 'terminal' : 'globe');
+      if (favicon) {
+        const img = document.createElement('img');
+        img.className = 'tab-favicon';
+        img.src = favicon;
+        img.alt = '';
+        img.referrerPolicy = 'no-referrer';
+        img.addEventListener('error', () => { failedFavicons.add(img.src); img.remove(); });
+        iconSpan.appendChild(img);
+      } else {
+        iconSpan.innerHTML = icon(t.type === 'terminal' ? 'terminal' : 'globe');
+      }
       const title = document.createElement('span');
       title.style.fontWeight = '600';
       title.textContent = t.title || t.host || t.url || 'Untitled';

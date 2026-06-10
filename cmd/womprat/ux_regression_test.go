@@ -320,6 +320,22 @@ func TestCustomSchemesUseSingleFrontendDispatcher(t *testing.T) {
 	}
 }
 
+func TestShellFaviconRenderingUsesDOMEvents(t *testing.T) {
+	s := readFileForRegression(t, "frontend/index.html")
+	for _, want := range []string{
+		"function tabIconElement(tab)",
+		"img.addEventListener('error'",
+		"el.appendChild(tabIconElement(tab));",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("shell favicon DOM rendering missing %q", want)
+		}
+	}
+	if strings.Contains(s, "onerror=") {
+		t.Fatal("shell must not use inline favicon onerror handlers")
+	}
+}
+
 func TestShellControlsUseCentralHandlers(t *testing.T) {
 	s := readFileForRegression(t, "frontend/index.html")
 	for _, want := range []string{
