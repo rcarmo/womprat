@@ -487,6 +487,27 @@ func (a *App) newVNCTab(raw string) {
 	a.evalShell("window.activateTab(%s,{skipNative:true})", jsString(tabID))
 }
 
+func (a *App) newRDPTab(raw string) {
+	target, err := parseRDPURL(raw)
+	if err != nil {
+		log.Printf("rdp: invalid target %q: %v", raw, err)
+		return
+	}
+	tabID := newTabID("rdp")
+	userinfo := ""
+	if target.User != "" {
+		userinfo = target.User + "@"
+	}
+	url := fmt.Sprintf("rdp://%s%s", userinfo, net.JoinHostPort(target.Host, strconv.Itoa(target.Port)))
+	a.mu.Lock()
+	a.tabs = upsertTab(a.tabs, Tab{ID: tabID, Type: "rdp", Title: url, URL: url, Host: target.Host, User: target.User, Port: target.Port})
+	a.activeTab = tabID
+	a.mu.Unlock()
+	a.persistOpenTabs()
+	a.hideBrowserContentOnUI()
+	a.evalShell("window.activateTab(%s,{skipNative:true})", jsString(tabID))
+}
+
 func (a *App) newTerminalTab(host, user string, port int) {
 	if user == "" {
 		user = "root"
@@ -599,6 +620,7 @@ func (a *App) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/ssh/connect", a.authMiddleware(a.handleSSHConnect))
 	mux.HandleFunc("/api/ssh/resize", a.authMiddleware(a.handleSSHResize))
 	mux.HandleFunc("/api/vnc/ws", a.authMiddleware(a.handleVNCWebSocket))
+	mux.HandleFunc("/api/rdp/ws", a.authMiddleware(a.handleRDPWebSocket))
 	mux.HandleFunc("/api/ssh/ws", a.authMiddleware(a.handleSSHWebSocketFull))
 	mux.HandleFunc("/api/ssh/auth-password", a.authMiddleware(a.handleSSHAuthPassword))
 }

@@ -90,11 +90,12 @@ patch: ## Apply optional patches from patches/*.patch, if present
 # Frontend and tests ---------------------------------------------------------
 
 frontend-check: ## Bundle-check embedded HTML/JS entry points with Bun
-	@rm -rf $(TMP_DIR)/frontend-index $(TMP_DIR)/frontend-settings $(TMP_DIR)/frontend-vnc
+	@rm -rf $(TMP_DIR)/frontend-index $(TMP_DIR)/frontend-settings $(TMP_DIR)/frontend-vnc $(TMP_DIR)/frontend-rdp
 	@mkdir -p $(TMP_DIR)
 	$(BUN) build $(CMD_DIR)/frontend/index.html --outdir=$(TMP_DIR)/frontend-index
 	$(BUN) build $(CMD_DIR)/frontend/settings.html --outdir=$(TMP_DIR)/frontend-settings
 	$(BUN) build $(CMD_DIR)/frontend/vnc.js --outdir=$(TMP_DIR)/frontend-vnc
+	$(BUN) build $(CMD_DIR)/frontend/rdp.js --outdir=$(TMP_DIR)/frontend-rdp
 
 vet: ## Run go vet for the Windows ARM64 target
 	GOOS=windows GOARCH=arm64 $(GO) vet ./...

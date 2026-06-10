@@ -120,6 +120,12 @@ button,a,.tab,.recent-item,.option{
 .vnc-viewport{flex:1;min-height:0;display:grid;place-items:center;overflow:hidden;background:radial-gradient(circle at 50% 30%,rgba(255,255,255,.06),transparent 42%),#050609}
 .vnc-viewport canvas{display:block;image-rendering:pixelated;background:#000;border:1px solid rgba(255,255,255,.14);border-radius:var(--radius);box-shadow:0 8px 30px rgba(0,0,0,.45);outline:none}
 .vnc-viewport canvas:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(96,205,255,.22),0 8px 30px rgba(0,0,0,.45)}
+.rdp-panel{flex:1;display:flex;flex-direction:column;min-height:0;background:linear-gradient(180deg,#111318 0%,#08090d 100%);color:var(--text)}
+.rdp-toolbar{height:36px;display:flex;align-items:center;gap:8px;padding:4px 8px;border-bottom:1px solid var(--border);background:var(--surface-solid);color:var(--text-secondary);font-size:12px}
+.rdp-status{display:inline-flex;align-items:center;gap:6px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.rdp-status::before{content:"";width:8px;height:8px;border-radius:999px;background:var(--accent);box-shadow:0 0 0 3px rgba(96,205,255,.12)}
+.rdp-field{height:24px;background:var(--layer);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);padding:0 8px;font:12px var(--font);outline:none;color-scheme:dark}.rdp-field:focus{border-color:var(--accent);background:var(--bg)}
+.rdp-host{margin-left:auto;width:180px}.rdp-user{width:120px}.rdp-password{width:128px}.rdp-connect,.rdp-scale{height:24px;min-width:52px;padding:0 10px;font-size:12px;font-weight:600}
+.rdp-viewport{flex:1;min-height:0;display:grid;place-items:center;overflow:hidden;background:radial-gradient(circle at 50% 30%,rgba(255,255,255,.06),transparent 42%),#050609}.rdp-viewport canvas{display:block;background:#000;border:1px solid rgba(255,255,255,.14);border-radius:var(--radius);box-shadow:0 8px 30px rgba(0,0,0,.45);outline:none}.rdp-viewport canvas:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(96,205,255,.22),0 8px 30px rgba(0,0,0,.45)}
 @keyframes vncPulse{0%,100%{opacity:.55}50%{opacity:1}}
 
 /* Setup screen */
@@ -382,7 +388,7 @@ function refreshURLHistoryDatalist(extra = []) {
   if (!list) return;
   const urls = new Set(loadURLHistory());
   for (const t of state.tabs || []) {
-    if ((t.type === 'browser' || t.type === 'vnc') && t.url) urls.add(t.url);
+    if ((t.type === 'browser' || t.type === 'vnc' || t.type === 'rdp') && t.url) urls.add(t.url);
     if (t.type === 'terminal' && t.host) urls.add(formatSSHURL(t.user, t.host, t.port));
   }
   for (const u of extra || []) if (u) urls.add(u);
@@ -758,6 +764,10 @@ window.closeTab = function(id, e) {
     const root = panel?.querySelector?.('.vnc-panel');
     try { root?.__wompratVncViewer?.dispose?.(); } catch {}
   }
+  if (closing?.type === 'rdp') {
+    const root = panel?.querySelector?.('.rdp-panel');
+    try { root?.__wompratRdp?.disconnect?.(); } catch {}
+  }
   panel?.remove();
 
   if (closing?.type === 'settings') {
@@ -787,7 +797,7 @@ function tabIconHTML(tab) {
     }
     return `<span class="tab-icon-slot">${icon('globe')}</span>`;
   }
-  return `<span class="tab-icon-slot">${icon(tab.type === 'terminal' || tab.type === 'vnc' ? 'terminal' : tab.type === 'settings' ? 'settings' : 'globe')}</span>`;
+  return `<span class="tab-icon-slot">${icon(tab.type === 'terminal' || tab.type === 'vnc' || tab.type === 'rdp' ? 'terminal' : tab.type === 'settings' ? 'settings' : 'globe')}</span>`;
 }
 
 function renderTabs() {
@@ -862,7 +872,7 @@ function activateTab(id, options = {}) {
   // Update URL bar with active tab's address
   const urlInput = document.getElementById('url-input');
   if (urlInput) {
-    if (tab.type === 'browser' || tab.type === 'vnc') urlInput.value = tab.url || '';
+    if (tab.type === 'browser' || tab.type === 'vnc' || tab.type === 'rdp') urlInput.value = tab.url || '';
     else if (tab.type === 'terminal') urlInput.value = 'ssh://' + (tab.user||'root') + '@' + (tab.host||'') + ':' + (tab.port||22);
     else if (tab.type === 'settings') urlInput.value = 'settings:';
     else urlInput.value = '';
@@ -873,7 +883,20 @@ function activateTab(id, options = {}) {
   if (!document.getElementById(`panel-${id}`)) {
     const panel = document.createElement('div');
     panel.id = `panel-${id}`;
-    if (tab.type === 'vnc') {
+    if (tab.type === 'rdp') {
+      panel.className = 'panel browser-panel';
+      panel.innerHTML = `<div class="rdp-panel">
+        <div class="rdp-toolbar">
+          <span class="rdp-status" data-rdp-status>Preparing RDP…</span>
+          <input class="rdp-field rdp-host" data-rdp-host aria-label="RDP host" readonly>
+          <input class="rdp-field rdp-user" data-rdp-user placeholder="User" aria-label="RDP user" autocomplete="username">
+          <input class="rdp-field rdp-password" data-rdp-password type="password" placeholder="Password" aria-label="RDP password" autocomplete="current-password">
+          <button data-rdp-connect class="icon-button text-button rdp-connect">Connect</button>
+          <button data-rdp-scale class="icon-button text-button rdp-scale" aria-pressed="true">Fit</button>
+        </div>
+        <div class="rdp-viewport" data-rdp-viewport><canvas aria-label="RDP remote display" tabindex="0"></canvas></div>
+      </div>`;
+    } else if (tab.type === 'vnc') {
       panel.className = 'panel browser-panel';
       panel.innerHTML = `<div class="vnc-panel">
         <div class="vnc-toolbar">
@@ -913,6 +936,13 @@ function activateTab(id, options = {}) {
     if (root && !root.dataset.started) {
       root.dataset.started = '1';
       import('./vnc.js').then(m => m.startVNC(root, tab.url || `vnc://${tab.host}:${tab.port||5900}`));
+    }
+  }
+  if (tab.type === 'rdp') {
+    const root = document.querySelector(`#panel-${CSS.escape(id)} .rdp-panel`);
+    if (root && !root.dataset.started) {
+      root.dataset.started = '1';
+      import('./rdp.js').then(m => m.startRDP(root, tab.url || `rdp://${tab.user?tab.user+'@':''}${tab.host}:${tab.port||3389}`));
     }
   }
   if (tab.type === 'terminal') {
@@ -1066,6 +1096,11 @@ window.navigateFromBar = function() {
     if (window.womprat_newVNC) womprat_newVNC(url);
     return;
   }
+  const rdpMatch = url.match(/^rdp:\/\/(.+)$/i);
+  if (rdpMatch) {
+    if (window.womprat_newRDP) womprat_newRDP(url);
+    return;
+  }
   const sshMatch = url.match(/^ssh:\/\/(?:([^@]+)@)?([^:\/]+)(?::(\d+))?/);
   if (sshMatch) {
     const user = sshMatch[1] || 'root';
@@ -1171,7 +1206,7 @@ async function hydrateNativeTabs() {
   if (!window.womprat_getTabs) return;
   try {
     const native = JSON.parse(await womprat_getTabs());
-    const localTabs = (native.tabs || []).filter(t => t.type === 'terminal' || t.type === 'settings' || t.type === 'browser' || t.type === 'vnc');
+    const localTabs = (native.tabs || []).filter(t => t.type === 'terminal' || t.type === 'settings' || t.type === 'browser' || t.type === 'vnc' || t.type === 'rdp');
     const requested = new URLSearchParams(location.search).get('tab') || '';
     const target = localTabs.find(t => t.id === requested && (t.type === 'terminal' || t.type === 'settings'));
     state.tabs = localTabs;

@@ -1,0 +1,281 @@
+package main
+
+import (
+	"context"
+	"encoding/binary"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"log"
+	"net"
+	"net/http"
+	"strconv"
+	"strings"
+	"sync"
+
+	"github.com/rcarmo/womprat/internal/rdpclient/protocol/audio"
+	"github.com/rcarmo/womprat/internal/rdpclient/protocol/pdu"
+	"github.com/rcarmo/womprat/internal/rdpclient/rdp"
+	"nhooyr.io/websocket"
+)
+
+type rdpTarget struct {
+	Host string
+	Port int
+	User string
+}
+
+type rdpCredentials struct {
+	Type     string `json:"type"`
+	Host     string `json:"host"`
+	User     string `json:"user"`
+	Password string `json:"password"`
+}
+
+type rdpResizeRequest struct {
+	Type   string `json:"type"`
+	Width  int    `json:"width"`
+	Height int    `json:"height"`
+}
+
+func parseRDPURL(raw string) (rdpTarget, error) {
+	text := strings.TrimSpace(raw)
+	text = strings.TrimPrefix(text, "rdp://")
+	if text == "" {
+		return rdpTarget{}, fmt.Errorf("missing RDP target")
+	}
+	var user string
+	if at := strings.LastIndex(text, "@"); at >= 0 {
+		user = strings.TrimSuffix(text[:at], ":")
+		text = text[at+1:]
+	}
+	host, portText, err := net.SplitHostPort(text)
+	if err != nil {
+		if strings.Count(text, ":") == 0 {
+			host = text
+			portText = "3389"
+		} else {
+			return rdpTarget{}, fmt.Errorf("invalid RDP target %q", raw)
+		}
+	}
+	port, err := strconv.Atoi(portText)
+	if err != nil || port <= 0 || port > 65535 {
+		return rdpTarget{}, fmt.Errorf("invalid RDP port %q", portText)
+	}
+	host = strings.TrimSpace(strings.Trim(host, "[]"))
+	if host == "" || strings.ContainsAny(host, " /?#\\") {
+		return rdpTarget{}, fmt.Errorf("invalid RDP host %q", host)
+	}
+	if len(user) > 256 {
+		return rdpTarget{}, fmt.Errorf("invalid RDP user")
+	}
+	return rdpTarget{Host: host, Port: port, User: user}, nil
+}
+
+func (a *App) handleRDPWebSocket(w http.ResponseWriter, r *http.Request) {
+	queryTarget, err := parseRDPURL(r.URL.Query().Get("target"))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	a.mu.Lock()
+	ts := a.tsServer
+	a.mu.Unlock()
+	if ts == nil {
+		http.Error(w, "tailscale not connected", http.StatusServiceUnavailable)
+		return
+	}
+
+	ws, err := websocket.Accept(w, r, &websocket.AcceptOptions{InsecureSkipVerify: true})
+	if err != nil {
+		log.Printf("rdp websocket accept: %v", err)
+		return
+	}
+	defer ws.Close(websocket.StatusNormalClosure, "")
+
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
+
+	_, data, err := ws.Read(ctx)
+	if err != nil {
+		return
+	}
+	var creds rdpCredentials
+	if err := json.Unmarshal(data, &creds); err != nil || creds.Type != "credentials" {
+		_ = wsjsonError(ctx, ws, "expected credentials")
+		return
+	}
+	if creds.Host == "" {
+		creds.Host = net.JoinHostPort(queryTarget.Host, strconv.Itoa(queryTarget.Port))
+	}
+	if creds.User == "" {
+		creds.User = queryTarget.User
+	}
+	if creds.User == "" || len(creds.User) > 256 || len(creds.Password) > 1024 {
+		_ = wsjsonError(ctx, ws, "invalid credentials")
+		return
+	}
+
+	width := clampRDPDim(r.URL.Query().Get("width"), 1280)
+	height := clampRDPDim(r.URL.Query().Get("height"), 720)
+	colorDepth := 16
+	if cd, err := strconv.Atoi(r.URL.Query().Get("colorDepth")); err == nil && (cd == 8 || cd == 15 || cd == 16 || cd == 24 || cd == 32) {
+		colorDepth = cd
+	}
+
+	dial := func(ctx context.Context, network, address string) (net.Conn, error) {
+		// Ignore any client-supplied host in credentials; fail closed via tsnet to URL target.
+		addr := net.JoinHostPort(queryTarget.Host, strconv.Itoa(queryTarget.Port))
+		log.Printf("rdp: connect %s via tsnet", addr)
+		return ts.Dial(ctx, network, addr)
+	}
+	client, err := rdp.NewClientWithDialContext(ctx, dial, net.JoinHostPort(queryTarget.Host, strconv.Itoa(queryTarget.Port)), creds.User, creds.Password, width, height, colorDepth)
+	if err != nil {
+		log.Printf("rdp init: %v", err)
+		_ = wsjsonError(ctx, ws, "connection failed")
+		return
+	}
+	defer client.Close()
+	client.SetTLSConfig(true, "")
+	client.SetUseNLA(r.URL.Query().Get("disableNLA") != "true")
+	client.EnableDisplayControl()
+	if r.URL.Query().Get("audio") == "true" {
+		client.EnableAudio()
+	}
+	if err := client.Connect(); err != nil {
+		log.Printf("rdp connect: %v", err)
+		_ = wsjsonError(ctx, ws, "connection failed")
+		return
+	}
+
+	var mu sync.Mutex
+	sendRDPCapabilities(ctx, ws, &mu, client)
+	if r.URL.Query().Get("audio") == "true" && client.GetAudioHandler() != nil {
+		client.GetAudioHandler().SetCallback(func(data []byte, format *audio.AudioFormat, timestamp uint16) {
+			sendRDPAudio(ctx, ws, &mu, data, format, timestamp)
+		})
+	}
+
+	go rdpWsToClient(ctx, cancel, ws, client)
+	rdpClientToWs(ctx, cancel, ws, &mu, client)
+}
+
+func clampRDPDim(raw string, fallback int) int {
+	v, err := strconv.Atoi(raw)
+	if err != nil || v <= 0 || v > 8192 {
+		return fallback
+	}
+	return v
+}
+
+func wsjsonError(ctx context.Context, ws *websocket.Conn, message string) error {
+	body, _ := json.Marshal(map[string]string{"type": "error", "message": message})
+	return ws.Write(ctx, websocket.MessageText, body)
+}
+
+func rdpWsToClient(ctx context.Context, cancel context.CancelFunc, ws *websocket.Conn, client *rdp.Client) {
+	defer cancel()
+	for {
+		msgType, data, err := ws.Read(ctx)
+		if err != nil {
+			return
+		}
+		if len(data) > 0 && data[0] == '{' {
+			var req rdpResizeRequest
+			if json.Unmarshal(data, &req) == nil && req.Type == "resize" {
+				if client.IsDisplayControlReady() && req.Width > 0 && req.Height > 0 {
+					_ = client.RequestResize(req.Width, req.Height)
+				}
+				continue
+			}
+		}
+		if msgType == websocket.MessageBinary || msgType == websocket.MessageText {
+			if err := client.SendInputEvent(data); err != nil {
+				return
+			}
+		}
+	}
+}
+
+func rdpClientToWs(ctx context.Context, cancel context.CancelFunc, ws *websocket.Conn, mu *sync.Mutex, client *rdp.Client) {
+	defer cancel()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+		update, err := client.GetUpdate()
+		switch {
+		case err == nil:
+		case errors.Is(err, pdu.ErrDeactivateAll), errors.Is(err, io.EOF):
+			return
+		default:
+			log.Printf("rdp update: %v", err)
+			return
+		}
+		mu.Lock()
+		err = ws.Write(ctx, websocket.MessageBinary, update.Data)
+		mu.Unlock()
+		if err != nil {
+			return
+		}
+	}
+}
+
+func sendRDPCapabilities(ctx context.Context, ws *websocket.Conn, mu *sync.Mutex, client *rdp.Client) {
+	caps := client.GetServerCapabilities()
+	if caps == nil {
+		return
+	}
+	payload, err := json.Marshal(map[string]any{
+		"type":                "capabilities",
+		"codecs":              caps.BitmapCodecs,
+		"surfaceCommands":     caps.SurfaceCommands,
+		"colorDepth":          caps.ColorDepth,
+		"desktopSize":         caps.DesktopSize,
+		"multifragmentSize":   caps.MultifragmentSize,
+		"largePointer":        caps.LargePointer,
+		"frameAcknowledge":    caps.FrameAcknowledge,
+		"useNLA":              caps.UseNLA,
+		"audioEnabled":        caps.AudioEnabled,
+		"channels":            caps.Channels,
+		"displayControlReady": client.IsDisplayControlReady(),
+	})
+	if err != nil {
+		return
+	}
+	msg := append([]byte{0xff}, payload...)
+	mu.Lock()
+	_ = ws.Write(ctx, websocket.MessageBinary, msg)
+	mu.Unlock()
+}
+
+func sendRDPAudio(ctx context.Context, ws *websocket.Conn, mu *sync.Mutex, data []byte, format *audio.AudioFormat, timestamp uint16) {
+	if len(data) == 0 {
+		return
+	}
+	var formatInfo []byte
+	if format != nil {
+		formatInfo = make([]byte, 10)
+		binary.LittleEndian.PutUint16(formatInfo[0:2], format.Channels)
+		binary.LittleEndian.PutUint32(formatInfo[2:6], format.SamplesPerSec)
+		binary.LittleEndian.PutUint16(formatInfo[6:8], format.BitsPerSample)
+		binary.LittleEndian.PutUint16(formatInfo[8:10], format.FormatTag)
+	}
+	msg := make([]byte, 4+len(formatInfo)+len(data))
+	msg[0] = 0xfe
+	msg[1] = 0x01
+	binary.LittleEndian.PutUint16(msg[2:4], timestamp)
+	off := 4
+	if len(formatInfo) > 0 {
+		msg[1] = 0x02
+		copy(msg[off:], formatInfo)
+		off += len(formatInfo)
+	}
+	copy(msg[off:], data)
+	mu.Lock()
+	_ = ws.Write(ctx, websocket.MessageBinary, msg)
+	mu.Unlock()
+}

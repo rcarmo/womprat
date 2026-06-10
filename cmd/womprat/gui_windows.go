@@ -235,6 +235,7 @@ func runGUI(app *App, shellURL string) {
 	w.Bind("womprat_openSettings", func() { app.openSettingsTab() })
 	w.Bind("womprat_newTerminal", func(host, user string, port int) { app.newTerminalTab(host, user, port) })
 	w.Bind("womprat_newVNC", func(target string) { app.newVNCTab(target) })
+	w.Bind("womprat_newRDP", func(target string) { app.newRDPTab(target) })
 	w.Bind("womprat_registerLocalTab", func(tabJSON string) { app.registerLocalTab(tabJSON) })
 	w.Bind("womprat_goHome", func() { app.goHome() })
 	w.Bind("womprat_clearActiveTab", func() { app.clearActiveTab() })
