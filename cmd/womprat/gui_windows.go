@@ -3,7 +3,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"time"
@@ -221,14 +220,12 @@ func runGUI(app *App, shellURL string) {
 	w.Bind("womprat_getTabs", func() string {
 		app.mu.Lock()
 		defer app.mu.Unlock()
-		data, _ := json.Marshal(map[string]interface{}{"tabs": app.tabs, "activeTab": app.activeTab, "port": app.serverPort, "token": app.sessionToken})
-		return string(data)
+		return jsString(map[string]interface{}{"tabs": app.tabs, "activeTab": app.activeTab, "port": app.serverPort, "token": app.sessionToken})
 	})
 	w.Bind("womprat_getNetworkState", func() string {
 		app.mu.Lock()
 		defer app.mu.Unlock()
-		data, _ := json.Marshal(map[string]interface{}{"exitNode": app.config.ExitNode, "exitActive": useExitNode})
-		return string(data)
+		return jsString(map[string]interface{}{"exitNode": app.config.ExitNode, "exitActive": useExitNode})
 	})
 	w.Bind("womprat_navigate", func(url string) { app.navigateBrowser(url) })
 	w.Bind("womprat_switchTab", func(tabID string) { app.switchTab(tabID) })
