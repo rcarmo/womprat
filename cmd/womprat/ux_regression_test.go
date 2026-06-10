@@ -755,14 +755,23 @@ func TestFrontendValidatesTabIDsBeforeDOMUse(t *testing.T) {
 	}
 }
 
-func TestURLHistorySaveFailureIsHandled(t *testing.T) {
+func TestFrontendExpectedFailuresAreReported(t *testing.T) {
 	s := readFileForRegression(t, "frontend/index.html")
 	for _, want := range []string{
-		"try { localStorage.setItem('wompratURLHistory'",
+		"console.warn('load URL history failed', err);",
 		"console.warn('save URL history failed', err);",
+		"console.warn('network indicator update failed', err);",
+		"console.debug('invalid custom URL', err);",
+		"console.debug('invalid URL component', err);",
+		"console.debug('download display name unavailable', err);",
 	} {
 		if !strings.Contains(s, want) {
-			t.Fatalf("URL history failure handling missing %q", want)
+			t.Fatalf("frontend failure reporting missing %q", want)
+		}
+	}
+	for _, forbidden := range []string{"const origRenderTabs = renderTabs", "Actually just call saveOpenTabs"} {
+		if strings.Contains(s, forbidden) {
+			t.Fatalf("frontend should not keep stale hook comment/declaration %q", forbidden)
 		}
 	}
 }

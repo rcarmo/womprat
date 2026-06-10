@@ -397,10 +397,11 @@ function loadURLHistory() {
     if (!Array.isArray(parsed)) return [];
     return parsed.map(normalizeHistoryURL).filter(Boolean).slice(0, 100);
   }
-  catch { return []; }
+  catch (err) { console.warn('load URL history failed', err); return []; }
 }
 function safeURL(text) {
-  try { return new URL(text); } catch { return null; }
+  try { return new URL(text); }
+  catch (err) { console.debug('invalid URL', err); return null; }
 }
 function normalizeBrowserURL(url) {
   let text = String(url || '').trim();
@@ -428,13 +429,13 @@ function validCustomUser(user) {
 }
 function decodeURLComponent(value) {
   try { return decodeURIComponent(value); }
-  catch { return null; }
+  catch (err) { console.debug('invalid URL component', err); return null; }
 }
 function parseCustomURL(url) {
   const text = String(url || '').trim();
   if (!text || !text.includes('://')) return null;
   let parsed;
-  try { parsed = new URL(text); } catch { return null; }
+  try { parsed = new URL(text); } catch (err) { console.debug('invalid custom URL', err); return null; }
   const scheme = parsed.protocol.replace(':','').toLowerCase();
   const defaults = { ssh: 22, vnc: 5900, rdp: 3389 };
   if (!Object.prototype.hasOwnProperty.call(defaults, scheme)) return null;
@@ -537,7 +538,8 @@ async function updateNetworkIndicator() {
       pill.textContent = '';
       pill.classList.remove('active');
     }
-  } catch {
+  } catch (err) {
+    console.warn('network indicator update failed', err);
     pill.classList.remove('active');
   }
 }
@@ -1447,18 +1449,13 @@ function updateHomeVisibility() {
   }
 }
 
-// Hook tab changes
-const origRenderTabs = renderTabs;
-// Actually just call saveOpenTabs + updateHome after every tab change
-
-
 // Download handling — intercept download links in iframes
 function downloadDisplayName(url) {
   try {
     const u = new URL(String(url || '').trim());
     if (u.protocol !== 'http:' && u.protocol !== 'https:') return '';
-    return decodeURIComponent(u.pathname.split('/').pop() || '') || 'download';
-  } catch { return ''; }
+    return decodeURLComponent(u.pathname.split('/').pop() || '') || 'download';
+  } catch (err) { console.debug('download display name unavailable', err); return ''; }
 }
 window.triggerDownload = async function(url) {
   const bar = document.getElementById('download-bar');
