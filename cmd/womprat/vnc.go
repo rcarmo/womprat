@@ -18,6 +18,8 @@ type vncTarget struct {
 	Port int
 }
 
+const maxVNCWebSocketMessageBytes = 1 << 20
+
 func parseVNCURL(raw string) (vncTarget, error) {
 	text := strings.TrimSpace(raw)
 	if text != "" && !strings.Contains(text, "://") {
@@ -53,6 +55,7 @@ func (a *App) handleVNCWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer ws.Close(websocket.StatusNormalClosure, "")
+	ws.SetReadLimit(maxVNCWebSocketMessageBytes)
 
 	addr := net.JoinHostPort(target.Host, strconv.Itoa(target.Port))
 	log.Printf("vnc: connect %s via tsnet", addr)
@@ -93,7 +96,7 @@ func (a *App) handleVNCWebSocket(w http.ResponseWriter, r *http.Request) {
 		if msgType != websocket.MessageBinary {
 			continue
 		}
-		if _, err := upstream.Write(data); err != nil {
+		if err := writeFull(upstream, data); err != nil {
 			log.Printf("vnc: upstream write: %v", err)
 			return
 		}

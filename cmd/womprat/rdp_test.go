@@ -47,6 +47,15 @@ func TestParseRDPURLRejectsInvalidTargets(t *testing.T) {
 	}
 }
 
+func TestViewerWebSocketReadLimits(t *testing.T) {
+	if maxRDPWebSocketMessageBytes <= 0 || maxRDPWebSocketMessageBytes > 2<<20 {
+		t.Fatalf("unexpected RDP websocket read limit: %d", maxRDPWebSocketMessageBytes)
+	}
+	if maxVNCWebSocketMessageBytes <= 0 || maxVNCWebSocketMessageBytes > 2<<20 {
+		t.Fatalf("unexpected VNC websocket read limit: %d", maxVNCWebSocketMessageBytes)
+	}
+}
+
 func TestParseRDPColorDepth(t *testing.T) {
 	for _, raw := range []string{"8", "15", "16", "24", "32"} {
 		depth := map[string]int{"8": 8, "15": 15, "16": 16, "24": 24, "32": 32}[raw]

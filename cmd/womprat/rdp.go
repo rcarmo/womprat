@@ -39,6 +39,8 @@ type rdpResizeRequest struct {
 	Height int    `json:"height"`
 }
 
+const maxRDPWebSocketMessageBytes = 1 << 20
+
 func parseRDPURL(raw string) (rdpTarget, error) {
 	text := strings.TrimSpace(raw)
 	if text != "" && !strings.Contains(text, "://") {
@@ -74,12 +76,17 @@ func (a *App) handleRDPWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer ws.Close(websocket.StatusNormalClosure, "")
+	ws.SetReadLimit(maxRDPWebSocketMessageBytes)
 
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
 
 	_, data, err := ws.Read(ctx)
 	if err != nil {
+		return
+	}
+	if len(data) > maxRDPWebSocketMessageBytes {
+		_ = wsjsonError(ctx, ws, "credentials message too large")
 		return
 	}
 	var creds rdpCredentials
@@ -93,6 +100,7 @@ func (a *App) handleRDPWebSocket(w http.ResponseWriter, r *http.Request) {
 	if creds.User == "" {
 		creds.User = queryTarget.User
 	}
+	creds.User = strings.TrimSpace(creds.User)
 	if creds.User == "" || len(creds.User) > 256 || len(creds.Password) > 1024 {
 		_ = wsjsonError(ctx, ws, "invalid credentials")
 		return
@@ -179,8 +187,12 @@ func rdpWsToClient(ctx context.Context, cancel context.CancelFunc, ws *websocket
 		if len(data) > 0 && data[0] == '{' {
 			var req rdpResizeRequest
 			if json.Unmarshal(data, &req) == nil && req.Type == "resize" {
-				if client.IsDisplayControlReady() && req.Width > 0 && req.Height > 0 {
-					_ = client.RequestResize(req.Width, req.Height)
+				width := clampRDPDim(strconv.Itoa(req.Width), 0)
+				height := clampRDPDim(strconv.Itoa(req.Height), 0)
+				if client.IsDisplayControlReady() && width > 0 && height > 0 {
+					if err := client.RequestResize(width, height); err != nil {
+						log.Printf("rdp resize failed: %v", err)
+					}
 				}
 				continue
 			}
