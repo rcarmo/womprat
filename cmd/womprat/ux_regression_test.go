@@ -320,6 +320,16 @@ func TestCustomSchemesUseSingleFrontendDispatcher(t *testing.T) {
 	}
 }
 
+func TestTerminalDoesNotSwallowUnimplementedSearchShortcut(t *testing.T) {
+	s := readFileForRegression(t, "frontend/index.html")
+	if strings.Contains(s, "TODO: show search bar UI") || strings.Contains(s, "ev.key === 'F'") {
+		t.Fatal("terminal must not swallow Ctrl+Shift+F for an unimplemented search UI")
+	}
+	if !strings.Contains(s, "console.warn('terminal WebGL addon unavailable'") {
+		t.Fatal("terminal WebGL addon fallback should be logged")
+	}
+}
+
 func TestShellFaviconRenderingUsesDOMEvents(t *testing.T) {
 	s := readFileForRegression(t, "frontend/index.html")
 	for _, want := range []string{

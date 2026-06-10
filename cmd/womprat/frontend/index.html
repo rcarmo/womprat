@@ -655,10 +655,8 @@ window.openTerminal = async function(host, name, user, port, options = {}) {
   term.loadAddon(new SearchAddon());
   term.loadAddon(new Unicode11Addon());
   term.loadAddon(new UnicodeGraphemesAddon());
-  try { term.loadAddon(new WebglAddon()); } catch(e) {}
+  try { term.loadAddon(new WebglAddon()); } catch(e) { console.warn('terminal WebGL addon unavailable', e); }
   term.unicode.activeVersion = '11';
-    // Search: Ctrl+Shift+F
-    const searchAddon = term._addonManager?._addons?.find(a => a?.instance?.findNext) || null;
     term.attachCustomKeyEventHandler((ev) => {
       const key = ev.key.toLowerCase();
       if (ev.ctrlKey && ev.shiftKey && !ev.altKey && key === 'w') {
@@ -667,10 +665,6 @@ window.openTerminal = async function(host, name, user, port, options = {}) {
         ev.stopImmediatePropagation?.();
         window.__wompratSuppressCloseShortcutUntil = Date.now() + 250;
         closeTab(tabId);
-        return false;
-      }
-      if (ev.ctrlKey && ev.shiftKey && ev.key === 'F') {
-        // TODO: show search bar UI
         return false;
       }
       return true;
