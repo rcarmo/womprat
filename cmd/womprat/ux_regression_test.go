@@ -379,6 +379,19 @@ func TestCustomSchemesUseSingleFrontendDispatcher(t *testing.T) {
 	}
 }
 
+func TestVNCCursorIsBounded(t *testing.T) {
+	s := readFileForRegression(t, "frontend/vnc.js")
+	for _, want := range []string{
+		"var MAX_VNC_CURSOR_DIMENSION = 256;",
+		"var MAX_VNC_CURSOR_PIXELS = 256 * 256;",
+		"rect.width > MAX_VNC_CURSOR_DIMENSION || rect.height > MAX_VNC_CURSOR_DIMENSION || rect.width * rect.height > MAX_VNC_CURSOR_PIXELS",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("VNC cursor bound missing %q", want)
+		}
+	}
+}
+
 func TestVNCFramebufferIsBounded(t *testing.T) {
 	s := readFileForRegression(t, "frontend/vnc.js")
 	for _, want := range []string{

@@ -2824,6 +2824,8 @@ var MAX_VNC_CLIPBOARD_CHARS = 256 * 1024;
 var MAX_VNC_PASSWORD_CHARS = 8;
 var MAX_VNC_FRAMEBUFFER_DIMENSION = 8192;
 var MAX_VNC_FRAMEBUFFER_PIXELS = 16 * 1024 * 1024;
+var MAX_VNC_CURSOR_DIMENSION = 256;
+var MAX_VNC_CURSOR_PIXELS = 256 * 256;
 function boundedVncClipboardText(text) {
   const value = String(text || "");
   return value.length > MAX_VNC_CLIPBOARD_CHARS ? value.slice(0, MAX_VNC_CLIPBOARD_CHARS) : value;
@@ -3047,7 +3049,7 @@ class WompratVncViewer {
     this.ctx.putImageData(this.framebuffer, 0, 0);
   }
   applyCursor(rect) {
-    if (!rect?.rgba || !rect.width || !rect.height) {
+    if (!rect?.rgba || !rect.width || !rect.height || rect.width > MAX_VNC_CURSOR_DIMENSION || rect.height > MAX_VNC_CURSOR_DIMENSION || rect.width * rect.height > MAX_VNC_CURSOR_PIXELS) {
       this.canvas.style.cursor = "default";
       return;
     }
