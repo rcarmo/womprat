@@ -502,14 +502,17 @@ func (a *App) handleExitNode(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		a.mu.Lock()
-		a.config.ExitNode = body.ExitNode
-		useExitNode = body.ExitNode != ""
-		cfg := a.config
+		cfg := cloneConfig(a.config)
 		a.mu.Unlock()
+		cfg.ExitNode = body.ExitNode
 		if err := SaveConfig(cfg); err != nil {
 			http.Error(w, err.Error(), 500)
 			return
 		}
+		a.mu.Lock()
+		a.config.ExitNode = body.ExitNode
+		useExitNode = body.ExitNode != ""
+		a.mu.Unlock()
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "exitNode": body.ExitNode})
 	default:
 		http.Error(w, "method not allowed", 405)

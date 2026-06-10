@@ -162,6 +162,24 @@ func TestUnlockMethodAndSaveTabsDoNotChangeMemoryOnPersistFailure(t *testing.T) 
 	}
 }
 
+func TestExitNodeDoesNotChangeMemoryOnPersistFailure(t *testing.T) {
+	app := newTestApp(t)
+	app.config.ExitNode = "old-exit"
+	useExitNode = true
+	blocked := filepath.Join(t.TempDir(), "blocked")
+	if err := os.WriteFile(blocked, []byte("x"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("XDG_CONFIG_HOME", blocked)
+	rr := performJSON(app.handleExitNode, "POST", "/api/settings/exit-node", map[string]string{"exitNode": ""})
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("exit-node persist failure = %d %s", rr.Code, rr.Body.String())
+	}
+	if app.config.ExitNode != "old-exit" || !useExitNode {
+		t.Fatalf("exit-node changed despite persist failure: cfg=%+v useExitNode=%v", app.config, useExitNode)
+	}
+}
+
 func TestHostAndAppearanceHandlersDoNotChangeMemoryOnPersistFailure(t *testing.T) {
 	app := newTestApp(t)
 	app.config.Hosts["smith"] = HostConfig{User: "old", Port: 22}
