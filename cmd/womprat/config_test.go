@@ -109,6 +109,7 @@ func TestSanitizeSavedTabs(t *testing.T) {
 	tabs := sanitizeSavedTabs([]SavedTab{
 		{Type: "browser", Title: strings.Repeat("x", maxBrowserTitleRunes+10), Favicon: strings.Repeat("x", maxFaviconURLBytes+1), URL: "https://example.com"},
 		{Type: "browser", URL: "rdp://me@platinum:3389"},
+		{Type: "browser", URL: "https://user@example.com"},
 		{Type: "terminal", Host: "platinum"},
 		{Type: "vnc", Host: "platinum"},
 		{Type: "rdp", URL: "rdp://me@platinum"},

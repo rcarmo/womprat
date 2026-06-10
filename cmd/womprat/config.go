@@ -259,10 +259,11 @@ func sanitizeSavedTab(tab SavedTab) (SavedTab, bool) {
 	tab.Favicon = sanitizeFaviconURL(tab.Favicon)
 	switch tab.Type {
 	case "browser":
-		parsed, err := url.Parse(tab.URL)
-		if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+		normalizedURL, err := normalizeBrowserURL(tab.URL)
+		if err != nil {
 			return SavedTab{}, false
 		}
+		tab.URL = normalizedURL
 		if tab.Title == "" {
 			tab.Title = tab.URL
 		}
