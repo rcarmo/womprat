@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"golang.org/x/crypto/pbkdf2"
@@ -426,8 +427,10 @@ func (a *App) listSSHKeys() []SSHKeyEntry {
 			}
 		}
 		a.mu.Unlock()
+		sort.Strings(hosts)
 		entries = append(entries, SSHKeyEntry{Name: name, Fingerprint: fingerprintFromPEM(keyData), Hosts: hosts})
 	}
+	sort.Slice(entries, func(i, j int) bool { return entries[i].Name < entries[j].Name })
 	return entries
 }
 

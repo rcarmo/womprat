@@ -76,6 +76,34 @@ func TestGetSSHAuthMethods(t *testing.T) {
 	}
 }
 
+func TestListSSHKeysSorted(t *testing.T) {
+	app := newTestApp(t)
+	_, priv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pemBlock, err := ssh.MarshalPrivateKey(priv, "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoded := string(pem.EncodeToMemory(pemBlock))
+	if err := SaveCredential("ssh-key/zeta", encoded); err != nil {
+		t.Fatal(err)
+	}
+	if err := SaveCredential("ssh-key/alpha", encoded); err != nil {
+		t.Fatal(err)
+	}
+	app.config.Hosts["zhost"] = HostConfig{KeyName: "alpha"}
+	app.config.Hosts["ahost"] = HostConfig{KeyName: "alpha"}
+	keys := app.listSSHKeys()
+	if len(keys) != 2 || keys[0].Name != "alpha" || keys[1].Name != "zeta" {
+		t.Fatalf("keys not sorted: %+v", keys)
+	}
+	if len(keys[0].Hosts) != 2 || keys[0].Hosts[0] != "ahost" || keys[0].Hosts[1] != "zhost" {
+		t.Fatalf("key hosts not sorted: %+v", keys[0].Hosts)
+	}
+}
+
 func TestHandleSOCKS5NoTailscale(t *testing.T) {
 	app := newTestApp(t)
 	client, server := net.Pipe()
