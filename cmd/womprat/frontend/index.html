@@ -1087,14 +1087,18 @@ function activateTab(id, options = {}) {
     const root = document.querySelector(`#panel-${CSS.escape(id)} .vnc-panel`);
     if (root && !root.dataset.started) {
       root.dataset.started = '1';
-      import('./vnc.js').then(m => m.startVNC(root, tab.url || `vnc://${tab.host}:${tab.port||5900}`));
+      import('./vnc.js')
+        .then(m => m.startVNC(root, tab.url || `vnc://${tab.host}:${tab.port||5900}`))
+        .catch(err => { delete root.dataset.started; const status = root.querySelector('[data-vnc-status]'); if (status) status.textContent = `VNC load failed: ${err.message}`; });
     }
   }
   if (tab.type === 'rdp') {
     const root = document.querySelector(`#panel-${CSS.escape(id)} .rdp-panel`);
     if (root && !root.dataset.started) {
       root.dataset.started = '1';
-      import('./rdp.js').then(m => m.startRDP(root, tab.url || `rdp://${tab.user?tab.user+'@':''}${tab.host}:${tab.port||3389}`));
+      import('./rdp.js')
+        .then(m => m.startRDP(root, tab.url || `rdp://${tab.user?tab.user+'@':''}${tab.host}:${tab.port||3389}`))
+        .catch(err => { delete root.dataset.started; const status = root.querySelector('[data-rdp-status]'); if (status) status.textContent = `RDP load failed: ${err.message}`; });
     }
   }
   if (tab.type === 'terminal') {

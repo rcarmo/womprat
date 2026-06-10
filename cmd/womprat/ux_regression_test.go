@@ -375,6 +375,22 @@ func TestCustomSchemesUseSingleFrontendDispatcher(t *testing.T) {
 	}
 }
 
+func TestRemoteDisplayModuleLoadFailuresAreRecoverable(t *testing.T) {
+	s := readFileForRegression(t, "frontend/index.html")
+	for _, want := range []string{
+		"import('./vnc.js')",
+		"delete root.dataset.started; const status = root.querySelector('[data-vnc-status]');",
+		"VNC load failed:",
+		"import('./rdp.js')",
+		"delete root.dataset.started; const status = root.querySelector('[data-rdp-status]');",
+		"RDP load failed:",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("remote display module failure handling missing %q", want)
+		}
+	}
+}
+
 func TestShellHasNoEmptyCatchBlocks(t *testing.T) {
 	s := readFileForRegression(t, "frontend/index.html")
 	if strings.Contains(s, "catch {}") {
