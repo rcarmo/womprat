@@ -7,6 +7,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -80,9 +81,12 @@ func defaultConfig() *AppConfig {
 func configDir() string {
 	dir, err := configDirPath()
 	if err != nil {
+		log.Printf("config dir lookup failed: %v", err)
 		return filepath.Join(".", "womprat")
 	}
-	_ = os.MkdirAll(dir, 0700)
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		log.Printf("config dir create failed for %s: %v", dir, err)
+	}
 	return dir
 }
 
