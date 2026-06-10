@@ -123,20 +123,23 @@ func (a *App) handleSetMasterPassword(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "empty password", 400)
 		return
 	}
-	salt := make([]byte, 16)
+	salt := make([]byte, masterSaltBytes)
 	if _, err := rand.Read(salt); err != nil {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	const iterations = 310000
-	hash := pbkdf2.Key([]byte(body.Password), salt, iterations, 32, sha256.New)
-	record := map[string]interface{}{
-		"kdf":        "pbkdf2-sha256",
-		"iterations": iterations,
-		"salt":       base64.StdEncoding.EncodeToString(salt),
-		"hash":       base64.StdEncoding.EncodeToString(hash),
+	hash := pbkdf2.Key([]byte(body.Password), salt, masterKDFIterations, masterHashBytes, sha256.New)
+	record := masterHashRecord{
+		KDF:        masterKDF,
+		Iterations: masterKDFIterations,
+		Salt:       base64.StdEncoding.EncodeToString(salt),
+		Hash:       base64.StdEncoding.EncodeToString(hash),
 	}
-	data, _ := json.Marshal(record)
+	data, err := json.Marshal(record)
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
 	if err := SaveCredential("master-hash", string(data)); err != nil {
 		http.Error(w, err.Error(), 500)
 		return
@@ -149,7 +152,7 @@ func (a *App) handleSetMasterPassword(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	json.NewEncoder(w).Encode(map[string]string{"status": "ok", "kdf": "pbkdf2-sha256"})
+	json.NewEncoder(w).Encode(map[string]string{"status": "ok", "kdf": masterKDF})
 }
 
 func (a *App) handleSetTailscaleKey(w http.ResponseWriter, r *http.Request) {

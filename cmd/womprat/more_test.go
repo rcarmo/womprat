@@ -1,6 +1,8 @@
 package main
 
 import (
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -46,6 +48,23 @@ func TestVerifyMasterPasswordInvalidRecords(t *testing.T) {
 	}
 	if ok, err := verifyMasterPassword("x"); ok || err != nil {
 		t.Fatalf("bad kdf = %v %v", ok, err)
+	}
+	cases := []masterHashRecord{
+		{KDF: masterKDF, Iterations: minMasterKDFIterations - 1, Salt: base64.StdEncoding.EncodeToString(make([]byte, masterSaltBytes)), Hash: base64.StdEncoding.EncodeToString(make([]byte, masterHashBytes))},
+		{KDF: masterKDF, Iterations: masterKDFIterations, Salt: base64.StdEncoding.EncodeToString(make([]byte, masterSaltBytes-1)), Hash: base64.StdEncoding.EncodeToString(make([]byte, masterHashBytes))},
+		{KDF: masterKDF, Iterations: masterKDFIterations, Salt: base64.StdEncoding.EncodeToString(make([]byte, masterSaltBytes)), Hash: base64.StdEncoding.EncodeToString(make([]byte, masterHashBytes-1))},
+	}
+	for _, rec := range cases {
+		data, err := json.Marshal(rec)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := SaveCredential("master-hash", string(data)); err != nil {
+			t.Fatal(err)
+		}
+		if ok, err := verifyMasterPassword("x"); ok || err != nil {
+			t.Fatalf("invalid record accepted: %+v ok=%v err=%v", rec, ok, err)
+		}
 	}
 }
 
