@@ -2,6 +2,12 @@ package main
 
 import "testing"
 
+func TestTerminalWebSocketReadLimit(t *testing.T) {
+	if maxTerminalWebSocketMessageSize <= 0 || maxTerminalWebSocketMessageSize > 2<<20 {
+		t.Fatalf("unexpected terminal websocket read limit: %d", maxTerminalWebSocketMessageSize)
+	}
+}
+
 func TestParseTerminalDimension(t *testing.T) {
 	tests := []struct {
 		raw      string

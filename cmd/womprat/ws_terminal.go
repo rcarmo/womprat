@@ -23,10 +23,11 @@ type termSession struct {
 }
 
 const (
-	minTerminalCols = 20
-	maxTerminalCols = 500
-	minTerminalRows = 5
-	maxTerminalRows = 200
+	minTerminalCols                 = 20
+	maxTerminalCols                 = 500
+	minTerminalRows                 = 5
+	maxTerminalRows                 = 200
+	maxTerminalWebSocketMessageSize = 1 << 20
 )
 
 func parseTerminalDimension(raw string, fallback, min, max int) int {
@@ -85,6 +86,7 @@ func (a *App) handleSSHWebSocketFull(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer conn.Close(websocket.StatusNormalClosure, "")
+	conn.SetReadLimit(maxTerminalWebSocketMessageSize)
 	defer func() {
 		a.mu.Lock()
 		delete(a.sshConns, tabID)
