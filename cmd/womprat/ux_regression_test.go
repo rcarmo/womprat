@@ -15,6 +15,25 @@ func readFileForRegression(t *testing.T, path string) string {
 	return string(b)
 }
 
+func TestSettingsBrowserTablesUseSafeDOMConstruction(t *testing.T) {
+	s := readFileForRegression(t, "frontend/settings.html")
+	for _, want := range []string{
+		"clear.onclick = () => clearCookiesFor(c.domain || '');",
+		"clear.onclick = () => deletePassword(p.site || '');",
+		"tr.append(domain, count, actions);",
+		"tr.append(site, username, actions);",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("settings browser table DOM rendering missing %q", want)
+		}
+	}
+	for _, forbidden := range []string{"onclick=\"clearCookiesFor", "onclick=\"deletePassword"} {
+		if strings.Contains(s, forbidden) {
+			t.Fatalf("settings browser tables must not template inline handler %q", forbidden)
+		}
+	}
+}
+
 func TestSettingsHostsTableUsesSafeDOMConstruction(t *testing.T) {
 	s := readFileForRegression(t, "frontend/settings.html")
 	for _, want := range []string{

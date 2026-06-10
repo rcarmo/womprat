@@ -448,24 +448,36 @@ async function loadBrowserSettings() {
     document.getElementById('cache-size').textContent = data.cacheSize || '0 KB';
     document.getElementById('save-passwords').checked = data.savePasswords !== false;
     const ct = document.getElementById('cookies-table');
+    ct.textContent = '';
     if (data.cookies?.length) {
-      ct.innerHTML = data.cookies.map(c => `<tr>
-        <td class="mono" style="font-size:.78rem">${escapeHTML(c.domain)}</td>
-        <td>${Number(c.count || 0)}</td>
-        <td><button class="btn-danger" onclick="clearCookiesFor(${jsArg(c.domain)})" style="padding:.15rem .4rem;font-size:.7rem">Delete</button></td>
-      </tr>`).join('');
+      data.cookies.forEach(c => {
+        const tr = document.createElement('tr');
+        const domain = document.createElement('td'); domain.className = 'mono'; domain.style.fontSize = '.78rem'; domain.textContent = c.domain || '';
+        const count = document.createElement('td'); count.textContent = String(Number(c.count || 0));
+        const actions = document.createElement('td');
+        const clear = document.createElement('button'); clear.className = 'btn-danger'; clear.style.cssText = 'padding:.15rem .4rem;font-size:.7rem'; clear.textContent = 'Delete'; clear.onclick = () => clearCookiesFor(c.domain || '');
+        actions.appendChild(clear);
+        tr.append(domain, count, actions);
+        ct.appendChild(tr);
+      });
     } else {
-      ct.innerHTML = '<tr><td colspan="3" style="color:var(--dim)">No cookies</td></tr>';
+      emptyTableRow(ct, 3, 'No cookies');
     }
     const pt = document.getElementById('passwords-table');
+    pt.textContent = '';
     if (data.passwords?.length) {
-      pt.innerHTML = data.passwords.map(p => `<tr>
-        <td class="mono" style="font-size:.78rem">${escapeHTML(p.site)}</td>
-        <td>${escapeHTML(p.username)}</td>
-        <td><button class="btn-danger" onclick="deletePassword(${jsArg(p.site)})" style="padding:.15rem .4rem;font-size:.7rem">Delete</button></td>
-      </tr>`).join('');
+      data.passwords.forEach(p => {
+        const tr = document.createElement('tr');
+        const site = document.createElement('td'); site.className = 'mono'; site.style.fontSize = '.78rem'; site.textContent = p.site || '';
+        const username = document.createElement('td'); username.textContent = p.username || '';
+        const actions = document.createElement('td');
+        const clear = document.createElement('button'); clear.className = 'btn-danger'; clear.style.cssText = 'padding:.15rem .4rem;font-size:.7rem'; clear.textContent = 'Delete'; clear.onclick = () => deletePassword(p.site || '');
+        actions.appendChild(clear);
+        tr.append(site, username, actions);
+        pt.appendChild(tr);
+      });
     } else {
-      pt.innerHTML = '<tr><td colspan="3" style="color:var(--dim)">Listing disabled</td></tr>';
+      emptyTableRow(pt, 3, 'Listing disabled');
     }
   } catch {}
 }
