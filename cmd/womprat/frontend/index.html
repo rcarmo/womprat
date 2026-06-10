@@ -384,14 +384,15 @@ function loadURLHistory() {
   }
   catch { return []; }
 }
+function safeURL(text) {
+  try { return new URL(text); } catch { return null; }
+}
 function normalizeBrowserURL(url) {
   let text = String(url || '').trim();
   if (!text) return '';
   if (!text.includes('://')) text = 'http://' + text;
-  try {
-    const u = new URL(text);
-    if ((u.protocol === 'http:' || u.protocol === 'https:') && !!u.hostname) return u.href;
-  } catch {}
+  const u = safeURL(text);
+  if (u && (u.protocol === 'http:' || u.protocol === 'https:') && !!u.hostname) return u.href;
   return '';
 }
 function isHTTPURL(url) {
@@ -904,11 +905,9 @@ function sanitizeBrowserTitle(value) {
 function sanitizeFaviconURL(value) {
   const v = String(value || '').trim();
   if (!v || v.length > MAX_FAVICON_URL_BYTES || failedFavicons.has(v)) return '';
-  try {
-    const u = new URL(v);
-    if ((u.protocol === 'http:' || u.protocol === 'https:') && u.hostname) return u.href;
-    if (u.protocol === 'data:' && /^data:image\//i.test(v) && v.length <= 4096) return v;
-  } catch {}
+  const u = safeURL(v);
+  if (u && (u.protocol === 'http:' || u.protocol === 'https:') && u.hostname) return u.href;
+  if (u && u.protocol === 'data:' && /^data:image\//i.test(v) && v.length <= 4096) return v;
   return '';
 }
 function isUsableFavicon(value) {

@@ -320,6 +320,16 @@ func TestCustomSchemesUseSingleFrontendDispatcher(t *testing.T) {
 	}
 }
 
+func TestShellHasNoEmptyCatchBlocks(t *testing.T) {
+	s := readFileForRegression(t, "frontend/index.html")
+	if strings.Contains(s, "catch {}") {
+		t.Fatal("shell must not contain empty catch blocks")
+	}
+	if !strings.Contains(s, "function safeURL(text)") {
+		t.Fatal("shell should use safeURL for expected URL parse failures")
+	}
+}
+
 func TestShellLogsNativeAndCleanupFailures(t *testing.T) {
 	s := readFileForRegression(t, "frontend/index.html")
 	for _, want := range []string{
