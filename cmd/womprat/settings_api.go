@@ -530,8 +530,9 @@ func (a *App) handleSaveTabs(w http.ResponseWriter, r *http.Request) {
 	if !decodeSettingsJSON(w, r, &body) {
 		return
 	}
+	sanitizedTabs := sanitizeSavedTabs(body.Tabs)
 	a.mu.Lock()
-	a.config.OpenTabs = body.Tabs
+	a.config.OpenTabs = sanitizedTabs
 	cfg := a.config
 	a.mu.Unlock()
 	if err := SaveConfig(cfg); err != nil {

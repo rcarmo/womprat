@@ -53,6 +53,33 @@ func TestNormalizeConfigRepairsInvalidDefaults(t *testing.T) {
 	}
 }
 
+func TestSanitizeSavedTabs(t *testing.T) {
+	tabs := sanitizeSavedTabs([]SavedTab{
+		{Type: "browser", URL: "https://example.com"},
+		{Type: "browser", URL: "rdp://me@platinum:3389"},
+		{Type: "terminal", Host: "platinum"},
+		{Type: "vnc", Host: "platinum"},
+		{Type: "rdp", URL: "rdp://me@platinum"},
+		{Type: "rdp", URL: "rdp://bad host"},
+		{Type: "unknown", URL: "https://example.com"},
+	})
+	if len(tabs) != 4 {
+		t.Fatalf("sanitizeSavedTabs kept %d tabs: %+v", len(tabs), tabs)
+	}
+	if tabs[0].Type != "browser" || tabs[0].Title != "https://example.com" {
+		t.Fatalf("browser tab = %+v", tabs[0])
+	}
+	if tabs[1].Type != "terminal" || tabs[1].User != "root" || tabs[1].Port != 22 {
+		t.Fatalf("terminal tab = %+v", tabs[1])
+	}
+	if tabs[2].Type != "vnc" || tabs[2].URL != "vnc://platinum:5900" {
+		t.Fatalf("vnc tab = %+v", tabs[2])
+	}
+	if tabs[3].Type != "rdp" || tabs[3].URL != "rdp://me@platinum:3389" || tabs[3].User != "me" {
+		t.Fatalf("rdp tab = %+v", tabs[3])
+	}
+}
+
 func TestSaveConfigRejectsNil(t *testing.T) {
 	if err := SaveConfig(nil); err == nil {
 		t.Fatal("SaveConfig(nil) succeeded")

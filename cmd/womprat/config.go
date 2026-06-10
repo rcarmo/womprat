@@ -7,6 +7,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -157,6 +158,86 @@ func normalizeConfig(cfg *AppConfig) {
 	}
 	if cfg.FontSize < 0 || cfg.FontSize > 72 {
 		cfg.FontSize = 0
+	}
+	cfg.OpenTabs = sanitizeSavedTabs(cfg.OpenTabs)
+}
+
+func sanitizeSavedTabs(tabs []SavedTab) []SavedTab {
+	out := make([]SavedTab, 0, len(tabs))
+	for _, tab := range tabs {
+		sanitized, ok := sanitizeSavedTab(tab)
+		if ok {
+			out = append(out, sanitized)
+		}
+	}
+	if len(out) > 100 {
+		out = out[:100]
+	}
+	return out
+}
+
+func sanitizeSavedTab(tab SavedTab) (SavedTab, bool) {
+	tab.Type = strings.ToLower(strings.TrimSpace(tab.Type))
+	tab.Title = strings.TrimSpace(tab.Title)
+	tab.Host = strings.TrimSpace(tab.Host)
+	tab.User = strings.TrimSpace(tab.User)
+	tab.URL = strings.TrimSpace(tab.URL)
+	tab.Favicon = strings.TrimSpace(tab.Favicon)
+	switch tab.Type {
+	case "browser":
+		parsed, err := url.Parse(tab.URL)
+		if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+			return SavedTab{}, false
+		}
+		if tab.Title == "" {
+			tab.Title = tab.URL
+		}
+		return tab, true
+	case "terminal":
+		if err := validateCustomURLHost("ssh", tab.Host); err != nil {
+			return SavedTab{}, false
+		}
+		if tab.User == "" {
+			tab.User = "root"
+		}
+		if err := validateCustomURLUser("ssh", tab.User); err != nil {
+			return SavedTab{}, false
+		}
+		if tab.Port == 0 {
+			tab.Port = 22
+		}
+		if tab.Port <= 0 || tab.Port > 65535 {
+			return SavedTab{}, false
+		}
+		if tab.Title == "" {
+			tab.Title = tab.Host
+		}
+		return tab, true
+	case "vnc", "rdp":
+		customURL := tab.URL
+		if customURL == "" && tab.Host != "" {
+			custom := customURLTarget{Scheme: tab.Type, Host: tab.Host, Port: tab.Port, User: tab.User}
+			if custom.Port == 0 {
+				if p, ok := customSchemeDefaultPort(tab.Type); ok {
+					custom.Port = p
+				}
+			}
+			customURL = custom.canonicalURL()
+		}
+		custom, err := parseCustomURL(customURL)
+		if err != nil || custom.Scheme != tab.Type {
+			return SavedTab{}, false
+		}
+		tab.Host = custom.Host
+		tab.Port = custom.Port
+		tab.User = custom.User
+		tab.URL = custom.canonicalURL()
+		if tab.Title == "" {
+			tab.Title = tab.URL
+		}
+		return tab, true
+	default:
+		return SavedTab{}, false
 	}
 }
 
