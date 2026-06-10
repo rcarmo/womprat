@@ -101,13 +101,16 @@ func (a *App) handleSetUnlockMethod(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.mu.Lock()
-	a.config.UnlockMethod = body.Method
-	cfg := a.config
+	cfg := cloneConfig(a.config)
 	a.mu.Unlock()
+	cfg.UnlockMethod = body.Method
 	if err := SaveConfig(cfg); err != nil {
 		http.Error(w, err.Error(), 500)
 		return
 	}
+	a.mu.Lock()
+	a.config.UnlockMethod = body.Method
+	a.mu.Unlock()
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
@@ -569,12 +572,15 @@ func (a *App) handleSaveTabs(w http.ResponseWriter, r *http.Request) {
 	}
 	sanitizedTabs := sanitizeSavedTabs(body.Tabs)
 	a.mu.Lock()
-	a.config.OpenTabs = sanitizedTabs
-	cfg := a.config
+	cfg := cloneConfig(a.config)
 	a.mu.Unlock()
+	cfg.OpenTabs = sanitizedTabs
 	if err := SaveConfig(cfg); err != nil {
 		http.Error(w, err.Error(), 500)
 		return
 	}
+	a.mu.Lock()
+	a.config.OpenTabs = sanitizedTabs
+	a.mu.Unlock()
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }

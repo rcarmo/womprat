@@ -127,6 +127,33 @@ func TestSettingsUnlockAndMasterPasswordHandlers(t *testing.T) {
 	}
 }
 
+func TestUnlockMethodAndSaveTabsDoNotChangeMemoryOnPersistFailure(t *testing.T) {
+	app := newTestApp(t)
+	app.config.UnlockMethod = "dpapi"
+	app.config.OpenTabs = []SavedTab{{Type: "browser", URL: "https://old.example.com"}}
+	blocked := filepath.Join(t.TempDir(), "blocked")
+	if err := os.WriteFile(blocked, []byte("x"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("XDG_CONFIG_HOME", blocked)
+
+	rr := performJSON(app.handleSetUnlockMethod, "POST", "/api/settings/unlock-method", map[string]string{"method": "master"})
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("unlock method persist failure = %d %s", rr.Code, rr.Body.String())
+	}
+	if app.config.UnlockMethod != "dpapi" {
+		t.Fatalf("unlock method changed despite persist failure: %+v", app.config)
+	}
+
+	rr = performJSON(app.handleSaveTabs, "POST", "/api/settings/save-tabs", map[string]any{"tabs": []SavedTab{{Type: "browser", URL: "https://new.example.com"}}})
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("save tabs persist failure = %d %s", rr.Code, rr.Body.String())
+	}
+	if len(app.config.OpenTabs) != 1 || app.config.OpenTabs[0].URL != "https://old.example.com" {
+		t.Fatalf("open tabs changed despite persist failure: %+v", app.config.OpenTabs)
+	}
+}
+
 func TestHostAndAppearanceHandlersDoNotChangeMemoryOnPersistFailure(t *testing.T) {
 	app := newTestApp(t)
 	app.config.Hosts["smith"] = HostConfig{User: "old", Port: 22}
