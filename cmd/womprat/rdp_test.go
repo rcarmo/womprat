@@ -56,6 +56,20 @@ func TestViewerWebSocketReadLimits(t *testing.T) {
 	}
 }
 
+func TestRDPCredentialHostMatchesTarget(t *testing.T) {
+	target := rdpTarget{Host: "platinum", Port: 3389, User: "me"}
+	for _, raw := range []string{"", "platinum", "platinum:3389", "rdp://platinum", "rdp://me@platinum:3389"} {
+		if !rdpCredentialHostMatches(raw, target) {
+			t.Fatalf("rdpCredentialHostMatches(%q) = false", raw)
+		}
+	}
+	for _, raw := range []string{"other", "platinum:3390", "rdp://platinum/path", "bad host"} {
+		if rdpCredentialHostMatches(raw, target) {
+			t.Fatalf("rdpCredentialHostMatches(%q) = true", raw)
+		}
+	}
+}
+
 func TestParseRDPColorDepth(t *testing.T) {
 	for _, raw := range []string{"8", "15", "16", "24", "32"} {
 		depth := map[string]int{"8": 8, "15": 15, "16": 16, "24": 24, "32": 32}[raw]

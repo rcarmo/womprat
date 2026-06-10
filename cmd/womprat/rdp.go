@@ -97,6 +97,10 @@ func (a *App) handleRDPWebSocket(w http.ResponseWriter, r *http.Request) {
 		sendRDPError(ctx, ws, "expected credentials")
 		return
 	}
+	if !rdpCredentialHostMatches(creds.Host, queryTarget) {
+		sendRDPError(ctx, ws, "credential host does not match target")
+		return
+	}
 	if creds.Host == "" {
 		creds.Host = net.JoinHostPort(queryTarget.Host, strconv.Itoa(queryTarget.Port))
 	}
@@ -162,6 +166,21 @@ func clampRDPDim(raw string, fallback int) int {
 		return fallback
 	}
 	return v
+}
+
+func rdpCredentialHostMatches(raw string, target rdpTarget) bool {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return true
+	}
+	if !strings.Contains(raw, "://") {
+		raw = "rdp://" + raw
+	}
+	parsed, err := parseRDPURL(raw)
+	if err != nil {
+		return false
+	}
+	return strings.EqualFold(parsed.Host, target.Host) && parsed.Port == target.Port
 }
 
 func parseRDPColorDepth(raw string, fallback int) int {
