@@ -2751,6 +2751,8 @@ class WompratVncViewer {
   framebuffer = null;
   buttons = 0;
   activeKeys = new Set;
+  fitToViewport = true;
+  closedByReconnect = false;
   constructor(root, target, password = null) {
     this.root = root;
     this.target = target;
@@ -2763,12 +2765,29 @@ class WompratVncViewer {
     this.ctx = ctx;
     this.installInput();
     this.installClipboard();
+    this.installControls();
     this.installResize();
+  }
+  readPassword() {
+    const input = this.root.querySelector("[data-vnc-password]");
+    return input?.value || this.root.getAttribute("data-vnc-password") || null;
   }
   async init() {
     setStatus(this.root, "Loading VNC decoder…");
     const pipeline = await loadRemoteDisplayWasmDecoder();
+    this.password = this.readPassword();
     this.protocol = new VncRemoteDisplayProtocol({ shared: true, password: this.password, pipeline });
+  }
+  async reconnect() {
+    this.closedByReconnect = true;
+    try { this.ws?.close(1000, "reconnect"); } catch {}
+    this.ws = null;
+    this.framebuffer = null;
+    this.buttons = 0;
+    this.activeKeys.clear();
+    await this.init();
+    this.closedByReconnect = false;
+    this.connect();
   }
   connect() {
     const url = new URL(`${wsBase()}//${window.location.host}/api/vnc/ws`);
@@ -2781,7 +2800,8 @@ class WompratVncViewer {
     this.ws.onerror = () => setStatus(this.root, "VNC connection error.");
     this.ws.onclose = (event) => {
       setBusy(this.root, false);
-      setStatus(this.root, event.reason ? `Disconnected: ${event.reason}` : "Disconnected.");
+      if (!this.closedByReconnect)
+        setStatus(this.root, event.reason ? `Disconnected: ${event.reason}` : "Disconnected.");
     };
     this.ws.onmessage = (event) => this.receive(new Uint8Array(event.data));
   }
@@ -2798,7 +2818,12 @@ class WompratVncViewer {
         this.handleEvent(event);
     } catch (error) {
       setBusy(this.root, false);
-      setStatus(this.root, `VNC error: ${error?.message || error}`);
+      const message = String(error?.message || error);
+      setStatus(this.root, `VNC error: ${message}`);
+      if (/password authentication is required|authentication failed/i.test(message)) {
+        const input = this.root.querySelector("[data-vnc-password]");
+        input?.focus?.();
+      }
       try {
         this.ws?.close();
       } catch {}
@@ -2847,7 +2872,7 @@ class WompratVncViewer {
     const w = Math.max(1, this.canvas.width || 1);
     const h = Math.max(1, this.canvas.height || 1);
     const bounds = this.viewport.getBoundingClientRect();
-    const scale = Math.min(bounds.width / w, bounds.height / h, 1) || 1;
+    const scale = this.fitToViewport ? Math.min(bounds.width / w, bounds.height / h, 1) || 1 : 1;
     this.canvas.style.width = `${Math.max(1, Math.floor(w * scale))}px`;
     this.canvas.style.height = `${Math.max(1, Math.floor(h * scale))}px`;
   }
@@ -2896,6 +2921,24 @@ class WompratVncViewer {
       const input = this.root.querySelector("[data-vnc-clipboard]");
       this.send(clientCutText(input?.value || ""));
       setStatus(this.root, "Clipboard sent to remote.");
+    });
+  }
+  installControls() {
+    const reconnect = this.root.querySelector("[data-vnc-reconnect]");
+    reconnect?.addEventListener("click", () => this.reconnect());
+    const password = this.root.querySelector("[data-vnc-password]");
+    password?.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        this.reconnect();
+      }
+    });
+    const scale = this.root.querySelector("[data-vnc-scale]");
+    scale?.addEventListener("click", () => {
+      this.fitToViewport = !this.fitToViewport;
+      scale.textContent = this.fitToViewport ? "Fit" : "1:1";
+      scale.setAttribute("aria-pressed", this.fitToViewport ? "true" : "false");
+      this.fitCanvas();
     });
   }
   installInput() {

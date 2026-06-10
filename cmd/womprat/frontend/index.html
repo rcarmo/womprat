@@ -112,9 +112,11 @@ button,a,.tab,.recent-item,.option{
 .vnc-status{display:inline-flex;align-items:center;gap:6px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .vnc-status::before{content:"";width:8px;height:8px;border-radius:999px;background:var(--accent);box-shadow:0 0 0 3px rgba(96,205,255,.12)}
 .vnc-panel[data-busy] .vnc-status::before{animation:vncPulse 1.2s ease-in-out infinite;background:#f2c94c}
-.vnc-clipboard{margin-left:auto;min-width:160px;max-width:360px;width:32vw;height:24px;background:var(--layer);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);padding:0 8px;font:12px var(--font);outline:none;color-scheme:dark}
-.vnc-clipboard:focus{border-color:var(--accent);background:var(--bg)}
-.vnc-send{height:24px;min-width:52px;padding:0 10px;font-size:12px;font-weight:600}
+.vnc-field{height:24px;background:var(--layer);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);padding:0 8px;font:12px var(--font);outline:none;color-scheme:dark}
+.vnc-field:focus{border-color:var(--accent);background:var(--bg)}
+.vnc-password{margin-left:auto;width:128px}
+.vnc-clipboard{min-width:160px;max-width:360px;width:28vw}
+.vnc-send,.vnc-reconnect,.vnc-scale{height:24px;min-width:52px;padding:0 10px;font-size:12px;font-weight:600}
 .vnc-viewport{flex:1;min-height:0;display:grid;place-items:center;overflow:hidden;background:radial-gradient(circle at 50% 30%,rgba(255,255,255,.06),transparent 42%),#050609}
 .vnc-viewport canvas{display:block;image-rendering:pixelated;background:#000;border:1px solid rgba(255,255,255,.14);border-radius:var(--radius);box-shadow:0 8px 30px rgba(0,0,0,.45);outline:none}
 .vnc-viewport canvas:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(96,205,255,.22),0 8px 30px rgba(0,0,0,.45)}
@@ -871,7 +873,10 @@ function activateTab(id, options = {}) {
       panel.innerHTML = `<div class="vnc-panel">
         <div class="vnc-toolbar">
           <span class="vnc-status" data-vnc-status>Preparing VNC…</span>
-          <input class="vnc-clipboard" data-vnc-clipboard placeholder="Clipboard text" aria-label="VNC clipboard text">
+          <input class="vnc-field vnc-password" data-vnc-password type="password" placeholder="Password" aria-label="VNC password" autocomplete="current-password">
+          <button data-vnc-reconnect class="icon-button text-button vnc-reconnect">Reconnect</button>
+          <button data-vnc-scale class="icon-button text-button vnc-scale" aria-pressed="true">Fit</button>
+          <input class="vnc-field vnc-clipboard" data-vnc-clipboard placeholder="Clipboard text" aria-label="VNC clipboard text">
           <button data-vnc-send-clipboard class="icon-button text-button vnc-send">Send</button>
         </div>
         <div class="vnc-viewport" data-vnc-viewport><canvas aria-label="VNC remote display"></canvas></div>
