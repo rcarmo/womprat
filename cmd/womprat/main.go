@@ -1093,17 +1093,7 @@ func (a *App) handleSSHConnect(w http.ResponseWriter, r *http.Request) {
 	sshConn, chans, reqs, err := ssh.NewClientConn(conn, addr, config)
 	if err != nil {
 		conn.Close()
-		conn2, err2 := ts.Dial(context.Background(), "tcp", addr)
-		if err2 != nil {
-			httpError(w, 500, "Connection failed", err2.Error())
-			return
-		}
-		noneConfig := &ssh.ClientConfig{
-			User: body.User, Auth: []ssh.AuthMethod{ssh.Password("")},
-			HostKeyCallback: a.hostKeyCallback(body.Host), Timeout: 5 * time.Second,
-		}
-		_, _, _, _ = ssh.NewClientConn(conn2, addr, noneConfig)
-		conn2.Close()
+		log.Printf("ssh key auth failed for %s: %v; prompting for password", addr, err)
 		tabID := newTabID("term")
 		a.mu.Lock()
 		a.pendingAuth[tabID] = &pendingSSH{host: body.Host, user: body.User, port: body.Port, cols: body.Cols, rows: body.Rows}
