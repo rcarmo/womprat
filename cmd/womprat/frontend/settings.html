@@ -515,16 +515,32 @@ async function generateKey() {
   await fetch('/api/settings/ssh-keys/generate', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name})});
   loadKeys();
 }
+function emptyTableRow(tbody, cols, text) {
+  tbody.textContent = '';
+  const tr = document.createElement('tr');
+  const td = document.createElement('td');
+  td.colSpan = cols;
+  td.style.color = 'var(--dim)';
+  td.textContent = text;
+  tr.appendChild(td);
+  tbody.appendChild(tr);
+}
 async function loadKeys() {
   const keys = await fetch('/api/settings/ssh-keys').then(r=>r.json()).catch(()=>[]);
   const tbody = document.getElementById('keys-table');
-  if (!keys.length) { tbody.innerHTML = '<tr><td colspan="4" style="color:var(--dim)">No keys imported</td></tr>'; return; }
-  tbody.innerHTML = keys.map(k => `<tr>
-    <td class="mono">${escapeHTML(k.name)}</td>
-    <td class="mono" style="font-size:.72rem">${escapeHTML(k.fingerprint || '—')}</td>
-    <td>${escapeHTML((k.hosts || []).join(', ') || '—')}</td>
-    <td><button class="btn-danger" onclick="deleteKey(${jsArg(k.name)})" style="padding:.2rem .5rem;font-size:.7rem">Delete</button></td>
-  </tr>`).join('');
+  tbody.textContent = '';
+  if (!keys.length) { emptyTableRow(tbody, 4, 'No keys imported'); return; }
+  keys.forEach(k => {
+    const tr = document.createElement('tr');
+    const name = document.createElement('td'); name.className = 'mono'; name.textContent = k.name || '';
+    const fp = document.createElement('td'); fp.className = 'mono'; fp.style.fontSize = '.72rem'; fp.textContent = k.fingerprint || '—';
+    const hosts = document.createElement('td'); hosts.textContent = (k.hosts || []).join(', ') || '—';
+    const actions = document.createElement('td');
+    const btn = document.createElement('button'); btn.className = 'btn-danger'; btn.style.cssText = 'padding:.2rem .5rem;font-size:.7rem'; btn.textContent = 'Delete'; btn.onclick = () => deleteKey(k.name || '');
+    actions.appendChild(btn);
+    tr.append(name, fp, hosts, actions);
+    tbody.appendChild(tr);
+  });
 }
 async function deleteKey(name) {
   if (!confirm(`Delete key "${name}"?`)) return;

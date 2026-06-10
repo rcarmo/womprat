@@ -15,6 +15,22 @@ func readFileForRegression(t *testing.T, path string) string {
 	return string(b)
 }
 
+func TestSettingsKeysTableUsesSafeDOMConstruction(t *testing.T) {
+	s := readFileForRegression(t, "frontend/settings.html")
+	for _, want := range []string{
+		"function emptyTableRow(tbody, cols, text)",
+		"btn.onclick = () => deleteKey(k.name || '');",
+		"tr.append(name, fp, hosts, actions);",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("settings keys DOM rendering missing %q", want)
+		}
+	}
+	if strings.Contains(s, "onclick=\"deleteKey") {
+		t.Fatal("settings keys table must not template onclick handlers")
+	}
+}
+
 func TestSettingsStatusUsesSafeDOMConstruction(t *testing.T) {
 	s := readFileForRegression(t, "frontend/settings.html")
 	for _, want := range []string{
