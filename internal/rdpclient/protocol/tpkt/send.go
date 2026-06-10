@@ -3,11 +3,15 @@ package tpkt
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 )
 
 func (p *Protocol) Send(pduData []byte) error {
+	if len(pduData) > 0xffff-headerLen {
+		return fmt.Errorf("TPKT payload too large: %d bytes", len(pduData))
+	}
 	buf := bytes.NewBuffer(make([]byte, 0, headerLen+len(pduData)))
-	dataLen := uint16(headerLen + len(pduData)) // #nosec G115
+	dataLen := uint16(headerLen + len(pduData))
 
 	buf.Write([]byte{
 		0x03, // TPKT version number

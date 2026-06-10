@@ -86,6 +86,11 @@ func TestProtocolSend(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name:    "oversized payload",
+			pduData: bytes.Repeat([]byte{0xAB}, 0x10000),
+			wantErr: true,
+		},
+		{
 			name:     "write error",
 			pduData:  []byte{0x01, 0x02},
 			wantErr:  true,
