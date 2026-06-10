@@ -119,10 +119,18 @@ func (c *CapsPDU) Deserialize(r io.Reader) error {
 
 	// Version 3 has priority charges
 	if c.Version >= CapsVersion3 {
-		_ = binary.Read(r, binary.LittleEndian, &c.PriorityCharge0)
-		_ = binary.Read(r, binary.LittleEndian, &c.PriorityCharge1)
-		_ = binary.Read(r, binary.LittleEndian, &c.PriorityCharge2)
-		_ = binary.Read(r, binary.LittleEndian, &c.PriorityCharge3)
+		if err := binary.Read(r, binary.LittleEndian, &c.PriorityCharge0); err != nil {
+			return fmt.Errorf("caps priority charge 0: %w", err)
+		}
+		if err := binary.Read(r, binary.LittleEndian, &c.PriorityCharge1); err != nil {
+			return fmt.Errorf("caps priority charge 1: %w", err)
+		}
+		if err := binary.Read(r, binary.LittleEndian, &c.PriorityCharge2); err != nil {
+			return fmt.Errorf("caps priority charge 2: %w", err)
+		}
+		if err := binary.Read(r, binary.LittleEndian, &c.PriorityCharge3); err != nil {
+			return fmt.Errorf("caps priority charge 3: %w", err)
+		}
 	}
 
 	return nil
@@ -404,17 +412,17 @@ const (
 
 // SoftSyncChannelDef represents a channel in the Soft-Sync channel list
 type SoftSyncChannelDef struct {
-	ChannelID    uint32
-	TunnelType   uint32
+	ChannelID  uint32
+	TunnelType uint32
 }
 
 // SoftSyncRequestPDU represents DYNVC_SOFT_SYNC_REQUEST (MS-RDPEDYC 2.2.5.1)
 // Sent by server to initiate TCP to UDP transport transition
 type SoftSyncRequestPDU struct {
-	Pad           uint8
-	Flags         uint8
+	Pad             uint8
+	Flags           uint8
 	NumberOfTunnels uint16
-	Channels      []SoftSyncChannelDef
+	Channels        []SoftSyncChannelDef
 }
 
 // Deserialize decodes SoftSyncRequestPDU from wire format (after header byte)
@@ -528,8 +536,8 @@ func (d *DataCompressedPDU) Decompress(decompressor *ZGFXDecompressor) ([]byte, 
 // ZGFXDecompressor handles RDP8 bulk compression (MS-RDPEGFX 3.3)
 // This is a stateful decompressor that maintains history across calls
 type ZGFXDecompressor struct {
-	history     []byte
-	historyIdx  int
+	history    []byte
+	historyIdx int
 }
 
 // NewZGFXDecompressor creates a new ZGFX decompressor
@@ -549,10 +557,10 @@ func (z *ZGFXDecompressor) Decompress(compressed []byte) ([]byte, error) {
 
 	// Check descriptor byte
 	descriptor := compressed[0]
-	
+
 	// Bit 0: PACKET_COMPRESSED
 	isCompressed := (descriptor & 0x01) != 0
-	
+
 	if !isCompressed {
 		// Uncompressed data follows descriptor
 		data := compressed[1:]
@@ -563,7 +571,7 @@ func (z *ZGFXDecompressor) Decompress(compressed []byte) ([]byte, error) {
 	// ZGFX compressed - use segmented or single segment
 	// Bit 1: PACKET_AT_FRONT (history offset 0)
 	// Bit 2: PACKET_FLUSHED (reset history)
-	
+
 	if (descriptor & 0x04) != 0 {
 		// PACKET_FLUSHED - reset history
 		z.historyIdx = 0
@@ -582,7 +590,7 @@ func (z *ZGFXDecompressor) decompressSegment(data []byte) ([]byte, error) {
 	// Read segment header
 	segmentCount := binary.LittleEndian.Uint16(data[0:2])
 	uncompressedSize := binary.LittleEndian.Uint32(append(data[2:4], 0, 0)) // 16-bit in simple case
-	
+
 	if segmentCount == 0 {
 		// Single segment mode
 		return z.decompressSingleSegment(data[4:], int(uncompressedSize))
@@ -640,7 +648,7 @@ func (z *ZGFXDecompressor) decompressSingleSegment(data []byte, maxSize int) ([]
 			if err != nil {
 				break
 			}
-			
+
 			// Copy from history
 			for i := 0; i < length; i++ {
 				idx := z.historyIdx - distance
@@ -678,7 +686,7 @@ func (z *ZGFXDecompressor) readMatch(reader *bitReader) (distance, length int, e
 		if err != nil {
 			return 0, 0, err
 		}
-		
+
 		switch prefix {
 		case 0: // 9 bits total
 			d, err := reader.readBits(8)
@@ -686,7 +694,7 @@ func (z *ZGFXDecompressor) readMatch(reader *bitReader) (distance, length int, e
 				return 0, 0, err
 			}
 			distance = int(d) + 257
-		case 1: // 12 bits total  
+		case 1: // 12 bits total
 			d, err := reader.readBits(10)
 			if err != nil {
 				return 0, 0, err
@@ -726,7 +734,7 @@ func (z *ZGFXDecompressor) readMatch(reader *bitReader) (distance, length int, e
 		if err != nil {
 			return 0, 0, err
 		}
-		
+
 		switch prefix {
 		case 0:
 			l, err := reader.readBits(4)
@@ -771,9 +779,9 @@ func (z *ZGFXDecompressor) appendHistory(b byte) {
 
 // bitReader reads individual bits from a byte slice
 type bitReader struct {
-	data     []byte
-	byteIdx  int
-	bitIdx   int
+	data    []byte
+	byteIdx int
+	bitIdx  int
 }
 
 func newBitReader(data []byte) *bitReader {

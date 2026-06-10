@@ -61,6 +61,13 @@ func TestHeader_ChannelIDSize(t *testing.T) {
 	}
 }
 
+func TestCapsPDUDeserializeRejectsTruncatedV3Priorities(t *testing.T) {
+	data := []byte{byte((CmdCapability << 4) | 0), 0x00, byte(CapsVersion3), 0x00, 0x01}
+	var decoded CapsPDU
+	err := decoded.Deserialize(bytes.NewReader(data))
+	assert.Error(t, err)
+}
+
 func TestCapsPDU_SerializeDeserialize(t *testing.T) {
 	tests := []struct {
 		name string
@@ -373,12 +380,12 @@ func TestReadChannelID(t *testing.T) {
 
 func TestSoftSyncRequestPDU_Deserialize(t *testing.T) {
 	tests := []struct {
-		name            string
-		data            []byte
-		expectFlags     uint8
-		expectTunnels   uint16
-		expectChannels  int
-		expectError     bool
+		name           string
+		data           []byte
+		expectFlags    uint8
+		expectTunnels  uint16
+		expectChannels int
+		expectError    bool
 	}{
 		{
 			name: "basic request no channels",
@@ -427,9 +434,9 @@ func TestSoftSyncRequestPDU_Deserialize(t *testing.T) {
 
 func TestSoftSyncResponsePDU_Serialize(t *testing.T) {
 	tests := []struct {
-		name    string
-		pdu     SoftSyncResponsePDU
-		minLen  int
+		name   string
+		pdu    SoftSyncResponsePDU
+		minLen int
 	}{
 		{
 			name: "no tunnels (TCP only)",
@@ -484,7 +491,7 @@ func TestDataCompressedPDU_Deserialize(t *testing.T) {
 		{
 			name: "data first compressed with length",
 			data: []byte{
-				0x0A, 0x00,             // channelID=10 (2-byte)
+				0x0A, 0x00, // channelID=10 (2-byte)
 				0x00, 0x10, 0x00, 0x00, // length=4096
 				0xDE, 0xAD, 0xBE, 0xEF, // compressed data
 			},
@@ -533,7 +540,7 @@ func TestZGFXDecompressor_Flushed(t *testing.T) {
 	// Test PACKET_FLUSHED flag (0x04) - should reset history
 	// First add some data to history
 	_, _ = decompressor.Decompress([]byte{0x00, 'A', 'B', 'C'})
-	
+
 	// Then send flushed uncompressed data
 	compressed := []byte{0x04, 'X', 'Y', 'Z'} // FLUSHED flag set, not compressed
 	result, err := decompressor.Decompress(compressed)
@@ -588,13 +595,13 @@ func TestBitReader(t *testing.T) {
 
 func TestBitReader_EOF(t *testing.T) {
 	reader := newBitReader([]byte{0xFF})
-	
+
 	// Read all 8 bits
 	for i := 0; i < 8; i++ {
 		_, err := reader.readBit()
 		require.NoError(t, err)
 	}
-	
+
 	// Next read should EOF
 	_, err := reader.readBit()
 	assert.Error(t, err)
@@ -604,12 +611,12 @@ func TestBitReader_ReadBits_CrossByte(t *testing.T) {
 	// Test reading bits that cross byte boundaries
 	data := []byte{0xFF, 0x00} // 11111111 00000000
 	reader := newBitReader(data)
-	
+
 	// Read 4 bits (1111)
 	val, err := reader.readBits(4)
 	require.NoError(t, err)
 	assert.Equal(t, uint32(0xF), val)
-	
+
 	// Read 8 bits crossing boundary (1111 0000)
 	val, err = reader.readBits(8)
 	require.NoError(t, err)
@@ -626,7 +633,7 @@ func TestCapsPDU_Deserialize_V3_Complete(t *testing.T) {
 		PriorityCharge3: 400,
 	}
 	data := caps.Serialize()
-	
+
 	var decoded CapsPDU
 	err := decoded.Deserialize(bytes.NewReader(data))
 	require.NoError(t, err)
@@ -643,7 +650,7 @@ func TestCreateResponsePDU_Deserialize_4ByteChannel(t *testing.T) {
 		0x78, 0x56, 0x34, 0x12, // Channel ID (4 bytes) = 0x12345678
 		0x00, 0x00, 0x00, 0x00, // Creation status = success
 	}
-	
+
 	var resp CreateResponsePDU
 	err := resp.Deserialize(bytes.NewReader(data), 2) // cbChID=2 means 4 bytes
 	require.NoError(t, err)
@@ -657,7 +664,7 @@ func TestCreateResponsePDU_Deserialize_Failure(t *testing.T) {
 		0x01,                   // Channel ID (1 byte)
 		0x01, 0x00, 0x00, 0x00, // Creation status = denied
 	}
-	
+
 	var resp CreateResponsePDU
 	err := resp.Deserialize(bytes.NewReader(data), 0)
 	require.NoError(t, err)
@@ -673,7 +680,7 @@ func TestDataFirstPDU_Serialize_AllLengthSizes(t *testing.T) {
 		{"2-byte length", 1000},
 		{"4-byte length", 100000},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			pdu := DataFirstPDU{
@@ -683,7 +690,7 @@ func TestDataFirstPDU_Serialize_AllLengthSizes(t *testing.T) {
 			}
 			data := pdu.Serialize()
 			require.NotEmpty(t, data)
-			
+
 			// Verify header
 			var h Header
 			h.Deserialize(data[0])
@@ -700,7 +707,7 @@ func TestSoftSyncRequestPDU_Deserialize_TooManyChannels(t *testing.T) {
 		0x01, 0x00, // NumberOfTunnels
 		0x01, 0x10, // Channel count = 4097 (exceeds 1024 limit)
 	}
-	
+
 	var pdu SoftSyncRequestPDU
 	err := pdu.Deserialize(bytes.NewReader(data))
 	assert.Error(t, err)
@@ -716,7 +723,7 @@ func TestDataFirstPDU_Serialize_AllChannelSizes(t *testing.T) {
 		{"2-byte channel", 1000},
 		{"4-byte channel", 100000},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			pdu := DataFirstPDU{
@@ -739,7 +746,7 @@ func TestDataPDU_Serialize_AllChannelSizes(t *testing.T) {
 		{"2-byte channel", 1000},
 		{"4-byte channel", 100000},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			pdu := DataPDU{
@@ -759,7 +766,7 @@ func TestSoftSyncRequestPDU_Deserialize_NoChannelList(t *testing.T) {
 		0x01,       // Flags (TCP_FLUSHED only, no channel list)
 		0x02, 0x00, // NumberOfTunnels
 	}
-	
+
 	var pdu SoftSyncRequestPDU
 	err := pdu.Deserialize(bytes.NewReader(data))
 	require.NoError(t, err)
@@ -776,7 +783,7 @@ func TestSoftSyncRequestPDU_Deserialize_ReadErrors(t *testing.T) {
 		{"only pad", []byte{0x00}},
 		{"missing tunnels", []byte{0x00, 0x01}},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var pdu SoftSyncRequestPDU
@@ -789,9 +796,9 @@ func TestSoftSyncRequestPDU_Deserialize_ReadErrors(t *testing.T) {
 func TestDataCompressedPDU_Deserialize_4ByteChannel(t *testing.T) {
 	data := []byte{
 		0x78, 0x56, 0x34, 0x12, // Channel ID (4 bytes)
-		0xAA, 0xBB, 0xCC,       // Compressed data
+		0xAA, 0xBB, 0xCC, // Compressed data
 	}
-	
+
 	var pdu DataCompressedPDU
 	err := pdu.Deserialize(data, 2, false) // cbChID=2 means 4 bytes
 	require.NoError(t, err)
@@ -803,7 +810,7 @@ func TestDataCompressedPDU_Deserialize_DataFirst_TooShort(t *testing.T) {
 		0x01,       // Channel ID (1 byte)
 		0x00, 0x00, // Only 2 bytes for length, need 4
 	}
-	
+
 	var pdu DataCompressedPDU
 	err := pdu.Deserialize(data, 0, true) // isFirst=true needs length field
 	assert.Error(t, err)
@@ -820,11 +827,11 @@ func TestDataCompressedPDU_Deserialize_DataFirst_TooShort(t *testing.T) {
 func TestBVT_StaticVirtualChannel_HeaderFlags(t *testing.T) {
 	// Virtual channel header flags per MS-RDPBCGR 2.2.6.1
 	const (
-		CHANNEL_FLAG_FIRST    = 0x00000001
-		CHANNEL_FLAG_LAST     = 0x00000002
-		CHANNEL_FLAG_SHOW_PROTOCOL = 0x00000010
-		CHANNEL_FLAG_SUSPEND  = 0x00000020
-		CHANNEL_FLAG_RESUME   = 0x00000040
+		CHANNEL_FLAG_FIRST             = 0x00000001
+		CHANNEL_FLAG_LAST              = 0x00000002
+		CHANNEL_FLAG_SHOW_PROTOCOL     = 0x00000010
+		CHANNEL_FLAG_SUSPEND           = 0x00000020
+		CHANNEL_FLAG_RESUME            = 0x00000040
 		CHANNEL_FLAG_SHADOW_PERSISTENT = 0x00000080
 	)
 
@@ -861,16 +868,16 @@ func TestBVT_StaticVirtualChannel_HeaderFlags(t *testing.T) {
 // Per MS-RDPBCGR Section 2.2.6.1.1
 func TestS7_StaticVirtualChannel_Compression(t *testing.T) {
 	const (
-		CHANNEL_FLAG_FIRST         = 0x00000001
-		CHANNEL_FLAG_LAST          = 0x00000002
-		CompressionTypeMask        = 0x000F0000
-		PACKET_COMPRESSED          = 0x00200000
-		PACKET_AT_FRONT            = 0x00400000
-		PACKET_FLUSHED             = 0x00800000
-		CompressionType_8K         = 0x00000000
-		CompressionType_64K        = 0x00010000
-		CompressionType_RDP6       = 0x00020000
-		CompressionType_RDP61      = 0x00030000
+		CHANNEL_FLAG_FIRST    = 0x00000001
+		CHANNEL_FLAG_LAST     = 0x00000002
+		CompressionTypeMask   = 0x000F0000
+		PACKET_COMPRESSED     = 0x00200000
+		PACKET_AT_FRONT       = 0x00400000
+		PACKET_FLUSHED        = 0x00800000
+		CompressionType_8K    = 0x00000000
+		CompressionType_64K   = 0x00010000
+		CompressionType_RDP6  = 0x00020000
+		CompressionType_RDP61 = 0x00030000
 	)
 
 	tests := []struct {
