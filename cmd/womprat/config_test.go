@@ -72,8 +72,9 @@ func TestSanitizeHostConfigs(t *testing.T) {
 		"platinum": {User: " me ", Port: 22, KeyName: " main ", Nickname: strings.Repeat("n", 120), URL: "https://platinum.local"},
 		"bad host": {User: "me", Port: 22},
 		"baduser":  {User: "bad user", Port: 70000, KeyName: "../x", URL: "rdp://me@host"},
+		"userinfo": {URL: "https://user@example.com"},
 	})
-	if len(hosts) != 2 {
+	if len(hosts) != 3 {
 		t.Fatalf("hosts = %+v", hosts)
 	}
 	if got := hosts["platinum"]; got.User != "me" || got.KeyName != "main" || len(got.Nickname) != 100 || got.URL != "https://platinum.local" {
@@ -81,6 +82,9 @@ func TestSanitizeHostConfigs(t *testing.T) {
 	}
 	if got := hosts["baduser"]; got.User != "" || got.Port != 0 || got.KeyName != "" || got.URL != "" {
 		t.Fatalf("baduser host = %+v", got)
+	}
+	if got := hosts["userinfo"]; got.URL != "" {
+		t.Fatalf("userinfo host = %+v", got)
 	}
 }
 

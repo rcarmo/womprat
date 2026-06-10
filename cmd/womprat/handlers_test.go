@@ -140,6 +140,10 @@ func TestHostsAppearanceAndSaveTabsHandlers(t *testing.T) {
 	if rr.Code != http.StatusBadRequest {
 		t.Fatalf("bad host port = %d %s", rr.Code, rr.Body.String())
 	}
+	rr = performJSON(app.handleHosts, "PATCH", "/api/settings/hosts/smith", map[string]any{"user": "bad user"})
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("bad host user = %d %s", rr.Code, rr.Body.String())
+	}
 	rr = performJSON(app.handleHosts, "PATCH", "/api/settings/hosts/bad/extra", map[string]any{"port": 22})
 	if rr.Code != http.StatusBadRequest {
 		t.Fatalf("bad host path = %d %s", rr.Code, rr.Body.String())

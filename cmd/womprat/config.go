@@ -213,7 +213,7 @@ func sanitizeHostConfigURL(raw string) string {
 		return ""
 	}
 	parsed, err := url.Parse(raw)
-	if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+	if err != nil || parsed.Host == "" || parsed.User != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") {
 		return ""
 	}
 	return parsed.String()

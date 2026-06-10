@@ -315,7 +315,15 @@ func (a *App) handleHosts(w http.ResponseWriter, r *http.Request) {
 		a.mu.Lock()
 		conf := a.config.Hosts[host]
 		if body.User != nil {
-			conf.User = strings.TrimSpace(*body.User)
+			user := strings.TrimSpace(*body.User)
+			if user != "" {
+				if err := validateCustomURLUser("ssh", user); err != nil {
+					a.mu.Unlock()
+					http.Error(w, err.Error(), 400)
+					return
+				}
+			}
+			conf.User = user
 		}
 		if body.Port != nil {
 			if *body.Port <= 0 || *body.Port > 65535 {
