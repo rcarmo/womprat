@@ -301,7 +301,10 @@ func (n *NTLMv2) GetAuthenticateMessageWithError(challengeData []byte) ([]byte, 
 	}
 
 	encryptedRandomSessionKey := make([]byte, 16)
-	rc, _ := rc4.NewCipher(sessionBaseKey) // #nosec G405 -- RC4 is required by NTLMv2 authentication protocol
+	rc, err := rc4.NewCipher(sessionBaseKey) // #nosec G405 -- RC4 is required by NTLMv2 authentication protocol
+	if err != nil {
+		return nil, nil, fmt.Errorf("create NTLM key-exchange cipher: %w", err)
+	}
 	rc.XORKeyStream(encryptedRandomSessionKey, exportedSessionKey)
 
 	// Build authenticate message
@@ -332,8 +335,14 @@ func (n *NTLMv2) GetAuthenticateMessageWithError(challengeData []byte) ([]byte, 
 	clientSealingKey := md5Hash(append(exportedSessionKey, append([]byte("session key to client-to-server sealing key magic constant"), 0x00)...))
 	serverSealingKey := md5Hash(append(exportedSessionKey, append([]byte("session key to server-to-client sealing key magic constant"), 0x00)...))
 
-	encryptRC4, _ := rc4.NewCipher(clientSealingKey) // #nosec G405 -- RC4 is required by NTLMv2 authentication protocol
-	decryptRC4, _ := rc4.NewCipher(serverSealingKey) // #nosec G405 -- RC4 is required by NTLMv2 authentication protocol
+	encryptRC4, err := rc4.NewCipher(clientSealingKey) // #nosec G405 -- RC4 is required by NTLMv2 authentication protocol
+	if err != nil {
+		return nil, nil, fmt.Errorf("create NTLM encrypt cipher: %w", err)
+	}
+	decryptRC4, err := rc4.NewCipher(serverSealingKey) // #nosec G405 -- RC4 is required by NTLMv2 authentication protocol
+	if err != nil {
+		return nil, nil, fmt.Errorf("create NTLM decrypt cipher: %w", err)
+	}
 
 	return authMsg, &Security{
 		encryptRC4: encryptRC4,
