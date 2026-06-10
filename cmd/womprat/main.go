@@ -868,8 +868,7 @@ func (a *App) handleAuthStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleUnlock(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" {
-		http.Error(w, "method not allowed", 405)
+	if !requirePOST(w, r) {
 		return
 	}
 	var body struct {
@@ -893,8 +892,7 @@ func (a *App) handleUnlock(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleSaveKey(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" {
-		http.Error(w, "method not allowed", 405)
+	if !requirePOST(w, r) {
 		return
 	}
 	var body struct {
@@ -1047,8 +1045,7 @@ func moduleVersion(path string) string {
 }
 
 func (a *App) handleSSHConnect(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" {
-		http.Error(w, "method not allowed", 405)
+	if !requirePOST(w, r) {
 		return
 	}
 	var body struct {
@@ -1135,8 +1132,7 @@ func (a *App) handleSSHConnect(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleSSHResize(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	if !requirePOST(w, r) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -1178,8 +1174,7 @@ func (a *App) hostKeyCallback(host string) ssh.HostKeyCallback {
 }
 
 func (a *App) handleSSHAuthPassword(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" {
-		http.Error(w, "method not allowed", 405)
+	if !requirePOST(w, r) {
 		return
 	}
 	var body struct {
