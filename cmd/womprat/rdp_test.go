@@ -4,6 +4,8 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/rcarmo/womprat/internal/rdpclient/protocol/pdu"
 )
 
 func TestParseRDPURL(t *testing.T) {
@@ -84,5 +86,22 @@ func TestRDPDefaultsEnableWASMBackedRFX(t *testing.T) {
 	}
 	if got := rdpRFXEnabled("false"); got {
 		t.Fatal("explicit rfx=false should disable RFX")
+	}
+}
+
+func TestRDPAdvertisesOnlyWASMBackedBitmapCodecs(t *testing.T) {
+	set := pdu.NewBitmapCodecsWithRFXCapabilitySet()
+	if set.BitmapCodecsCapabilitySet == nil {
+		t.Fatal("missing bitmap codecs capability set")
+	}
+	codecs := set.BitmapCodecsCapabilitySet.BitmapCodecArray
+	if len(codecs) != 2 {
+		t.Fatalf("advertised codec count = %d, want NSCodec + RemoteFX-Image only", len(codecs))
+	}
+	if codecs[0].CodecGUID != pdu.NSCodecGUID {
+		t.Fatalf("first advertised codec = %#v, want NSCodec", codecs[0].CodecGUID)
+	}
+	if codecs[1].CodecGUID != pdu.RemoteFXImageGUID {
+		t.Fatalf("second advertised codec = %#v, want RemoteFX-Image", codecs[1].CodecGUID)
 	}
 }
