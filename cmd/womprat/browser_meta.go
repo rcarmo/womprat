@@ -24,6 +24,23 @@ func sanitizeBrowserTitle(title string) string {
 	return strings.ToValidUTF8(title, "")
 }
 
+func validBrowserHotkeyAction(action string) bool {
+	switch action {
+	case "focusUrl", "newTab", "closeTab", "reload", "back", "forward", "nextTab", "prevTab", "tabAt":
+		return true
+	default:
+		return false
+	}
+}
+
+func sanitizeBrowserHotkeyArg(arg string) string {
+	arg = strings.TrimSpace(arg)
+	if len(arg) > 16 {
+		arg = arg[:16]
+	}
+	return strings.ToValidUTF8(arg, "")
+}
+
 func sanitizeFaviconURL(favicon string) string {
 	favicon = strings.TrimSpace(favicon)
 	if favicon == "" || len(favicon) > maxFaviconURLBytes || !utf8.ValidString(favicon) {

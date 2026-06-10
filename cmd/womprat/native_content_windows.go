@@ -323,23 +323,32 @@ func parseTitleMessage(raw string) (string, string) {
 }
 
 func parseHotkeyMessage(raw string) string {
+	if len(raw) > maxWebViewMessage {
+		return ""
+	}
 	var m struct {
 		WompratKey string `json:"wompratKey"`
 	}
 	if err := json.Unmarshal([]byte(raw), &m); err != nil {
 		return ""
 	}
+	if !validBrowserHotkeyAction(m.WompratKey) {
+		return ""
+	}
 	return m.WompratKey
 }
 
 func parseHotkeyArg(raw string) string {
+	if len(raw) > maxWebViewMessage {
+		return ""
+	}
 	var m struct {
 		WompratArg string `json:"wompratArg"`
 	}
 	if err := json.Unmarshal([]byte(raw), &m); err != nil {
 		return ""
 	}
-	return m.WompratArg
+	return sanitizeBrowserHotkeyArg(m.WompratArg)
 }
 
 func (v *nativeContentView) resize() {

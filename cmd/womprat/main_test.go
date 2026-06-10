@@ -63,6 +63,20 @@ func TestNavigateAndNewBrowserNormalizeURL(t *testing.T) {
 	}
 }
 
+func TestBrowserHotkeySanitizers(t *testing.T) {
+	if !validBrowserHotkeyAction("focusUrl") || !validBrowserHotkeyAction("tabAt") {
+		t.Fatal("expected browser hotkey actions rejected")
+	}
+	for _, action := range []string{"", "eval", "focusUrl;alert(1)", "unknown"} {
+		if validBrowserHotkeyAction(action) {
+			t.Fatalf("unexpected browser hotkey action accepted: %q", action)
+		}
+	}
+	if got := sanitizeBrowserHotkeyArg(strings.Repeat("1", 32)); len(got) != 16 {
+		t.Fatalf("hotkey arg length = %d", len(got))
+	}
+}
+
 func TestBrowserMetadataSanitizers(t *testing.T) {
 	if got := sanitizeBrowserTitle(strings.Repeat("x", maxBrowserTitleRunes+20)); len([]rune(got)) != maxBrowserTitleRunes {
 		t.Fatalf("title length = %d", len([]rune(got)))
