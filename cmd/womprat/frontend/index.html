@@ -281,6 +281,7 @@ const MIN_TERMINAL_ROWS = 5;
 const MAX_TERMINAL_ROWS = 200;
 const MAX_BROWSER_TITLE_RUNES = 200;
 const MAX_FAVICON_URL_BYTES = 2048;
+const MAX_SSH_PASSWORD_CHARS = 4096;
 let shellContentZoom = Number(sessionStorage.getItem('wompratShellContentZoom') || '1') || 1;
 function setURLProgress(_active, _done = false) {
   // Disabled for now: native WebView2 navigation events can arrive out of phase
@@ -768,8 +769,10 @@ window.openTerminal = async function(host, name, user, port, options = {}) {
         // Ctrl+U: clear the line
         while (password.length) { password = password.slice(0, -1); term.write('\b \b'); }
       } else if (ch >= ' ' && ch !== '\x7f') {
-        password += ch;
-        term.write('*');
+        if (password.length < MAX_SSH_PASSWORD_CHARS) {
+          password += ch;
+          term.write('*');
+        }
       }
     });
     return;

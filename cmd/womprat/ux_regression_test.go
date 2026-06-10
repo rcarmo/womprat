@@ -509,6 +509,18 @@ func TestShellControlsUseCentralHandlers(t *testing.T) {
 	}
 }
 
+func TestSSHPromptPasswordInputIsBounded(t *testing.T) {
+	s := readFileForRegression(t, "frontend/index.html")
+	for _, want := range []string{
+		"const MAX_SSH_PASSWORD_CHARS = 4096;",
+		"if (password.length < MAX_SSH_PASSWORD_CHARS)",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("SSH prompt password bound missing %q", want)
+		}
+	}
+}
+
 func TestTerminalTitleTruncationIsUnicodeSafe(t *testing.T) {
 	s := readFileForRegression(t, "frontend/index.html")
 	want := "t.title = Array.from(sanitizeBrowserTitle(title)).slice(0, 48).join('');"
