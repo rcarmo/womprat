@@ -54,6 +54,14 @@ func TestValidSSHKeyImportAndFingerprint(t *testing.T) {
 	}
 }
 
+func TestSSHWebSocketRejectsInvalidTabID(t *testing.T) {
+	app := newTestApp(t)
+	rr := performJSON(app.handleSSHWebSocketFull, "GET", "/api/ssh/ws?tab=bad/id", nil)
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("invalid ssh websocket tab = %d", rr.Code)
+	}
+}
+
 func TestSSHResizePostNoContent(t *testing.T) {
 	app := newTestApp(t)
 	rr := performJSON(app.handleSSHResize, "POST", "/api/ssh/resize", nil)
