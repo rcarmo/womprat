@@ -15,6 +15,16 @@ func readFileForRegression(t *testing.T, path string) string {
 	return string(b)
 }
 
+func TestSettingsUsesFetchJSONHelper(t *testing.T) {
+	s := readFileForRegression(t, "frontend/settings.html")
+	if !strings.Contains(s, "async function fetchJSON(url, fallback)") {
+		t.Fatal("settings missing fetchJSON helper")
+	}
+	if strings.Contains(s, ".then(r=>r.json()).catch") {
+		t.Fatal("settings should use fetchJSON instead of duplicated then/catch fetch parsing")
+	}
+}
+
 func TestSettingsReportsAsyncOperationFailures(t *testing.T) {
 	s := readFileForRegression(t, "frontend/settings.html")
 	for _, want := range []string{
