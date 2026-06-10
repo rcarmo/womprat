@@ -753,7 +753,12 @@ window.closeTab = function(id, e) {
     try { terminalSession.term?.dispose?.(); } catch {}
     terminalSessions.delete(id);
   }
-  document.getElementById(`panel-${id}`)?.remove();
+  const panel = document.getElementById(`panel-${id}`);
+  if (closing?.type === 'vnc') {
+    const root = panel?.querySelector?.('.vnc-panel');
+    try { root?.__wompratVncViewer?.dispose?.(); } catch {}
+  }
+  panel?.remove();
 
   if (closing?.type === 'settings') {
     if (window.womprat_forgetTab) womprat_forgetTab(id);

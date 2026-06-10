@@ -1694,7 +1694,7 @@ function normalizeEncodings(encodings) {
   }
   if (values.length > 0)
     return values;
-  return [16, 5, 2, 1, 0, -239, -223];
+  return [16, 5, 2, 1, 0, -239, -224, -223];
 }
 function toUint8Array2(chunk) {
   if (chunk instanceof Uint8Array)
@@ -2512,6 +2512,10 @@ class VncRemoteDisplayProtocol {
               offset += hextile.consumed;
               continue;
             }
+            if (encoding === -224) {
+              i2 = numberOfRectangles;
+              continue;
+            }
             if (encoding === -239) {
               const bytesPerPixel = Math.max(1, Math.floor(Number(this.clientPixelFormat.bitsPerPixel || 0) / 8));
               const pixelLength = width * height * bytesPerPixel;
@@ -2543,7 +2547,7 @@ class VncRemoteDisplayProtocol {
               rects.push({ kind: "resize", x: x2, y, width, height });
               continue;
             }
-            throw new Error(`Unsupported VNC rectangle encoding ${encoding}. This viewer currently supports ZRLE, Hextile, RRE, CopyRect, Cursor, raw rectangles, and DesktopSize only.`);
+            throw new Error(`Unsupported VNC rectangle encoding ${encoding}. This viewer currently supports ZRLE, Hextile, RRE, CopyRect, Cursor, LastRect, raw rectangles, and DesktopSize only.`);
           }
           if (incomplete)
             break;
@@ -2775,6 +2779,8 @@ class WompratVncViewer {
   activeKeys = new Set;
   fitToViewport = true;
   closedByReconnect = false;
+  resizeObserver = null;
+  disposed = false;
   constructor(root, target, password = null) {
     this.root = root;
     this.target = target;
@@ -2801,6 +2807,7 @@ class WompratVncViewer {
     this.protocol = new VncRemoteDisplayProtocol({ shared: true, password: this.password, pipeline });
   }
   async reconnect() {
+    if (this.disposed) return;
     this.closedByReconnect = true;
     try { this.ws?.close(1000, "reconnect"); } catch {}
     this.ws = null;
@@ -2810,6 +2817,16 @@ class WompratVncViewer {
     await this.init();
     this.closedByReconnect = false;
     this.connect();
+  }
+  dispose() {
+    this.disposed = true;
+    this.closedByReconnect = true;
+    try { this.ws?.close(1000, "tab closed"); } catch {}
+    try { this.resizeObserver?.disconnect?.(); } catch {}
+    this.ws = null;
+    this.framebuffer = null;
+    this.activeKeys.clear();
+    this.canvas.style.cursor = "default";
   }
   connect() {
     const url = new URL(`${wsBase()}//${window.location.host}/api/vnc/ws`);
@@ -2955,8 +2972,8 @@ class WompratVncViewer {
     return mapClientToFramebufferPoint(event.clientX, event.clientY, this.canvas.getBoundingClientRect(), this.canvas.width, this.canvas.height);
   }
   installResize() {
-    const ro = new ResizeObserver(() => this.fitCanvas());
-    ro.observe(this.viewport);
+    this.resizeObserver = new ResizeObserver(() => this.fitCanvas());
+    this.resizeObserver.observe(this.viewport);
   }
   installClipboard() {
     const input = this.root.querySelector("[data-vnc-clipboard]");
@@ -3055,10 +3072,18 @@ class WompratVncViewer {
 }
 async function startVNC(root, target) {
   const password = root.getAttribute("data-vnc-password") || null;
+  root.__wompratVncViewer?.dispose?.();
   const viewer = new WompratVncViewer(root, target, password);
+  root.__wompratVncViewer = viewer;
   await viewer.init();
   viewer.connect();
+  return viewer;
+}
+function disposeVNC(root) {
+  root?.__wompratVncViewer?.dispose?.();
+  if (root) delete root.__wompratVncViewer;
 }
 export {
+  disposeVNC,
   startVNC
 };
