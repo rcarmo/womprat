@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path"
 	"runtime"
 	"runtime/debug"
 	"strings"
@@ -740,6 +741,27 @@ func (a *App) isLocked() bool {
 	return a.locked
 }
 
+func frontendAssetPath(requestPath string) (string, bool) {
+	if requestPath == "" || requestPath == "/" {
+		return "frontend/index.html", true
+	}
+	if !strings.HasPrefix(requestPath, "/") || strings.Contains(requestPath, "\\") || strings.Contains(requestPath, "\x00") || strings.HasPrefix(requestPath, "/api/") || strings.Contains(requestPath, "/../") || strings.HasSuffix(requestPath, "/..") {
+		return "", false
+	}
+	cleaned := path.Clean(requestPath)
+	if cleaned == "." || cleaned == "/" {
+		return "frontend/index.html", true
+	}
+	if strings.HasPrefix(cleaned, "/../") || cleaned == "/.." || strings.Contains(cleaned, "/../") {
+		return "", false
+	}
+	cleaned = strings.TrimPrefix(cleaned, "/")
+	if cleaned == "" || strings.HasPrefix(cleaned, "..") {
+		return "", false
+	}
+	return "frontend/" + cleaned, true
+}
+
 func (a *App) serveFrontend(w http.ResponseWriter, r *http.Request) {
 	// The shell changes rapidly during development and must never come from
 	// WebView2's persistent HTTP cache; stale shell JS can resurrect old iframe
@@ -748,11 +770,14 @@ func (a *App) serveFrontend(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Pragma", "no-cache")
 	w.Header().Set("Expires", "0")
 
-	path := r.URL.Path
-	if path == "/" || path == "" {
-		path = "frontend/index.html"
-	} else {
-		path = "frontend" + path
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	path, ok := frontendAssetPath(r.URL.Path)
+	if !ok {
+		http.NotFound(w, r)
+		return
 	}
 	data, err := frontendFS.ReadFile(path)
 	if err != nil {
