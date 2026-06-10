@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"net/url"
@@ -119,7 +120,9 @@ func (a *App) downloadToFile(targetURL, savePath string, st *downloadState) {
 			completed = false
 		}
 		if !completed {
-			_ = os.Remove(savePath)
+			if err := os.Remove(savePath); err != nil && !os.IsNotExist(err) {
+				log.Printf("download: remove incomplete file %s failed: %v", savePath, err)
+			}
 		}
 	}()
 

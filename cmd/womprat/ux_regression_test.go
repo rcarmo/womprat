@@ -20,6 +20,9 @@ func TestDownloadHandlerUsesSharedGetMethodGuard(t *testing.T) {
 	if !strings.Contains(s, "func (a *App) handleDownload") || !strings.Contains(s, "if !requireGET(w, r)") {
 		t.Fatal("download handler should use shared GET method guard")
 	}
+	if !strings.Contains(s, "download: remove incomplete file") {
+		t.Fatal("download cleanup failures should be logged")
+	}
 }
 
 func TestSettingsMultiMethodHandlersUseHTTPMethodConstants(t *testing.T) {
