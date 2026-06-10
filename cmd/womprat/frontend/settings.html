@@ -384,12 +384,15 @@ document.querySelector('[data-action="clear-all-browsing-data"]')?.addEventListe
 document.querySelector('[data-action="save-appearance"]')?.addEventListener('click', saveAppearance);
 document.getElementById('debug-log')?.addEventListener('change', ev => setDebugLog(ev.currentTarget.checked));
 
-async function selectUnlock(method) {
-  document.querySelectorAll('.option').forEach(o => o.classList.remove('selected'));
-  window.event?.currentTarget?.classList.add('selected');
+function applyUnlockSelection(method) {
+  method = method === 'master' ? 'master' : 'dpapi';
+  document.querySelectorAll('.option').forEach(o => o.classList.toggle('selected', o.dataset.unlock === method));
   const input = document.querySelector(`input[value="${CSS.escape(method)}"]`);
   if (input) input.checked = true;
   document.getElementById('master-pw-section').style.display = method==='master' ? 'block' : 'none';
+}
+async function selectUnlock(method) {
+  applyUnlockSelection(method);
   const res = await fetch('/api/settings/unlock-method', {
     method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({method})
@@ -729,11 +732,25 @@ async function loadAbout() {
   } catch (err) { console.warn('about load failed', err); }
 }
 
+async function loadConfigSettings() {
+  const cfg = await fetchJSON('/api/settings/config', {});
+  applyUnlockSelection(cfg.unlockMethod);
+  const fontSize = document.getElementById('font-size');
+  if (fontSize) fontSize.value = cfg.fontSize || 14;
+  const theme = document.getElementById('theme');
+  if (theme) theme.value = cfg.theme || 'dark';
+  const restoreTabs = document.getElementById('restore-tabs');
+  if (restoreTabs) restoreTabs.checked = !!cfg.restoreTabs;
+  const autoConnect = document.getElementById('auto-connect');
+  if (autoConnect) autoConnect.checked = !!cfg.autoConnect;
+}
+
 async function initSettings() {
   document.getElementById('save-passwords')?.addEventListener('change', async (e) => {
     const res = await fetch('/api/settings/browser/save-passwords', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({enabled: e.target.checked})});
     if (!res.ok) setStatus('browser-status', 'error', await res.text());
   });
+  await loadConfigSettings();
   await checkTailscale();
   await loadExitNodes();
   await loadBrowserSettings();

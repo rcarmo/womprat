@@ -251,7 +251,8 @@ func TestSettingsKeysTableUsesSafeDOMConstruction(t *testing.T) {
 func TestSettingsStatusUsesSafeDOMConstruction(t *testing.T) {
 	s := readFileForRegression(t, "frontend/settings.html")
 	for _, want := range []string{
-		"const safeKind = ['ok','error','warn','info'].includes",
+		"const requestedKind = String(kind || '');",
+		"const safeKind = requestedKind === 'err' ? 'error'",
 		"span.textContent = String(text ?? '');",
 		"el.appendChild(span);",
 	} {
@@ -261,6 +262,23 @@ func TestSettingsStatusUsesSafeDOMConstruction(t *testing.T) {
 	}
 	if strings.Contains(s, "${kind}") {
 		t.Fatal("settings status must not interpolate raw kind into innerHTML")
+	}
+}
+
+func TestSettingsLoadsSavedConfigValues(t *testing.T) {
+	s := readFileForRegression(t, "frontend/settings.html")
+	for _, want := range []string{
+		"async function loadConfigSettings()",
+		"fetchJSON('/api/settings/config', {})",
+		"applyUnlockSelection(cfg.unlockMethod)",
+		"fontSize.value = cfg.fontSize || 14",
+		"restoreTabs.checked = !!cfg.restoreTabs",
+		"autoConnect.checked = !!cfg.autoConnect",
+		"await loadConfigSettings();",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("settings config loader missing %q", want)
+		}
 	}
 }
 
