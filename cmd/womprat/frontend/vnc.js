@@ -2820,8 +2820,13 @@ function resolveVncKeysymFromKeyboardEvent(event) {
 
 // cmd/womprat/frontend/vnc-src.ts
 var textEncoder = new TextEncoder;
+var MAX_VNC_CLIPBOARD_CHARS = 256 * 1024;
+function boundedVncClipboardText(text) {
+  const value = String(text || "");
+  return value.length > MAX_VNC_CLIPBOARD_CHARS ? value.slice(0, MAX_VNC_CLIPBOARD_CHARS) : value;
+}
 function clientCutText(text) {
-  const payload = textEncoder.encode(String(text || ""));
+  const payload = textEncoder.encode(boundedVncClipboardText(text));
   const out = new Uint8Array(8 + payload.length);
   out[0] = 6;
   out[4] = payload.length >>> 24 & 255;
@@ -3065,7 +3070,9 @@ class WompratVncViewer {
   installClipboard() {
     const input = this.root.querySelector("[data-vnc-clipboard]");
     query(this.root, "[data-vnc-send-clipboard]").addEventListener("click", () => {
-      this.send(clientCutText(input?.value || ""));
+      const text = boundedVncClipboardText(input?.value || "");
+      if (input && input.value !== text) input.value = text;
+      this.send(clientCutText(text));
       setStatus(this.root, "Clipboard sent to remote.");
     });
     this.root.querySelector("[data-vnc-copy-clipboard]")?.addEventListener("click", async () => {
@@ -3080,7 +3087,7 @@ class WompratVncViewer {
     this.root.querySelector("[data-vnc-paste-clipboard]")?.addEventListener("click", async () => {
       try {
         const text = await navigator.clipboard?.readText?.();
-        if (input && typeof text === "string") input.value = text;
+        if (input && typeof text === "string") input.value = boundedVncClipboardText(text);
         setStatus(this.root, "Local clipboard pasted into field.");
       } catch {
         input?.focus?.();

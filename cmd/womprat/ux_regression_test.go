@@ -375,6 +375,20 @@ func TestCustomSchemesUseSingleFrontendDispatcher(t *testing.T) {
 	}
 }
 
+func TestVNCClipboardIsBounded(t *testing.T) {
+	s := readFileForRegression(t, "frontend/vnc.js")
+	for _, want := range []string{
+		"var MAX_VNC_CLIPBOARD_CHARS = 256 * 1024;",
+		"function boundedVncClipboardText(text)",
+		"this.send(clientCutText(text));",
+		"input.value = boundedVncClipboardText(text);",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("VNC clipboard bound missing %q", want)
+		}
+	}
+}
+
 func TestRemoteDisplayModuleLoadFailuresAreRecoverable(t *testing.T) {
 	s := readFileForRegression(t, "frontend/index.html")
 	for _, want := range []string{
