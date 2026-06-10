@@ -382,6 +382,9 @@ func (a *App) handleAppearance(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleGetConfig(w http.ResponseWriter, r *http.Request) {
+	if !requireGET(w, r) {
+		return
+	}
 	a.mu.Lock()
 	cfg := a.config
 	a.mu.Unlock()

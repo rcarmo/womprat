@@ -852,6 +852,9 @@ func (a *App) ts() *tsnet.Server {
 }
 
 func (a *App) handleAuthStatus(w http.ResponseWriter, r *http.Request) {
+	if !requireGET(w, r) {
+		return
+	}
 	_, err := GetCredential("tailscale-key")
 	a.mu.Lock()
 	unlockMethod := a.config.UnlockMethod
@@ -917,6 +920,9 @@ func (a *App) handleSaveKey(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleTSStatus(w http.ResponseWriter, r *http.Request) {
+	if !requireGET(w, r) {
+		return
+	}
 	ts := a.ts()
 	if ts == nil {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "disconnected"})
@@ -940,6 +946,9 @@ func (a *App) handleTSStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleTSPeers(w http.ResponseWriter, r *http.Request) {
+	if !requireGET(w, r) {
+		return
+	}
 	ts := a.ts()
 	if ts == nil {
 		writeJSON(w, http.StatusOK, []string{})
@@ -980,6 +989,9 @@ func (a *App) handleTSPeers(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleAbout(w http.ResponseWriter, r *http.Request) {
+	if !requireGET(w, r) {
+		return
+	}
 	a.mu.Lock()
 	tsConnected := a.tsServer != nil
 	tabCount := len(a.tabs)

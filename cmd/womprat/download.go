@@ -143,6 +143,9 @@ func setDownloadError(st *downloadState, err error) {
 }
 
 func (a *App) handleDownloadStatus(w http.ResponseWriter, r *http.Request) {
+	if !requireGET(w, r) {
+		return
+	}
 	downloadMu.Lock()
 	defer downloadMu.Unlock()
 	if currentDownload == nil {

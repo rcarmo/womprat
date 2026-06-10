@@ -70,6 +70,27 @@ func TestSSHResizePostNoContent(t *testing.T) {
 	}
 }
 
+func TestReadOnlyHandlersRejectPost(t *testing.T) {
+	app := newTestApp(t)
+	for _, tc := range []struct {
+		name string
+		h    http.HandlerFunc
+	}{
+		{"auth-status", app.handleAuthStatus},
+		{"ts-status", app.handleTSStatus},
+		{"ts-peers", app.handleTSPeers},
+		{"about", app.handleAbout},
+		{"browser-data", app.handleBrowserData},
+		{"download-status", app.handleDownloadStatus},
+		{"config", app.handleGetConfig},
+	} {
+		rr := performJSON(tc.h, "POST", "/", nil)
+		if rr.Code != http.StatusMethodNotAllowed {
+			t.Fatalf("%s POST = %d", tc.name, rr.Code)
+		}
+	}
+}
+
 func TestMethodBranches(t *testing.T) {
 	app := newTestApp(t)
 	cases := []struct {

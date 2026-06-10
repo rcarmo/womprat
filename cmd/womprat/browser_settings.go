@@ -40,6 +40,9 @@ func (a *App) registerBrowserRoutes(mux *http.ServeMux) {
 }
 
 func (a *App) handleBrowserData(w http.ResponseWriter, r *http.Request) {
+	if !requireGET(w, r) {
+		return
+	}
 	a.mu.Lock()
 	savePasswords := a.config.SavePasswords
 	a.mu.Unlock()
