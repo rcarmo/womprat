@@ -535,6 +535,8 @@ func (d *DataCompressedPDU) Decompress(decompressor *ZGFXDecompressor) ([]byte, 
 	return decompressor.Decompress(d.CompressedData)
 }
 
+const maxZGFXDecompressedBytes = 16 << 20
+
 // ZGFXDecompressor handles RDP8 bulk compression (MS-RDPEGFX 3.3)
 // This is a stateful decompressor that maintains history across calls
 type ZGFXDecompressor struct {
@@ -616,6 +618,9 @@ func (z *ZGFXDecompressor) decompressSegment(data []byte) ([]byte, error) {
 		segData, err := z.decompressSingleSegment(data[offset:offset+int(segSize)], 65535)
 		if err != nil {
 			return nil, fmt.Errorf("segment %d: %w", i, err)
+		}
+		if len(result)+len(segData) > maxZGFXDecompressedBytes {
+			return nil, fmt.Errorf("decompressed ZGFX data too large")
 		}
 		result = append(result, segData...)
 		offset += int(segSize)

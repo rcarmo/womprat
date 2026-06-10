@@ -477,6 +477,11 @@ func TestSoftSyncResponsePDU_Serialize(t *testing.T) {
 	}
 }
 
+func TestZGFXDecompressedOutputLimit(t *testing.T) {
+	assert.Greater(t, maxZGFXDecompressedBytes, 0)
+	assert.LessOrEqual(t, maxZGFXDecompressedBytes, 32<<20)
+}
+
 func TestDataCompressedPDU_Deserialize(t *testing.T) {
 	tests := []struct {
 		name       string
