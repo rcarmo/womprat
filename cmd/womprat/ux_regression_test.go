@@ -415,6 +415,22 @@ func TestShellHasNoEmptyCatchBlocks(t *testing.T) {
 	}
 }
 
+func TestSetupAuthReportsFailures(t *testing.T) {
+	s := readFileForRegression(t, "frontend/index.html")
+	for _, want := range []string{
+		"Auth status unavailable:",
+		"if (!res.ok) throw new Error(await res.text());",
+		"status.textContent = await res.text() || 'Unlock failed';",
+		"Unlock failed: ${err.message}",
+		"const data = await res.clone().json().catch(async () => ({error: await res.text()}));",
+		"Connection failed: ${err.message}",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("setup auth failure reporting missing %q", want)
+		}
+	}
+}
+
 func TestShellLogsNativeAndCleanupFailures(t *testing.T) {
 	s := readFileForRegression(t, "frontend/index.html")
 	for _, want := range []string{

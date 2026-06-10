@@ -555,14 +555,20 @@ purgeLegacyExternalIframes();
 
 // Check auth status
 async function checkAuth() {
-  const res = await fetch('/api/auth/status');
-  const data = await res.json();
-  if (data.locked) {
-    showUnlock();
-    return;
-  }
-  if (data.hasKey && data.connected) {
-    document.getElementById('setup').classList.add('hidden');
+  const status = document.getElementById('setup-status');
+  try {
+    const res = await fetch('/api/auth/status');
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+    if (data.locked) {
+      showUnlock();
+      return;
+    }
+    if (data.hasKey && data.connected) {
+      document.getElementById('setup').classList.add('hidden');
+    }
+  } catch (err) {
+    if (status) status.textContent = `Auth status unavailable: ${err.message}`;
   }
 }
 
@@ -581,15 +587,19 @@ window.unlockApp = async function() {
   const password = document.getElementById('unlock-password').value;
   const status = document.getElementById('setup-status');
   status.textContent = 'Unlocking...';
-  const res = await fetch('/api/auth/unlock', {
-    method: 'POST', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({password})
-  });
-  if (!res.ok) {
-    status.textContent = 'Unlock failed';
-    return;
+  try {
+    const res = await fetch('/api/auth/unlock', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({password})
+    });
+    if (!res.ok) {
+      status.textContent = await res.text() || 'Unlock failed';
+      return;
+    }
+    document.getElementById('setup').classList.add('hidden');
+  } catch (err) {
+    status.textContent = `Unlock failed: ${err.message}`;
   }
-  document.getElementById('setup').classList.add('hidden');
 };
 
 window.saveKey = async function() {
@@ -597,15 +607,19 @@ window.saveKey = async function() {
   const status = document.getElementById('setup-status');
   if (!key) { status.textContent = 'Please enter a key'; return; }
   status.textContent = 'Connecting...';
-  const res = await fetch('/api/auth/save-key', {
-    method: 'POST', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({key})
-  });
-  const data = await res.json();
-  if (data.status === 'connected') {
-    document.getElementById('setup').classList.add('hidden');
-  } else {
-    status.textContent = data.error || 'Failed to connect';
+  try {
+    const res = await fetch('/api/auth/save-key', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({key})
+    });
+    const data = await res.clone().json().catch(async () => ({error: await res.text()}));
+    if (data.status === 'connected') {
+      document.getElementById('setup').classList.add('hidden');
+    } else {
+      status.textContent = data.error || 'Failed to connect';
+    }
+  } catch (err) {
+    status.textContent = `Connection failed: ${err.message}`;
   }
 };
 
