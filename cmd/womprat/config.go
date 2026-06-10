@@ -159,7 +159,50 @@ func normalizeConfig(cfg *AppConfig) {
 	if cfg.FontSize < 0 || cfg.FontSize > 72 {
 		cfg.FontSize = 0
 	}
+	cfg.Hosts = sanitizeHostConfigs(cfg.Hosts)
 	cfg.OpenTabs = sanitizeSavedTabs(cfg.OpenTabs)
+}
+
+func sanitizeHostConfigs(hosts map[string]HostConfig) map[string]HostConfig {
+	out := make(map[string]HostConfig, len(hosts))
+	for host, conf := range hosts {
+		host = strings.TrimSpace(host)
+		if validateCustomURLHost("ssh", host) != nil {
+			continue
+		}
+		conf.User = strings.TrimSpace(conf.User)
+		if conf.User != "" && validateCustomURLUser("ssh", conf.User) != nil {
+			conf.User = ""
+		}
+		if conf.Port < 0 || conf.Port > 65535 {
+			conf.Port = 0
+		}
+		conf.KeyName = strings.TrimSpace(conf.KeyName)
+		if conf.KeyName != "" {
+			if _, err := safeSSHKeyName(conf.KeyName); err != nil {
+				conf.KeyName = ""
+			}
+		}
+		conf.Nickname = strings.TrimSpace(conf.Nickname)
+		if len(conf.Nickname) > 100 {
+			conf.Nickname = conf.Nickname[:100]
+		}
+		conf.URL = sanitizeHostConfigURL(conf.URL)
+		out[host] = conf
+	}
+	return out
+}
+
+func sanitizeHostConfigURL(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+		return ""
+	}
+	return parsed.String()
 }
 
 func sanitizeSavedTabs(tabs []SavedTab) []SavedTab {

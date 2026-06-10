@@ -333,7 +333,7 @@ func (a *App) handleHosts(w http.ResponseWriter, r *http.Request) {
 			conf.Nickname = strings.TrimSpace(*body.Nickname)
 		}
 		if body.URL != nil {
-			conf.URL = strings.TrimSpace(*body.URL)
+			conf.URL = sanitizeHostConfigURL(*body.URL)
 		}
 		a.config.Hosts[host] = conf
 		cfg := a.config

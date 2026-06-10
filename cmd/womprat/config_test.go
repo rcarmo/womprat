@@ -1,6 +1,9 @@
 package main
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestCredentialNameValidation(t *testing.T) {
 	valid := []string{"tailscale-key", "ssh-key/main", "browser-pw/example.com", "a.b_c-1"}
@@ -50,6 +53,23 @@ func TestNormalizeConfigRepairsInvalidDefaults(t *testing.T) {
 	normalizeConfig(cfg)
 	if cfg.UnlockMethod != "dpapi" || cfg.WindowWidth != 1200 || cfg.WindowHeight != 800 || cfg.FontSize != 0 || cfg.Hosts == nil {
 		t.Fatalf("normalized config = %+v", cfg)
+	}
+}
+
+func TestSanitizeHostConfigs(t *testing.T) {
+	hosts := sanitizeHostConfigs(map[string]HostConfig{
+		"platinum": {User: " me ", Port: 22, KeyName: " main ", Nickname: strings.Repeat("n", 120), URL: "https://platinum.local"},
+		"bad host": {User: "me", Port: 22},
+		"baduser":  {User: "bad user", Port: 70000, KeyName: "../x", URL: "rdp://me@host"},
+	})
+	if len(hosts) != 2 {
+		t.Fatalf("hosts = %+v", hosts)
+	}
+	if got := hosts["platinum"]; got.User != "me" || got.KeyName != "main" || len(got.Nickname) != 100 || got.URL != "https://platinum.local" {
+		t.Fatalf("platinum host = %+v", got)
+	}
+	if got := hosts["baduser"]; got.User != "" || got.Port != 0 || got.KeyName != "" || got.URL != "" {
+		t.Fatalf("baduser host = %+v", got)
 	}
 }
 
