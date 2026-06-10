@@ -54,6 +54,14 @@ func TestValidSSHKeyImportAndFingerprint(t *testing.T) {
 	}
 }
 
+func TestSSHResizePostNoContent(t *testing.T) {
+	app := newTestApp(t)
+	rr := performJSON(app.handleSSHResize, "POST", "/api/ssh/resize", nil)
+	if rr.Code != http.StatusNoContent {
+		t.Fatalf("ssh resize POST = %d", rr.Code)
+	}
+}
+
 func TestMethodBranches(t *testing.T) {
 	app := newTestApp(t)
 	cases := []struct {
@@ -67,6 +75,7 @@ func TestMethodBranches(t *testing.T) {
 		{"generate-key", app.handleGenerateSSHKey, "GET"},
 		{"appearance", app.handleAppearance, "GET"},
 		{"save-tabs", app.handleSaveTabs, "GET"},
+		{"ssh-resize", app.handleSSHResize, "GET"},
 		{"clear-cache", app.handleClearCache, "GET"},
 		{"clear-cookies", app.handleClearCookies, "GET"},
 		{"clear-passwords", app.handleClearPasswords, "GET"},
