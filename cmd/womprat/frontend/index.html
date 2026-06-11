@@ -441,6 +441,9 @@ function normalizeHistoryURL(url) {
   if (target) return normalizedCustomURL(target);
   return '';
 }
+function isHistoryURL(url) {
+  return !!normalizeHistoryURL(url);
+}
 function validCustomHost(host) {
   if (!host || host.length > 253 || /[\s\/?#\\@%]/.test(host)) return false;
   if (host.includes(':')) return /^[0-9a-f:.]+$/i.test(host);

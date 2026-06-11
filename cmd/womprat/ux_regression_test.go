@@ -861,6 +861,17 @@ func TestShellFaviconRenderingUsesDOMEvents(t *testing.T) {
 	}
 }
 
+func TestShellReferencedHelpersAreDefined(t *testing.T) {
+	s := readFileForRegression(t, "frontend/index.html")
+	// Identifiers used by the shell that must remain defined; a missing one throws
+	// at runtime and silently breaks navigation/history.
+	for _, name := range []string{"isHistoryURL", "normalizeHistoryURL", "refreshURLHistoryDatalist", "normalizeBrowserURL", "parseCustomURL", "openBrowser", "navigateFromBar"} {
+		if !strings.Contains(s, "function "+name) && !strings.Contains(s, "window."+name+" = function") {
+			t.Fatalf("shell references %q but it is not defined", name)
+		}
+	}
+}
+
 func TestShellControlsUseCentralHandlers(t *testing.T) {
 	s := readFileForRegression(t, "frontend/index.html")
 	if strings.Index(s, "window.navigateFromBar = function()") > strings.Index(s, "installShellControlHandlers();") {
