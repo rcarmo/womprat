@@ -1263,8 +1263,8 @@ function installShellControlHandlers() {
   document.getElementById('nav-back')?.addEventListener('click', () => historyBack(state.activeTab));
   document.getElementById('nav-forward')?.addEventListener('click', () => historyForward(state.activeTab));
   document.getElementById('nav-reload')?.addEventListener('click', () => historyReload(state.activeTab));
-  document.getElementById('url-go')?.addEventListener('click', () => navigateFromBar());
-  document.getElementById('url-input')?.addEventListener('keydown', (event) => { if (event.key === 'Enter') navigateFromBar(); });
+  document.getElementById('url-go')?.addEventListener('click', () => window.navigateFromBar());
+  document.getElementById('url-input')?.addEventListener('keydown', (event) => { if (event.key === 'Enter') window.navigateFromBar(); });
 }
 
 function installBrowserHotkeys() {
@@ -1310,14 +1310,14 @@ function installBrowserHotkeys() {
     if (e.altKey && !ctrl && key === 'home') { e.preventDefault(); newBlankTab(); return; }
   }, true);
 }
-installShellControlHandlers();
-installBrowserHotkeys();
-
 window.navigateFromBar = function() {
   const url = document.getElementById('url-input').value.trim();
   if (!url) return;
   openBrowser(url);
 };
+
+installShellControlHandlers();
+installBrowserHotkeys();
 
 window.navigateTab = function(id) {
   // Legacy entrypoint kept for old handlers; route through persistent URL bar.

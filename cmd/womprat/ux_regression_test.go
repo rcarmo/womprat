@@ -863,10 +863,15 @@ func TestShellFaviconRenderingUsesDOMEvents(t *testing.T) {
 
 func TestShellControlsUseCentralHandlers(t *testing.T) {
 	s := readFileForRegression(t, "frontend/index.html")
+	if strings.Index(s, "window.navigateFromBar = function()") > strings.Index(s, "installShellControlHandlers();") {
+		t.Fatal("navigateFromBar must be assigned before URL handlers are installed")
+	}
 	for _, want := range []string{
 		"function installShellControlHandlers()",
 		"document.getElementById('setup-action')?.addEventListener('click', saveKey)",
-		"document.getElementById('url-input')?.addEventListener('keydown'",
+		"document.getElementById('url-go')?.addEventListener('click', () => window.navigateFromBar());",
+		"document.getElementById('url-input')?.addEventListener('keydown', (event) => { if (event.key === 'Enter') window.navigateFromBar(); });",
+		"window.navigateFromBar = function()",
 		"installShellControlHandlers();",
 	} {
 		if !strings.Contains(s, want) {
