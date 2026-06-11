@@ -338,7 +338,7 @@ window.wompratReportChrome = function() {
     if (!bar || !window.womprat_setChromeHeight) return;
     const bottom = bar.getBoundingClientRect().bottom;
     const px = Math.round(bottom * (window.devicePixelRatio || 1));
-    if (px > 0) womprat_setChromeHeight(px);
+    if (px > 0) window.womprat_setChromeHeight(px);
   } catch (err) { console.warn('chrome height report failed', err); }
 };
 window.wompratOnHostResize = function() {
@@ -353,15 +353,15 @@ window.wompratOnHostResize = function() {
 };
 window.wompratBrowserHotkey = function(action, arg) {
   switch (action) {
-    case 'focusUrl': if (window.womprat_focusShell) womprat_focusShell(); focusAddress(true); break;
+    case 'focusUrl': if (window.womprat_focusShell) window.womprat_focusShell(); focusAddress(true); break;
     case 'newTab': newBlankTab(); break;
     case 'closeTab': closeActiveShellTab(); break;
     // Browser nav goes straight to the native content view (Go is authoritative
     // about the active browser tab); do not route through shell-state helpers,
     // which can fall back to reloading the shell itself.
-    case 'reload': if (window.womprat_browserReload) womprat_browserReload(); break;
-    case 'back': if (window.womprat_browserBack) womprat_browserBack(); break;
-    case 'forward': if (window.womprat_browserForward) womprat_browserForward(); break;
+    case 'reload': if (window.womprat_browserReload) window.womprat_browserReload(); break;
+    case 'back': if (window.womprat_browserBack) window.womprat_browserBack(); break;
+    case 'forward': if (window.womprat_browserForward) window.womprat_browserForward(); break;
     case 'nextTab': switchRelativeTab(1); break;
     case 'prevTab': switchRelativeTab(-1); break;
     case 'tabAt': switchTabAt(arg === '9' ? 8 : (parseInt(arg, 10) || 1) - 1); break;
@@ -409,7 +409,7 @@ function validTabID(id) {
 }
 async function registerLocalTab(tab) {
   if (window.womprat_registerLocalTab) {
-    try { await womprat_registerLocalTab(JSON.stringify(tab)); }
+    try { await window.womprat_registerLocalTab(JSON.stringify(tab)); }
     catch (err) { console.warn('native tab registration failed', err); }
   }
 }
@@ -551,7 +551,7 @@ async function updateNetworkIndicator() {
   const pill = document.getElementById('route-pill');
   if (!pill) return;
   try {
-    const ns = window.womprat_getNetworkState ? JSON.parse(await womprat_getNetworkState()) : {};
+    const ns = window.womprat_getNetworkState ? JSON.parse(await window.womprat_getNetworkState()) : {};
     if (ns.exitActive && ns.exitNode) {
       pill.textContent = ns.exitNode;
       pill.title = `Traffic is routed via exit node ${ns.exitNode}`;
@@ -579,7 +579,7 @@ function purgeLegacyExternalIframes() {
       const panel = frame.closest('.panel');
       frame.remove();
       if (panel && panel.id !== 'panel-settings') panel.remove();
-      if (window.womprat_newBrowser) womprat_newBrowser(src);
+      if (window.womprat_newBrowser) window.womprat_newBrowser(src);
       else location.href = src;
     }
   });
@@ -660,7 +660,7 @@ window.saveKey = async function() {
 
 window.newBlankTab = function() {
   state.activeTab = null;
-  if (window.womprat_clearActiveTab) womprat_clearActiveTab();
+  if (window.womprat_clearActiveTab) window.womprat_clearActiveTab();
   document.getElementById('panels')?.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   updateHomeVisibility();
   renderTabs();
@@ -915,7 +915,7 @@ window.openBrowser = function(url, name) {
   // Browser tabs are real WebView2 navigations managed by Go.
   // Do not create shell panels/iframes for external pages.
   if (window.womprat_newBrowser) {
-    womprat_newBrowser(navUrl);
+    window.womprat_newBrowser(navUrl);
   } else {
     location.href = navUrl;
   }
@@ -944,9 +944,9 @@ window.closeTab = function(id, e) {
   panel?.remove();
 
   if (closing?.type === 'settings') {
-    if (window.womprat_forgetTab) womprat_forgetTab(id);
+    if (window.womprat_forgetTab) window.womprat_forgetTab(id);
   } else if (window.womprat_closeTab) {
-    womprat_closeTab(id);
+    window.womprat_closeTab(id);
   }
 
   saveOpenTabs();
@@ -1062,14 +1062,14 @@ function reorderTab(fromId, beforeId) {
   state.tabs.splice(insertAt, 0, tab);
   renderTabs();
   saveOpenTabs();
-  if (window.womprat_reorderTab) womprat_reorderTab(fromId, beforeIndex);
+  if (window.womprat_reorderTab) window.womprat_reorderTab(fromId, beforeIndex);
 }
 
 function activateTab(id, options = {}) {
   const tab = state.tabs.find(t => t.id === id);
   if (!tab) return;
   state.activeTab = id;
-  if (!options.skipNative && window.womprat_switchTab) { try { womprat_switchTab(id); } catch (err) { console.warn('native tab switch failed', err); } }
+  if (!options.skipNative && window.womprat_switchTab) { try { window.womprat_switchTab(id); } catch (err) { console.warn('native tab switch failed', err); } }
 
   // Update URL bar with active tab's address
   const urlInput = document.getElementById('url-input');
@@ -1187,9 +1187,9 @@ window.showBrowserTab = function(id, url, options = {}) {
   saveOpenTabs();
 };
 
-window.historyBack = function() { if (window.womprat_browserBack) womprat_browserBack(); };
-window.historyForward = function() { if (window.womprat_browserForward) womprat_browserForward(); };
-window.historyReload = function() { if (window.womprat_browserReload) womprat_browserReload(); };
+window.historyBack = function() { if (window.womprat_browserBack) window.womprat_browserBack(); };
+window.historyForward = function() { if (window.womprat_browserForward) window.womprat_browserForward(); };
+window.historyReload = function() { if (window.womprat_browserReload) window.womprat_browserReload(); };
 
 function focusAddress(selectAll = true) {
   const input = document.getElementById('url-input');
@@ -1210,7 +1210,7 @@ function switchTabAt(index) {
 }
 function closeActiveShellTab() {
   if (state.activeTab) closeTab(state.activeTab);
-  else if (window.womprat_goHome) womprat_goHome();
+  else if (window.womprat_goHome) window.womprat_goHome();
 }
 function adjustActiveContentZoom(delta) {
   const session = terminalSessions.get(state.activeTab);
@@ -1317,8 +1317,8 @@ window.navigateFromBar = function() {
   // External browsing is direct WebView2 navigation, never a shell iframe.
   const active = state.tabs.find(t => t.id === state.activeTab);
   const shouldCreateBrowserTab = !active || active.type !== 'browser';
-  if (shouldCreateBrowserTab && window.womprat_newBrowser) womprat_newBrowser(navUrl);
-  else if (window.womprat_navigate) womprat_navigate(navUrl);
+  if (shouldCreateBrowserTab && window.womprat_newBrowser) window.womprat_newBrowser(navUrl);
+  else if (window.womprat_navigate) window.womprat_navigate(navUrl);
   else location.href = navUrl;
 };
 
@@ -1334,7 +1334,7 @@ window.openSettings = function() {
   }
   renderTabs();
   // Tell the native host to hide browser views and restore the full-height shell.
-  if (window.womprat_openSettings) { try { womprat_openSettings(); } catch (err) { console.warn('native settings open failed', err); } }
+  if (window.womprat_openSettings) { try { window.womprat_openSettings(); } catch (err) { console.warn('native settings open failed', err); } }
   // Render the settings panel locally regardless of native timing.
   activateTab(tabId, { skipNative: true });
 };
@@ -1424,7 +1424,7 @@ async function loadRecentTabs() {
 async function hydrateNativeTabs() {
   if (!window.womprat_getTabs) return;
   try {
-    const native = JSON.parse(await womprat_getTabs());
+    const native = JSON.parse(await window.womprat_getTabs());
     const localTabs = (native.tabs || []).map(t => {
       if (t?.type === 'settings' && validTabID(t.id)) return { id: 'settings', type: 'settings', title: 'Settings', url: 'settings:' };
       const clean = sanitizeTabForSave(t);

@@ -567,6 +567,30 @@ func TestNativeHostResizesEmbeddedShellWebView(t *testing.T) {
 	}
 }
 
+func TestShellUsesWindowQualifiedNativeBindings(t *testing.T) {
+	s := readFileForRegression(t, "frontend/index.html")
+	for _, forbidden := range []string{
+		" womprat_newBrowser(",
+		" womprat_navigate(",
+		" womprat_openSettings(",
+		" womprat_getTabs(",
+		" womprat_switchTab(",
+	} {
+		if strings.Contains(s, forbidden) {
+			t.Fatalf("native binding call must be window-qualified: %q", forbidden)
+		}
+	}
+	for _, want := range []string{
+		"window.womprat_newBrowser(navUrl)",
+		"window.womprat_navigate(navUrl)",
+		"await window.womprat_getTabs()",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("window-qualified native binding missing %q", want)
+		}
+	}
+}
+
 func TestShellModuleHasLocalBindingsForWindowEntrypoints(t *testing.T) {
 	s := readFileForRegression(t, "frontend/index.html")
 	for _, want := range []string{
@@ -587,7 +611,7 @@ func TestSettingsActivationIsResilient(t *testing.T) {
 	s := readFileForRegression(t, "frontend/index.html")
 	for _, want := range []string{
 		"window.openSettings = function()",
-		"if (window.womprat_openSettings) { try { womprat_openSettings(); } catch (err) { console.warn('native settings open failed', err); } }",
+		"if (window.womprat_openSettings) { try { window.womprat_openSettings(); } catch (err) { console.warn('native settings open failed', err); } }",
 		"activateTab(tabId, { skipNative: true });",
 		"window.showBrowserTab = function",
 		"setBrowserStatus(id, `Loading ${navUrl}…`)",
