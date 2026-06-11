@@ -8,6 +8,7 @@ import (
 	"log"
 	"net"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -108,10 +109,33 @@ func handleSOCKS5(conn net.Conn, app *App) {
 		return
 	}
 
-	done := make(chan struct{}, 2)
-	go func() { relay(remote, conn); done <- struct{}{} }()
-	go func() { relay(conn, remote); done <- struct{}{} }()
-	<-done
+	// Relay both directions. Critically, when one direction reaches EOF we must
+	// half-close only the write side of its destination (TCP FIN) and keep the
+	// other direction running until it also finishes. Tearing down both sockets
+	// as soon as the first direction ends truncates in-flight responses (the
+	// browser commonly half-closes its upload side right after sending a request),
+	// which manifests as assets intermittently failing to load.
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		relay(remote, conn)
+		halfCloseWrite(remote)
+	}()
+	go func() {
+		defer wg.Done()
+		relay(conn, remote)
+		halfCloseWrite(conn)
+	}()
+	wg.Wait()
+}
+
+// halfCloseWrite sends a TCP FIN on the write side if supported, signalling EOF
+// to the peer without dropping the read side of the connection.
+func halfCloseWrite(c net.Conn) {
+	if cw, ok := c.(interface{ CloseWrite() error }); ok {
+		_ = cw.CloseWrite()
+	}
 }
 
 func socksMethodsContain(methods []byte, method byte) bool {

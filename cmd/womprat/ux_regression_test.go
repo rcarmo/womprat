@@ -88,6 +88,24 @@ func TestTailscaleStartupUsesBoundedContext(t *testing.T) {
 	}
 }
 
+func TestSOCKSRelayHalfClosesAndWaitsBothDirections(t *testing.T) {
+	s := readFileForRegression(t, "socks.go")
+	for _, want := range []string{
+		"func halfCloseWrite(c net.Conn)",
+		"CloseWrite() error",
+		"wg.Wait()",
+		"halfCloseWrite(remote)",
+		"halfCloseWrite(conn)",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("SOCKS relay half-close handling missing %q", want)
+		}
+	}
+	if strings.Contains(s, "done <- struct{}{} }()") {
+		t.Fatal("SOCKS relay must not tear down both sockets on first direction completion")
+	}
+}
+
 func TestSOCKSConnectUsesBoundedTsnetDial(t *testing.T) {
 	s := readFileForRegression(t, "socks.go")
 	for _, want := range []string{
