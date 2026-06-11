@@ -36,6 +36,9 @@ input[type="text"],input[type="password"],input[type="number"],select{
 input:focus,select:focus{outline:none;border-color:var(--accent);background:#1f1f1f}
 .row{display:flex;gap:8px;align-items:flex-end}
 .row input,.row select{flex:1}
+.key-row{align-items:center}
+.key-row input{margin-bottom:0}
+.key-row .btn-primary{min-width:156px}
 
 button{height:32px;padding:0 12px;border:none;border-radius:var(--radius);font-family:var(--font);font-size:14px;
   font-weight:600;cursor:pointer;transition:.1s;white-space:nowrap}
@@ -142,11 +145,9 @@ tr:hover td{background:rgba(255,255,255,.02)}
   <div class="section">
     <h3>Auth Key</h3>
     <p style="color:var(--dim);font-size:.82rem;margin-bottom:.6rem">Replace the Tailscale auth key (re-authenticates the connection).</p>
-    <div class="row">
+    <div class="row key-row">
       <input type="password" id="ts-key" placeholder="tskey-auth-..." maxlength="4096">
       <button class="btn-secondary" data-action="toggle-ts-key">Show</button>
-    </div>
-    <div class="btn-row">
       <button class="btn-primary" data-action="save-tailscale">Save &amp; Reconnect</button>
     </div>
   </div>

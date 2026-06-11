@@ -181,6 +181,20 @@ func TestSettingsHandlersUseSharedPostMethodGuard(t *testing.T) {
 	}
 }
 
+func TestSettingsAuthKeyButtonsStayOnInputRow(t *testing.T) {
+	s := readFileForRegression(t, "frontend/settings.html")
+	for _, want := range []string{
+		".key-row{align-items:center}",
+		".key-row input{margin-bottom:0}",
+		"<div class=\"row key-row\">",
+		"data-action=\"toggle-ts-key\">Show</button>\n      <button class=\"btn-primary\" data-action=\"save-tailscale\"",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("settings auth key layout missing %q", want)
+		}
+	}
+}
+
 func TestSettingsUsesFetchJSONHelper(t *testing.T) {
 	s := readFileForRegression(t, "frontend/settings.html")
 	if !strings.Contains(s, "async function fetchJSON(url, fallback)") {
