@@ -665,6 +665,17 @@ func TestCustomSchemesUseSingleFrontendDispatcher(t *testing.T) {
 	}
 }
 
+func TestRemoteDisplayWebSocketsSendAuthToken(t *testing.T) {
+	vnc := readFileForRegression(t, "frontend/vnc.js")
+	rdp := readFileForRegression(t, "frontend/rdp.js")
+	if !strings.Contains(vnc, `url.searchParams.set("token"`) {
+		t.Fatal("VNC websocket must include auth token")
+	}
+	if !strings.Contains(rdp, `searchParams.set("token"`) {
+		t.Fatal("RDP websocket must include auth token")
+	}
+}
+
 func TestVNCDesktopNameIsBounded(t *testing.T) {
 	s := readFileForRegression(t, "frontend/vnc.js")
 	for _, want := range []string{

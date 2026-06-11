@@ -2943,6 +2943,8 @@ class WompratVncViewer {
   connect() {
     const url = new URL(`${wsBase()}//${window.location.host}/api/vnc/ws`);
     url.searchParams.set("target", this.target);
+    const token = (typeof window !== "undefined" && window.__SESSION_TOKEN) || "";
+    if (token) url.searchParams.set("token", token);
     setBusy(this.root, true);
     setStatus(this.root, `Connecting to ${this.target}…`);
     this.ws = new WebSocket(url.toString());
