@@ -715,8 +715,11 @@ function openHostURL(url) {
     setStatus('hosts-status', 'error', 'Invalid browser URL');
     return;
   }
-  if (window.parent?.openBrowser) window.parent.openBrowser(safeURL, safeURL);
-  else window.location.href = safeURL;
+  if (window.parent && window.parent !== window) {
+    window.parent.postMessage({type: 'womprat-open-browser', url: safeURL, title: safeURL}, window.location.origin);
+    return;
+  }
+  window.location.href = safeURL;
 }
 async function updateHost(host, field, value) {
   const safeHost = safeHostName(host);

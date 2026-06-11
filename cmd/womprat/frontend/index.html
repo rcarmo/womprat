@@ -1563,10 +1563,15 @@ window.triggerDownload = async function(url) {
   }, 500);
 };
 
-// Listen for messages from iframes requesting downloads
+// Listen for messages from internal iframes requesting shell actions.
 window.addEventListener('message', (e) => {
+  if (e.origin !== window.location.origin) return;
   if (e.data?.type === 'download' && e.data.url) {
     triggerDownload(e.data.url);
+    return;
+  }
+  if (e.data?.type === 'womprat-open-browser' && e.data.url) {
+    openBrowser(e.data.url, e.data.title || e.data.url);
   }
 });
 window.addEventListener('load', () => { setURLProgress(false, true); wompratReportChrome(); });

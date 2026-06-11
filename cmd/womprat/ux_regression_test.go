@@ -370,7 +370,7 @@ func TestSettingsValidatesKeyAndHostInputs(t *testing.T) {
 		"SSH key action failed: ${err.message}",
 		"SSH key delete failed: ${err.message}",
 		"const safeURL = safeHostURL(url);",
-		"window.parent.openBrowser(safeURL, safeURL)",
+		"window.parent.postMessage({type: 'womprat-open-browser', url: safeURL, title: safeURL}, window.location.origin);",
 		"window.location.href = safeURL",
 		"setStatus('keys-status', 'error', 'Invalid key name')",
 		"setStatus('keys-status', 'ok', 'Key imported')",
@@ -420,6 +420,28 @@ func TestSettingsBrowserTablesUseSafeDOMConstruction(t *testing.T) {
 	for _, forbidden := range []string{"onclick=\"clearCookiesFor", "onclick=\"deletePassword"} {
 		if strings.Contains(s, forbidden) {
 			t.Fatalf("settings browser tables must not template inline handler %q", forbidden)
+		}
+	}
+}
+
+func TestSettingsOpenHostUsesParentMessageBridge(t *testing.T) {
+	settings := readFileForRegression(t, "frontend/settings.html")
+	shell := readFileForRegression(t, "frontend/index.html")
+	for _, want := range []string{
+		"type: 'womprat-open-browser'",
+		"window.parent.postMessage",
+	} {
+		if !strings.Contains(settings, want) {
+			t.Fatalf("settings host open bridge missing %q", want)
+		}
+	}
+	for _, want := range []string{
+		"if (e.origin !== window.location.origin) return;",
+		"e.data?.type === 'womprat-open-browser'",
+		"openBrowser(e.data.url, e.data.title || e.data.url);",
+	} {
+		if !strings.Contains(shell, want) {
+			t.Fatalf("shell host open bridge missing %q", want)
 		}
 	}
 }
