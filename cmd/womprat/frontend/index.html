@@ -915,7 +915,16 @@ window.openBrowser = function(url, name) {
   // Browser tabs are real WebView2 navigations managed by Go.
   // Do not create shell panels/iframes for external pages.
   if (window.womprat_newBrowser) {
-    window.womprat_newBrowser(navUrl);
+    try {
+      const result = window.womprat_newBrowser(navUrl);
+      if (result && typeof result.catch === 'function') result.catch(err => {
+        console.warn('native browser open failed', err);
+        setURLProgress(false, true);
+      });
+    } catch (err) {
+      console.warn('native browser open failed', err);
+      setURLProgress(false, true);
+    }
   } else {
     location.href = navUrl;
   }
@@ -1307,19 +1316,7 @@ installBrowserHotkeys();
 window.navigateFromBar = function() {
   const url = document.getElementById('url-input').value.trim();
   if (!url) return;
-  if (openSpecialURL(url)) return;
-  const navUrl = normalizeBrowserURL(url);
-  if (!navUrl) return;
-  updateNetworkIndicator();
-  setURLProgress(true);
-  saveURLHistory(navUrl);
-  focusContentArea();
-  // External browsing is direct WebView2 navigation, never a shell iframe.
-  const active = state.tabs.find(t => t.id === state.activeTab);
-  const shouldCreateBrowserTab = !active || active.type !== 'browser';
-  if (shouldCreateBrowserTab && window.womprat_newBrowser) window.womprat_newBrowser(navUrl);
-  else if (window.womprat_navigate) window.womprat_navigate(navUrl);
-  else location.href = navUrl;
+  openBrowser(url);
 };
 
 window.navigateTab = function(id) {

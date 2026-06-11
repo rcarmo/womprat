@@ -582,7 +582,7 @@ func TestShellUsesWindowQualifiedNativeBindings(t *testing.T) {
 	}
 	for _, want := range []string{
 		"window.womprat_newBrowser(navUrl)",
-		"window.womprat_navigate(navUrl)",
+		"native browser open failed",
 		"await window.womprat_getTabs()",
 	} {
 		if !strings.Contains(s, want) {
