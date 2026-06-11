@@ -490,18 +490,12 @@ function openCustomViewerFallback(target) {
   saveOpenTabs();
 }
 function callNativeCustomViewer(target, text) {
-  const fn = target.scheme === 'vnc' ? window.womprat_newVNC : target.scheme === 'rdp' ? window.womprat_newRDP : null;
-  if (!fn) {
-    openCustomViewerFallback(target);
-    return true;
-  }
-  try {
-    const result = fn(text);
-    if (result && typeof result.catch === 'function') result.catch(err => { console.warn(`${target.scheme} native open failed`, err); openCustomViewerFallback(target); });
-  } catch (err) {
-    console.warn(`${target.scheme} native open failed`, err);
-    openCustomViewerFallback(target);
-  }
+  // VNC/RDP panels are rendered and connected entirely by the shell (vnc.js /
+  // rdp.js connect to /api/{vnc,rdp}/ws through tsnet). The local viewer path
+  // creates the tab in shell state and starts the panel; the native Go binding
+  // only created a server-side tab and could not render here, so use the local
+  // path directly.
+  openCustomViewerFallback(target);
   return true;
 }
 function openSpecialURL(url) {

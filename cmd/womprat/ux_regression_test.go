@@ -649,6 +649,7 @@ func TestCustomSchemesUseSingleFrontendDispatcher(t *testing.T) {
 		"const defaults = { ssh: 22, vnc: 5900, rdp: 3389 }",
 		"function openCustomViewerFallback(target)",
 		"function callNativeCustomViewer(target, text)",
+		"openCustomViewerFallback(target);\n  return true;",
 		"if (target.scheme === 'vnc' || target.scheme === 'rdp') return callNativeCustomViewer(target, text);",
 		"if (openSpecialURL(url)) return;",
 		"const navUrl = normalizeBrowserURL(url);",
