@@ -685,6 +685,8 @@ func TestSetupAuthReportsFailures(t *testing.T) {
 	s := readFileForRegression(t, "frontend/index.html")
 	for _, want := range []string{
 		"Auth status unavailable:",
+		"if (data.hasKey) {",
+		"document.getElementById('setup').classList.add('hidden');",
 		"if (!res.ok) throw new Error(await res.text());",
 		"status.textContent = await res.text() || 'Unlock failed';",
 		"Unlock failed: ${err.message}",

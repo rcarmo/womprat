@@ -575,9 +575,11 @@ async function checkAuth() {
       showUnlock();
       return;
     }
-    if (data.hasKey && data.connected) {
+    if (data.hasKey) {
       document.getElementById('setup').classList.add('hidden');
+      return;
     }
+    document.getElementById('setup').classList.remove('hidden');
   } catch (err) {
     if (status) status.textContent = `Auth status unavailable: ${err.message}`;
   }
