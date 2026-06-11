@@ -531,6 +531,22 @@ func TestNativeHostResizesEmbeddedShellWebView(t *testing.T) {
 	}
 }
 
+func TestShellModuleHasLocalBindingsForWindowEntrypoints(t *testing.T) {
+	s := readFileForRegression(t, "frontend/index.html")
+	for _, want := range []string{
+		"function callWindowFunction(name, args)",
+		"function newBlankTab(...args) { return callWindowFunction('newBlankTab', args); }",
+		"function openSettings(...args) { return callWindowFunction('openSettings', args); }",
+		"function openBrowser(...args) { return callWindowFunction('openBrowser', args); }",
+		"function navigateFromBar(...args) { return callWindowFunction('navigateFromBar', args); }",
+		"function saveKey(...args) { return callWindowFunction('saveKey', args); }",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("shell module window entrypoint binding missing %q", want)
+		}
+	}
+}
+
 func TestSettingsActivationIsResilient(t *testing.T) {
 	s := readFileForRegression(t, "frontend/index.html")
 	for _, want := range []string{

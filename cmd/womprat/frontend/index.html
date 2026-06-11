@@ -251,6 +251,28 @@ window.Unicode11Addon = Unicode11Addon;
 window.UnicodeGraphemesAddon = UnicodeGraphemesAddon;
 window.WebglAddon = WebglAddon;
 
+// This script runs as an ES module, so assigning window.foo does not create a
+// module-scope foo binding. Event handlers below use unqualified names; keep
+// those bindings explicit and route them through the window entrypoints used by
+// native WebView callbacks and legacy inline callers.
+function callWindowFunction(name, args) {
+  const fn = window[name];
+  if (typeof fn !== 'function') throw new Error(`${name} is not available`);
+  return fn(...args);
+}
+function wompratReportChrome(...args) { return callWindowFunction('wompratReportChrome', args); }
+function newBlankTab(...args) { return callWindowFunction('newBlankTab', args); }
+function openSettings(...args) { return callWindowFunction('openSettings', args); }
+function openTerminal(...args) { return callWindowFunction('openTerminal', args); }
+function openBrowser(...args) { return callWindowFunction('openBrowser', args); }
+function closeTab(...args) { return callWindowFunction('closeTab', args); }
+function historyBack(...args) { return callWindowFunction('historyBack', args); }
+function historyForward(...args) { return callWindowFunction('historyForward', args); }
+function historyReload(...args) { return callWindowFunction('historyReload', args); }
+function navigateFromBar(...args) { return callWindowFunction('navigateFromBar', args); }
+function saveKey(...args) { return callWindowFunction('saveKey', args); }
+function triggerDownload(...args) { return callWindowFunction('triggerDownload', args); }
+
 
 const FLUENT_ICONS = {
   add: '<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M10 3.5a.75.75 0 0 1 .75.75v5h5a.75.75 0 0 1 0 1.5h-5v5a.75.75 0 0 1-1.5 0v-5h-5a.75.75 0 0 1 0-1.5h5v-5A.75.75 0 0 1 10 3.5Z"/></svg>',
