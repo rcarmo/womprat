@@ -685,6 +685,20 @@ func TestSettingsActivationIsResilient(t *testing.T) {
 	}
 }
 
+func TestCustomSchemeURLsNeverFallThroughToHTTP(t *testing.T) {
+	s := readFileForRegression(t, "frontend/index.html")
+	for _, want := range []string{
+		"function coerceCustomScheme(text)",
+		"replace(/^(ssh|vnc|rdp):(?!\\/\\/)/i",
+		"function isCustomSchemeURL(text)",
+		"if (isCustomSchemeURL(text)) {",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("custom scheme http-fallthrough guard missing %q", want)
+		}
+	}
+}
+
 func TestCustomSchemesUseSingleFrontendDispatcher(t *testing.T) {
 	s := readFileForRegression(t, "frontend/index.html")
 	for _, want := range []string{

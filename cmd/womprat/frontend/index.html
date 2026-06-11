@@ -498,12 +498,28 @@ function callNativeCustomViewer(target, text) {
   openCustomViewerFallback(target);
   return true;
 }
+function coerceCustomScheme(text) {
+  // Accept scheme:host shorthand (e.g. "rdp:host") and normalize to scheme://host
+  // so custom schemes never fall through to http:// normalization.
+  return String(text || '').trim().replace(/^(ssh|vnc|rdp):(?!\/\/)/i, (_m, s) => `${s.toLowerCase()}://`);
+}
+function isCustomSchemeURL(text) {
+  return /^(ssh|vnc|rdp):/i.test(String(text || '').trim());
+}
 function openSpecialURL(url) {
-  const text = String(url || '').trim();
+  const text = coerceCustomScheme(url);
   if (!text) return false;
   if (/^settings:?$/i.test(text)) { openSettings(); return true; }
   const target = parseCustomURL(text);
-  if (!target) return false;
+  if (!target) {
+    // A custom-scheme URL that failed strict parsing must not silently become an
+    // http:// navigation; report it and stop here.
+    if (isCustomSchemeURL(text)) {
+      console.warn('invalid custom-scheme URL', text);
+      return true;
+    }
+    return false;
+  }
   if (target.scheme === 'ssh') {
     const user = target.user || 'root';
     saveURLHistory(formatSSHURL(user, target.host, target.port));
