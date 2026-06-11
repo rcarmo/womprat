@@ -37,7 +37,7 @@ BIN_DARWIN:= $(DIST_DIR)/$(APP)-darwin-arm64
 
 .PHONY: help all setup doctor deps tidy download patch verify test vet compile-windows frontend-check \
         resources resources-arm64 resources-amd64 icon icon-check windows windows-arm64 \
-        windows-amd64 windows-intel intel linux darwin sha256 release release-intel dist \
+        windows-amd64 windows-intel intel linux linux-debug darwin sha256 release release-intel dist \
         clean clean-generated clean-dist dev run status
 
 .DEFAULT_GOAL := help
@@ -152,9 +152,12 @@ windows-intel: windows-amd64 ## Alias for Windows Intel/x64 build
 
 intel: windows-intel ## Short alias for Windows Intel/x64 build
 
-linux: | $(DIST_DIR) ## Build Linux AMD64 binary (for compile sanity only; app runtime is Windows-focused)
+linux: | $(DIST_DIR) ## Build Linux AMD64 debug server binary (serves shell/API for Xvfb+xdotool debugging)
 	GOOS=linux GOARCH=amd64 $(GO) build $(GOFLAGS) -ldflags="$(LDFLAGS)" -o $(BIN_LINUX) ./$(CMD_DIR)
 	@ls -lh $(BIN_LINUX)
+
+linux-debug: linux ## Build Linux binary and launch the Xvfb/xdotool debug harness
+	WOMPRAT_BIN=$(BIN_LINUX) bash scripts/linux-debug.sh
 
 darwin: | $(DIST_DIR) ## Build Darwin ARM64 binary (for compile sanity only; app runtime is Windows-focused)
 	GOOS=darwin GOARCH=arm64 $(GO) build $(GOFLAGS) -ldflags="$(LDFLAGS)" -o $(BIN_DARWIN) ./$(CMD_DIR)
