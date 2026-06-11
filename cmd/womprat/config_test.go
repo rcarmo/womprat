@@ -1,13 +1,14 @@
 package main
 
 import (
+	"path"
 	"strings"
 	"testing"
 	"unicode/utf8"
 )
 
 func TestCredentialNameValidation(t *testing.T) {
-	valid := []string{"tailscale-key", "ssh-key/main", "browser-pw/example.com", "a.b_c-1"}
+	valid := []string{"tailscale-key", "ssh-key/main", "ssh-key/womprat", "browser-pw/example.com", "a.b_c-1"}
 	for _, name := range valid {
 		if err := validateCredentialName(name); err != nil {
 			t.Fatalf("%q should be valid: %v", name, err)
@@ -18,6 +19,15 @@ func TestCredentialNameValidation(t *testing.T) {
 		if err := validateCredentialName(name); err == nil {
 			t.Fatalf("%q should be invalid", name)
 		}
+	}
+}
+
+func TestCredentialNameValidationUsesSlashStablePaths(t *testing.T) {
+	if got := path.Clean("ssh-key/womprat"); got != "ssh-key/womprat" {
+		t.Fatalf("path.Clean changed unexpectedly: %q", got)
+	}
+	if err := validateCredentialName("ssh-key/womprat"); err != nil {
+		t.Fatalf("slash-delimited credential name rejected: %v", err)
 	}
 }
 

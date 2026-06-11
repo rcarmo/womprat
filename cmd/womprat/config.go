@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -395,7 +396,7 @@ func DeleteCredential(name string) error {
 var credentialNamePattern = regexp.MustCompile(`^[A-Za-z0-9._/-]+$`)
 
 func validateCredentialName(name string) error {
-	if name == "" || strings.HasPrefix(name, "/") || strings.Contains(name, "..") || filepath.Clean(name) != name || !credentialNamePattern.MatchString(name) {
+	if name == "" || strings.HasPrefix(name, "/") || strings.Contains(name, "..") || path.Clean(name) != name || !credentialNamePattern.MatchString(name) {
 		return fmt.Errorf("invalid credential name")
 	}
 	return nil
