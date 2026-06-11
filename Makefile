@@ -37,7 +37,7 @@ BIN_DARWIN:= $(DIST_DIR)/$(APP)-darwin-arm64
 
 .PHONY: help all setup doctor deps tidy download patch verify test vet compile-windows frontend-check \
         resources resources-arm64 resources-amd64 icon icon-check windows windows-arm64 \
-        windows-amd64 windows-intel intel linux linux-debug darwin sha256 release release-intel dist \
+        windows-amd64 windows-intel intel linux linux-debug linux-gui darwin sha256 release release-intel dist \
         clean clean-generated clean-dist dev run status
 
 .DEFAULT_GOAL := help
@@ -158,6 +158,14 @@ linux: | $(DIST_DIR) ## Build Linux AMD64 debug server binary (serves shell/API 
 
 linux-debug: linux ## Build Linux binary and launch the Xvfb/xdotool debug harness
 	WOMPRAT_BIN=$(BIN_LINUX) bash scripts/linux-debug.sh
+
+linux-gui: | $(DIST_DIR) $(TMP_DIR) ## Build the Linux WebKitGTK GUI app (needs libgtk-3-dev + libwebkit2gtk-4.1-dev)
+	@mkdir -p $(TMP_DIR)/pcshim
+	@printf 'Name: webkit2gtk-4.0 (shim)\nDescription: shim -> 4.1\nVersion: 0\nRequires: webkit2gtk-4.1\n' > $(TMP_DIR)/pcshim/webkit2gtk-4.0.pc
+	CGO_ENABLED=1 PKG_CONFIG=/usr/bin/pkg-config \
+		PKG_CONFIG_PATH=$(CURDIR)/$(TMP_DIR)/pcshim:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig \
+		GOOS=linux GOARCH=amd64 $(GO) build -tags webkitgui -ldflags="$(LDFLAGS) -X main.debugBuild=1" -o $(DIST_DIR)/$(APP)-linux-gui ./$(CMD_DIR)
+	@ls -lh $(DIST_DIR)/$(APP)-linux-gui
 
 darwin: | $(DIST_DIR) ## Build Darwin ARM64 binary (for compile sanity only; app runtime is Windows-focused)
 	GOOS=darwin GOARCH=arm64 $(GO) build $(GOFLAGS) -ldflags="$(LDFLAGS)" -o $(BIN_DARWIN) ./$(CMD_DIR)
