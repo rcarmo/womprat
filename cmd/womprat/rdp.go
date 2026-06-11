@@ -62,9 +62,11 @@ func (a *App) handleRDPWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 	queryTarget, err := parseRDPURL(r.URL.Query().Get("target"))
 	if err != nil {
+		log.Printf("rdp: invalid target %q: %v", r.URL.Query().Get("target"), err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	log.Printf("rdp: ws request target=%s:%d user=%s", queryTarget.Host, queryTarget.Port, queryTarget.User)
 	a.mu.Lock()
 	ts := a.tsServer
 	a.mu.Unlock()

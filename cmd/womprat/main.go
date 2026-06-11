@@ -40,6 +40,10 @@ var (
 	version       = "0.3.0"
 	commit        = "dev"
 	tabIDSequence uint64
+	// debugBuild is set via -ldflags "-X main.debugBuild=1" to force verbose
+	// logging (and WebView devtools) regardless of stored config. Empty in normal
+	// release builds, so default behavior is unchanged.
+	debugBuild string
 )
 
 func newTabID(prefix string) string {
@@ -112,7 +116,13 @@ func main() {
 	if err != nil {
 		cfg = defaultConfig()
 	}
+	if debugBuild == "1" {
+		cfg.DebugLog = true
+	}
 	setupLogging(cfg.DebugLog)
+	if debugBuild == "1" {
+		log.Printf("debug build: verbose connection logging enabled")
+	}
 	if err != nil {
 		log.Printf("config load failed, using defaults: %v", err)
 	}

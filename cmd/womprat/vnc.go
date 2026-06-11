@@ -41,9 +41,11 @@ func (a *App) handleVNCWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 	target, err := parseVNCURL(r.URL.Query().Get("target"))
 	if err != nil {
+		log.Printf("vnc: invalid target %q: %v", r.URL.Query().Get("target"), err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	log.Printf("vnc: ws request target=%s:%d", target.Host, target.Port)
 	a.mu.Lock()
 	ts := a.tsServer
 	a.mu.Unlock()
