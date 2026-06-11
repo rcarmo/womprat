@@ -87,7 +87,7 @@ func (a *App) downloadToFile(targetURL, savePath string, st *downloadState) {
 			if ts == nil {
 				return nil, fmt.Errorf("tailscale not connected")
 			}
-			return ts.Dial(ctx, network, addr)
+			return dialTSNetPreferIPv4(ctx, ts, addr)
 		},
 	}
 	client := &http.Client{Transport: transport, Timeout: 5 * time.Minute}

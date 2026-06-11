@@ -64,7 +64,7 @@ func (a *App) handleVNCWebSocket(w http.ResponseWriter, r *http.Request) {
 
 	addr := net.JoinHostPort(target.Host, strconv.Itoa(target.Port))
 	log.Printf("vnc: connect %s via tsnet", addr)
-	upstream, err := ts.Dial(r.Context(), "tcp", addr)
+	upstream, err := dialTSNetPreferIPv4(r.Context(), ts, addr)
 	if err != nil {
 		log.Printf("vnc: connect failed %s: %v", addr, err)
 		ws.Close(websocket.StatusInternalError, err.Error())

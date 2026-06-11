@@ -106,6 +106,21 @@ func TestSOCKSRelayHalfClosesAndWaitsBothDirections(t *testing.T) {
 	}
 }
 
+func TestAllTsnetDialsPreferIPv4(t *testing.T) {
+	for _, f := range []string{"socks.go", "vnc.go", "rdp.go", "download.go", "main.go"} {
+		s := readFileForRegression(t, f)
+		if !strings.Contains(s, "dialTSNetPreferIPv4(") {
+			t.Fatalf("%s should dial tsnet via dialTSNetPreferIPv4", f)
+		}
+	}
+	for _, f := range []string{"vnc.go", "rdp.go", "download.go"} {
+		s := readFileForRegression(t, f)
+		if strings.Contains(s, "ts.Dial(") {
+			t.Fatalf("%s must not call ts.Dial directly; use dialTSNetPreferIPv4", f)
+		}
+	}
+}
+
 func TestSOCKSDialPrefersIPv4(t *testing.T) {
 	s := readFileForRegression(t, "socks.go")
 	for _, want := range []string{
@@ -136,7 +151,7 @@ func TestSSHConnectUsesRequestScopedDialTimeout(t *testing.T) {
 	s := readFileForRegression(t, "main.go")
 	for _, want := range []string{
 		"context.WithTimeout(r.Context(), 10*time.Second)",
-		"ts.Dial(dialCtx, \"tcp\", addr)",
+		"dialTSNetPreferIPv4(dialCtx, ts, addr)",
 		"defer cancelDial()",
 	} {
 		if !strings.Contains(s, want) {

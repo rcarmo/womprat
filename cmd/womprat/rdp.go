@@ -128,7 +128,7 @@ func (a *App) handleRDPWebSocket(w http.ResponseWriter, r *http.Request) {
 		// Ignore any client-supplied host in credentials; fail closed via tsnet to URL target.
 		addr := net.JoinHostPort(queryTarget.Host, strconv.Itoa(queryTarget.Port))
 		log.Printf("rdp: connect %s via tsnet", addr)
-		return ts.Dial(ctx, network, addr)
+		return dialTSNetPreferIPv4(ctx, ts, addr)
 	}
 	client, err := rdp.NewClientWithDialContext(ctx, dial, net.JoinHostPort(queryTarget.Host, strconv.Itoa(queryTarget.Port)), creds.User, creds.Password, width, height, colorDepth)
 	if err != nil {
