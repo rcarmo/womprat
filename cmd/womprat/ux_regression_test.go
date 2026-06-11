@@ -106,12 +106,24 @@ func TestSOCKSRelayHalfClosesAndWaitsBothDirections(t *testing.T) {
 	}
 }
 
+func TestSOCKSDialPrefersIPv4(t *testing.T) {
+	s := readFileForRegression(t, "socks.go")
+	for _, want := range []string{
+		"func dialTSNetPreferIPv4(ctx context.Context, ts *tsnet.Server, addr string)",
+		"[]string{\"tcp4\", \"tcp6\", \"tcp\"}",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("SOCKS IPv4-preferred dial missing %q", want)
+		}
+	}
+}
+
 func TestSOCKSConnectUsesBoundedTsnetDial(t *testing.T) {
 	s := readFileForRegression(t, "socks.go")
 	for _, want := range []string{
 		"const socksDialTimeout = 10 * time.Second",
 		"context.WithTimeout(context.Background(), socksDialTimeout)",
-		"ts.Dial(dialCtx, \"tcp\", addr)",
+		"dialTSNetPreferIPv4(dialCtx, ts, addr)",
 		"defer cancelDial()",
 	} {
 		if !strings.Contains(s, want) {

@@ -10,6 +10,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"tailscale.com/tsnet"
 )
 
 var socksAddr = "127.0.0.1:1080"
@@ -97,7 +99,7 @@ func handleSOCKS5(conn net.Conn, app *App) {
 	log.Printf("SOCKS5 connect %s via tsnet", addr)
 	dialCtx, cancelDial := context.WithTimeout(context.Background(), socksDialTimeout)
 	defer cancelDial()
-	remote, err := ts.Dial(dialCtx, "tcp", addr)
+	remote, err := dialTSNetPreferIPv4(dialCtx, ts, addr)
 	if err != nil {
 		log.Printf("SOCKS5 tsnet dial failed for %s: %v", addr, err)
 		writeSOCKSReply(conn, 0x05)
@@ -136,6 +138,28 @@ func halfCloseWrite(c net.Conn) {
 	if cw, ok := c.(interface{ CloseWrite() error }); ok {
 		_ = cw.CloseWrite()
 	}
+}
+
+// dialTSNetPreferIPv4 dials through tsnet preferring IPv4, then IPv6, then the
+// unspecified network. Plain "tcp" lets tsnet/netstack pick an address family
+// and it frequently chose IPv6, which fails when the upstream path is not
+// reliably reachable over v6 and shows up as assets intermittently not loading.
+func dialTSNetPreferIPv4(ctx context.Context, ts *tsnet.Server, addr string) (net.Conn, error) {
+	var lastErr error
+	for _, network := range []string{"tcp4", "tcp6", "tcp"} {
+		if ctx.Err() != nil {
+			if lastErr != nil {
+				return nil, lastErr
+			}
+			return nil, ctx.Err()
+		}
+		conn, err := ts.Dial(ctx, network, addr)
+		if err == nil {
+			return conn, nil
+		}
+		lastErr = err
+	}
+	return nil, lastErr
 }
 
 func socksMethodsContain(methods []byte, method byte) bool {
