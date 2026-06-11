@@ -176,7 +176,8 @@ func (a *App) evalShell(format string, args ...interface{}) {
 	if a.webview == nil {
 		return
 	}
-	a.webview.Eval(fmt.Sprintf(format, args...))
+	js := fmt.Sprintf(format, args...)
+	a.onUIThread(func() { a.webview.Eval(js) })
 }
 
 func (a *App) onUIThread(fn func()) {

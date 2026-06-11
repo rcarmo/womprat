@@ -56,6 +56,21 @@ func TestReadOnlyHandlersUseSharedGetMethodGuard(t *testing.T) {
 	}
 }
 
+func TestShellEvalDispatchesToUIThread(t *testing.T) {
+	s := readFileForRegression(t, "main.go")
+	for _, want := range []string{
+		"js := fmt.Sprintf(format, args...)",
+		"a.onUIThread(func() { a.webview.Eval(js) })",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("shell eval UI dispatch missing %q", want)
+		}
+	}
+	if strings.Contains(s, "a.webview.Eval(fmt.Sprintf(format, args...))") {
+		t.Fatal("shell eval must not call WebView Eval directly from binding callbacks")
+	}
+}
+
 func TestTailscaleStartupUsesBoundedContext(t *testing.T) {
 	s := readFileForRegression(t, "main.go")
 	for _, want := range []string{
