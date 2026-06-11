@@ -18,6 +18,13 @@ func TestServeFrontend(t *testing.T) {
 	}
 
 	rr = httptest.NewRecorder()
+	req = httptest.NewRequest("GET", "/settings.html", nil)
+	app.serveFrontend(rr, req)
+	if rr.Code != 200 || !strings.Contains(rr.Body.String(), "window.__SESSION_TOKEN") || !strings.Contains(rr.Body.String(), "const TOKEN = window.__SESSION_TOKEN || '';") {
+		t.Fatalf("serve settings = %d body=%q", rr.Code, rr.Body.String()[:min(120, rr.Body.Len())])
+	}
+
+	rr = httptest.NewRecorder()
 	req = httptest.NewRequest("GET", "/vendor/xterm.css", nil)
 	app.serveFrontend(rr, req)
 	if rr.Code != 200 || rr.Header().Get("Content-Type") != "text/css" {
