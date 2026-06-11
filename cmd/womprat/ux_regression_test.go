@@ -665,6 +665,19 @@ func TestCustomSchemesUseSingleFrontendDispatcher(t *testing.T) {
 	}
 }
 
+func TestVNCSessionControlsGateOnConnection(t *testing.T) {
+	s := readFileForRegression(t, "frontend/vnc.js")
+	for _, want := range []string{
+		"setSessionControlsEnabled(enabled)",
+		"this.setSessionControlsEnabled(false);",
+		"this.setSessionControlsEnabled(true);",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("VNC session control gating missing %q", want)
+		}
+	}
+}
+
 func TestRemoteDisplayWebSocketsSendAuthToken(t *testing.T) {
 	vnc := readFileForRegression(t, "frontend/vnc.js")
 	rdp := readFileForRegression(t, "frontend/rdp.js")

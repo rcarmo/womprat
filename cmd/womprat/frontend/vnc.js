@@ -2906,6 +2906,15 @@ class WompratVncViewer {
     this.installClipboard();
     this.installControls();
     this.installResize();
+    this.setSessionControlsEnabled(false);
+  }
+  setSessionControlsEnabled(enabled) {
+    // Controls that only make sense during a live VNC session. Reconnect and the
+    // password field stay enabled so the user can initiate/authenticate.
+    for (const sel of ["[data-vnc-scale]", "[data-vnc-send-clipboard]", "[data-vnc-clipboard]"]) {
+      const el = this.root.querySelector(sel);
+      if (el) el.disabled = !enabled;
+    }
   }
   readPassword() {
     const input = this.root.querySelector("[data-vnc-password]");
@@ -2953,6 +2962,7 @@ class WompratVncViewer {
     this.ws.onerror = () => setStatus(this.root, "VNC connection error.");
     this.ws.onclose = (event) => {
       setBusy(this.root, false);
+      this.setSessionControlsEnabled(false);
       if (!this.closedByReconnect)
         setStatus(this.root, event.reason ? `Disconnected: ${event.reason}` : "Disconnected.");
     };
@@ -2971,6 +2981,7 @@ class WompratVncViewer {
         this.handleEvent(event);
     } catch (error) {
       setBusy(this.root, false);
+      this.setSessionControlsEnabled(false);
       const message = String(error?.message || error);
       setStatus(this.root, `VNC error: ${message}`);
       if (/password authentication is required|authentication failed/i.test(message)) {
@@ -2998,6 +3009,7 @@ class WompratVncViewer {
       case "display-init":
         this.resizeFramebuffer(event.width, event.height);
         setBusy(this.root, false);
+        this.setSessionControlsEnabled(true);
         setStatus(this.root, `${event.name || this.target} · ${event.width}×${event.height}`);
         break;
       case "framebuffer-update":
