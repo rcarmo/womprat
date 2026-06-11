@@ -1,0 +1,94 @@
+// Connection History Manager
+// Persists recent connections to localStorage
+
+import { Logger } from './logger.js';
+
+const ConnectionHistory = {
+    _storageKey: 'rdp_connection_history',
+    _maxHistory: 5,
+
+    // Normalize host by removing default RDP port
+    _normalizeHost(host) {
+        if (!host) return host;
+        // Remove :3389 suffix if present (default RDP port)
+        return host.replace(/:3389$/, '');
+    },
+
+    // Save a connection to history
+    save(host, username) {
+        if (!host || !username) return;
+
+        // Normalize host (remove default port)
+        host = this._normalizeHost(host);
+
+        const history = this.get();
+
+        // Create connection entry (timestamp for sorting)
+        const entry = {
+            host,
+            username,
+            timestamp: Date.now(),
+        };
+
+        // Remove duplicate if exists (same host + username)
+        const filtered = history.filter(
+            (item) => !(this._normalizeHost(item.host) === host && item.username === username),
+        );
+
+        // Add to beginning
+        filtered.unshift(entry);
+
+        // Keep only max items
+        const trimmed = filtered.slice(0, this._maxHistory);
+
+        // Save to localStorage
+        try {
+            localStorage.setItem(this._storageKey, JSON.stringify(trimmed));
+            Logger.debug('[ConnectionHistory] Saved connection:', host, username);
+        } catch (e) {
+            console.error('[ConnectionHistory] Failed to save:', e);
+        }
+    },
+
+    // Get all connection history
+    get() {
+        try {
+            const data = localStorage.getItem(this._storageKey);
+            if (!data) return [];
+
+            const parsed = JSON.parse(data);
+            return Array.isArray(parsed) ? parsed : [];
+        } catch (e) {
+            console.error('[ConnectionHistory] Failed to load:', e);
+            return [];
+        }
+    },
+
+    // Clear all history
+    clear() {
+        try {
+            localStorage.removeItem(this._storageKey);
+            Logger.info('[ConnectionHistory] History cleared');
+        } catch (e) {
+            console.error('[ConnectionHistory] Failed to clear:', e);
+        }
+    },
+
+    // Remove a specific entry
+    remove(host, username) {
+        const history = this.get();
+        const filtered = history.filter(
+            (item) =>
+                !(this._normalizeHost(item.host) === this._normalizeHost(host) && item.username === username),
+        );
+
+        try {
+            localStorage.setItem(this._storageKey, JSON.stringify(filtered));
+            Logger.debug('[ConnectionHistory] Removed connection:', host, username);
+        } catch (e) {
+            console.error('[ConnectionHistory] Failed to remove:', e);
+        }
+    },
+};
+
+export default ConnectionHistory;

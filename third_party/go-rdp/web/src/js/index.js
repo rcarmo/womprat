@@ -1,0 +1,39 @@
+/**
+ * RDP Web Client - Entry point
+ * Exports the Client class, Logger, and WASM codec for use in browser
+ * @module index
+ */
+
+import { Client, Logger } from './client.js';
+import { WASMCodec, RFXDecoder, isWASMSupported } from './wasm.js';
+import { FallbackCodec } from './codec-fallback.js';
+import ConnectionHistory from './connection-history.js';
+import './binary.js';
+
+// Export to global scope for browser use
+if (typeof window !== 'undefined') {
+    window.Client = Client;
+    window.Logger = Logger;
+    window.WASMCodec = WASMCodec;
+    window.RFXDecoder = RFXDecoder;
+    window.FallbackCodec = FallbackCodec;
+    window.isWASMSupported = isWASMSupported;
+    window.ConnectionHistory = ConnectionHistory;
+    
+    // Auto-initialize WASM codec when page loads
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => {
+            WASMCodec.init('js/rle/rle.wasm').catch(err => {
+                Logger.warn('WASM', `Auto-init failed: ${err.message}`);
+            });
+        });
+    } else {
+        // DOM already loaded
+        WASMCodec.init('js/rle/rle.wasm').catch(err => {
+            Logger.warn('WASM', `Auto-init failed: ${err.message}`);
+        });
+    }
+}
+
+export { Client, Logger, WASMCodec, RFXDecoder, FallbackCodec, isWASMSupported, ConnectionHistory };
+export default Client;

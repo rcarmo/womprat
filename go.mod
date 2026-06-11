@@ -102,3 +102,5 @@ require (
 )
 
 replace github.com/jchv/go-webview2 => ./internal/go-webview2
+
+replace github.com/rcarmo/go-rdp => ./third_party/go-rdp

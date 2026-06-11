@@ -1700,7 +1700,7 @@ function normalizeEncodings(encodings) {
   }
   if (values.length > 0)
     return values;
-  return [16, 5, 2, 4, 1, 0, -239, -224, -223, -307, -308];
+  return [0, 5, 2, 4, 1, 16, -239, -224, -223, -307, -308];
 }
 function toUint8Array2(chunk) {
   if (chunk instanceof Uint8Array)

@@ -1,0 +1,143 @@
+# Go RDP Client
+
+![Logo](docs/icon-256.png)
+
+A browser-based Remote Desktop Protocol (RDP) client built with Go and WebAssembly, originally inspired by [`kulaginda/rdp-html5`](https://github.com/kulaginds/rdp-html5) but completely rewritten from scratch to pass all the reference tests in Microsoft's [MS-RDPBCGR](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/) specification and be a reference implementation for RDP in Go.
+
+> ⚠️ **Note**: While functional, this implementation has known limitations.
+
+## Quick Start
+
+### Using Docker (Recommended)
+
+```bash
+# Run with default settings (TLS validation enabled)
+docker run -d -p 8080:8080 ghcr.io/rcarmo/go-rdp:latest
+
+# Run with TLS validation disabled (for self-signed certs)
+docker run -d -p 8080:8080 -e TLS_SKIP_VERIFY=true ghcr.io/rcarmo/rdp-html5:latest
+
+# Run with debug logging
+docker run -d -p 8080:8080 -e LOG_LEVEL=debug ghcr.io/rcarmo/rdp-html5:latest
+```
+
+Then open http://localhost:8080 in your browser.
+
+### Using Docker Compose
+
+```bash
+git clone https://github.com/rcarmo/go-rdp.git
+cd go-rdp
+docker-compose up -d
+```
+
+### Building from Source
+
+**Prerequisites:**
+- Go 1.21+
+- TinyGo 0.34+ (for WASM)
+- Node.js 18+ (for JS bundling)
+
+```bash
+# Clone and build
+git clone https://github.com/rcarmo/go-rdp.git
+cd go-rdp
+make deps    # Install dependencies
+make build   # Build everything (WASM + JS + binary)
+
+# Run
+./bin/go-rdp
+```
+
+## Configuration
+
+Environment variables:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SERVER_PORT` | `8080` | HTTP server port |
+| `LOG_LEVEL` | `info` | Logging level: debug, info, warn, error |
+| `TLS_SKIP_VERIFY` | `false` | Skip RDP server TLS certificate validation |
+| `TLS_ALLOW_ANY_SERVER_NAME` | `false` | Allow connecting without enforcing SNI (lab/testing) |
+| `ENABLE_TLS` | `false` | Enable HTTPS for the web interface |
+| `TLS_CERT_FILE` | - | Path to TLS certificate |
+| `TLS_KEY_FILE` | - | Path to TLS private key |
+| `RDP_ENABLE_RFX` | `true` | Enable RemoteFX codec support |
+| `RDP_ENABLE_UDP` | `false` | Enable UDP transport (experimental) |
+| `RDP_PREFER_PCM_AUDIO` | `false` | Prefer PCM audio (best quality, high bandwidth) |
+
+Command-line flags:
+
+| Flag | Description |
+|------|-------------|
+| `-host` | Server listen host (default: 0.0.0.0) |
+| `-port` | Server listen port (default: 8080) |
+| `-log-level` | Log level: debug, info, warn, error |
+| `-tls-skip-verify` | Skip TLS certificate validation |
+| `-tls-server-name` | Override TLS server name (SNI) |
+| `-tls-allow-any-server-name` | Allow connecting without enforcing SNI (lab/testing only) |
+| `-nla` | Enable Network Level Authentication |
+| `-no-rfx` | Disable RemoteFX codec support |
+| `-udp` | Enable UDP transport (experimental) |
+| `-prefer-pcm-audio` | Prefer PCM audio (best quality, high bandwidth) |
+| `-version` | Show version information |
+| `-help` | Show help message |
+
+See [docs/configuration.md](docs/configuration.md) for full configuration options.
+
+## Documentation
+
+### User Documentation
+
+- [Architecture](docs/ARCHITECTURE.md) - System design and data flow
+- [Configuration](docs/configuration.md) - Configuration options (env vars + flags)
+- [Debugging](docs/debugging.md) - Troubleshooting guide
+
+### Implementation Documentation
+
+- [NSCodec](docs/NSCODEC.md) - Bitmap codec implementation
+- [RemoteFX](docs/REMOTEFX.md) - RemoteFX wavelet codec implementation
+- [WebGL](docs/webgl.md) - WebGL rendering implementation
+
+### Protocol Specifications
+
+This implementation follows Microsoft's open protocol specifications:
+
+| Protocol | Description | Specification |
+|----------|-------------|---------------|
+| MS-RDPBCGR | Basic Connectivity | [Link](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/) |
+| MS-RDPEA | Audio Output | [Link](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpea/) |
+| MS-RDPEDYC | Dynamic Channels | [Link](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpedyc/) |
+| MS-RDPEDISP | Display Control | [Link](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpedisp/) |
+| MS-RDPEMT | Multitransport | [Link](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpemt/) |
+| MS-RDPEUDP | UDP Transport | [Link](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpeudp/) |
+
+## Features
+
+- **Secure Credentials** - Passwords sent via WebSocket, not URL
+- **TLS Support** - TLS 1.2+ encryption for RDP connections
+- **NLA Authentication** - Network Level Authentication (with limitations)
+- **Clipboard** - Bidirectional text clipboard
+- **Audio** - Audio redirection with PCM, AAC, and MP3 support
+- **WebAssembly** - RLE/NSCodec/RemoteFX decoding via WASM
+- **Configurable** - Environment-based configuration
+
+## Limitations
+
+- **Windows Compatibility** - Primarily tested with XRDP; Windows servers may have issues
+- **Graphics** - RemoteFX codec implemented; H.264 not yet supported
+- **NLA** - Works with many configurations but not all (see limitations below)
+
+## Development
+
+```bash
+make help       # Show all targets
+make dev        # Run in development mode
+make test       # Run tests
+make lint       # Run linters
+make build-all  # Build for all platforms
+```
+
+## License
+
+MIT License - see [LICENSE](LICENSE)

@@ -118,11 +118,15 @@ func (a *App) handleRDPWebSocket(w http.ResponseWriter, r *http.Request) {
 	width := clampRDPDim(r.URL.Query().Get("width"), 1280)
 	height := clampRDPDim(r.URL.Query().Get("height"), 720)
 	colorDepth := parseRDPColorDepth(r.URL.Query().Get("colorDepth"), 16)
-	enableAudio := r.URL.Query().Get("audio") == "true"
+	// Keep the server-side connection conservative by default. The bundled
+	// legacy browser client currently hard-codes audio=true and rfx=true in its
+	// WebSocket URL, but several real servers (xrdp/FreeRDP shadow) abort during
+	// setup when those virtual channels/codecs are advertised before a basic
+	// bitmap session is proven. Treat them as explicit backend opt-ins instead.
+	enableAudio := r.URL.Query().Get("audio") == "force"
 	disableNLA := r.URL.Query().Get("disableNLA") == "true"
-	// RemoteFX/NSCodec surface codecs are backed by the embedded go-rdp TinyGo
-	// decoder bundle and are negotiated by default for Womprat RDP sessions.
-	enableRFX := r.URL.Query().Get("rfx") != "false"
+	enableRFX := r.URL.Query().Get("rfx") == "force"
+	enableDisplayControl := r.URL.Query().Get("displayControl") == "true"
 
 	dial := func(ctx context.Context, network, address string) (net.Conn, error) {
 		// Ignore any client-supplied host in credentials; fail closed via tsnet to URL target.
@@ -140,7 +144,9 @@ func (a *App) handleRDPWebSocket(w http.ResponseWriter, r *http.Request) {
 	client.SetTLSConfig(true, "")
 	client.SetUseNLA(!disableNLA)
 	client.SetEnableRFX(enableRFX)
-	client.EnableDisplayControl()
+	if enableDisplayControl {
+		client.EnableDisplayControl()
+	}
 	if enableAudio {
 		client.EnableAudio()
 	}
@@ -252,6 +258,9 @@ func rdpClientToWs(ctx context.Context, cancel context.CancelFunc, ws *websocket
 		default:
 			log.Printf("rdp update: %v", err)
 			return
+		}
+		if len(update.Data) == 0 {
+			continue
 		}
 		mu.Lock()
 		err = ws.Write(ctx, websocket.MessageBinary, update.Data)

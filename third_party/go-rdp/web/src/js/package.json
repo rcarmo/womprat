@@ -1,0 +1,29 @@
+{
+  "name": "rdp-web-client",
+  "version": "1.0.0",
+  "description": "RDP Web Client JavaScript modules",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "build": "esbuild index.js --bundle --outfile=../../dist/js/client.bundle.js --format=iife --global-name=RDP",
+    "build:min": "esbuild index.js --bundle --minify --outfile=../../dist/js/client.bundle.min.js --format=iife --global-name=RDP",
+    "test": "node --test codec-fallback.test.js",
+    "test:verbose": "node --test --test-reporter=spec codec-fallback.test.js",
+    "test:e2e": "npx playwright test",
+    "test:e2e:chromium": "npx playwright test --project=chromium",
+    "test:e2e:firefox": "npx playwright test --project=firefox",
+    "test:e2e:headed": "npx playwright test --headed",
+    "test:e2e:debug": "npx playwright test --debug"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.57.0",
+    "esbuild": "^0.20.0",
+    "playwright": "^1.57.0"
+  },
+  "keywords": [
+    "rdp",
+    "remote-desktop",
+    "webrtc"
+  ],
+  "license": "MIT"
+}
