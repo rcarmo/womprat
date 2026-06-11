@@ -270,9 +270,13 @@ func TestSettingsRejectMalformedJSON(t *testing.T) {
 
 func TestSSHKeyHandlers(t *testing.T) {
 	app := newTestApp(t)
-	rr := performJSON(app.handleGenerateSSHKey, "POST", "/api/settings/ssh-keys/generate", map[string]string{"name": "main"})
+	rr := performJSON(app.handleGenerateSSHKey, "POST", "/api/settings/ssh-keys/generate", map[string]string{"name": "womprat"})
 	if rr.Code != 200 || !strings.Contains(rr.Body.String(), "publicKey") {
-		t.Fatalf("generate key = %d %s", rr.Code, rr.Body.String())
+		t.Fatalf("generate key womprat = %d %s", rr.Code, rr.Body.String())
+	}
+	rr = performJSON(app.handleGenerateSSHKey, "POST", "/api/settings/ssh-keys/generate", map[string]string{"name": "main"})
+	if rr.Code != 200 || !strings.Contains(rr.Body.String(), "publicKey") {
+		t.Fatalf("generate key main = %d %s", rr.Code, rr.Body.String())
 	}
 	rr = performJSON(app.handleSSHKeys, "GET", "/api/settings/ssh-keys", nil)
 	if rr.Code != 200 || !strings.Contains(rr.Body.String(), "main") {
