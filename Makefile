@@ -37,7 +37,7 @@ BIN_DARWIN:= $(DIST_DIR)/$(APP)-darwin-arm64
 
 .PHONY: help all setup doctor deps tidy download patch verify test vet compile-windows frontend-check \
         resources resources-arm64 resources-amd64 icon icon-check windows windows-arm64 \
-        windows-amd64 windows-intel intel linux linux-debug linux-gui darwin sha256 release release-intel dist \
+        windows-amd64 windows-intel intel linux linux-debug linux-gui ux-test darwin sha256 release release-intel dist \
         clean clean-generated clean-dist dev run status
 
 .DEFAULT_GOAL := help
@@ -155,6 +155,10 @@ intel: windows-intel ## Short alias for Windows Intel/x64 build
 linux: | $(DIST_DIR) ## Build Linux AMD64 debug server binary (serves shell/API for Xvfb+xdotool debugging)
 	GOOS=linux GOARCH=amd64 $(GO) build $(GOFLAGS) -ldflags="$(LDFLAGS)" -o $(BIN_LINUX) ./$(CMD_DIR)
 	@ls -lh $(BIN_LINUX)
+
+ux-test: | $(DIST_DIR) ## Build a debug headless Linux binary and run the Playwright UX test
+	$(GO) build -ldflags="-X main.debugBuild=1" -o $(DIST_DIR)/$(APP)-linux-debug ./$(CMD_DIR)
+	cd tests/ux && PLAYWRIGHT_BROWSERS_PATH=$(HOME)/.cache/ms-playwright $(BUN) run ux.mjs
 
 linux-debug: linux ## Build Linux binary and launch the Xvfb/xdotool debug harness
 	WOMPRAT_BIN=$(BIN_LINUX) bash scripts/linux-debug.sh
