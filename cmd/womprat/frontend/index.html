@@ -520,13 +520,18 @@ function openSpecialURL(url) {
   return false;
 }
 function saveURLHistory(url) {
-  const normalized = normalizeHistoryURL(url);
-  if (!normalized) return;
-  const history = loadURLHistory().filter(u => u !== normalized);
-  history.unshift(normalized);
-  try { localStorage.setItem('wompratURLHistory', JSON.stringify(history.slice(0, 100))); }
-  catch (err) { console.warn('save URL history failed', err); }
-  refreshURLHistoryDatalist();
+  try {
+    const normalized = normalizeHistoryURL(url);
+    if (!normalized) return;
+    const history = loadURLHistory().filter(u => u !== normalized);
+    history.unshift(normalized);
+    try { localStorage.setItem('wompratURLHistory', JSON.stringify(history.slice(0, 100))); }
+    catch (err) { console.warn('save URL history failed', err); }
+    refreshURLHistoryDatalist();
+  } catch (err) {
+    // History bookkeeping must never block navigation.
+    console.warn('saveURLHistory failed', err);
+  }
 }
 function formatSSHURL(user, host, port) {
   const u = user || 'root';
@@ -535,20 +540,24 @@ function formatSSHURL(user, host, port) {
   return p && p !== 22 ? `ssh://${u}@${h}:${p}` : `ssh://${u}@${h}`;
 }
 function refreshURLHistoryDatalist(extra = []) {
-  const list = document.getElementById('url-history');
-  if (!list) return;
-  const urls = new Set(loadURLHistory());
-  for (const t of state.tabs || []) {
-    if ((t.type === 'browser' || t.type === 'vnc' || t.type === 'rdp') && t.url) urls.add(t.url);
-    if (t.type === 'terminal' && t.host) urls.add(formatSSHURL(t.user, t.host, t.port));
+  try {
+    const list = document.getElementById('url-history');
+    if (!list) return;
+    const urls = new Set(loadURLHistory());
+    for (const t of state.tabs || []) {
+      if ((t.type === 'browser' || t.type === 'vnc' || t.type === 'rdp') && t.url) urls.add(t.url);
+      if (t.type === 'terminal' && t.host) urls.add(formatSSHURL(t.user, t.host, t.port));
+    }
+    for (const u of extra || []) if (u) urls.add(u);
+    list.textContent = '';
+    [...urls].filter(isHistoryURL).slice(0, 100).forEach(u => {
+      const opt = document.createElement('option');
+      opt.value = u;
+      list.appendChild(opt);
+    });
+  } catch (err) {
+    console.warn('refreshURLHistoryDatalist failed', err);
   }
-  for (const u of extra || []) if (u) urls.add(u);
-  list.textContent = '';
-  [...urls].filter(isHistoryURL).slice(0, 100).forEach(u => {
-    const opt = document.createElement('option');
-    opt.value = u;
-    list.appendChild(opt);
-  });
 }
 async function updateNetworkIndicator() {
   const pill = document.getElementById('route-pill');
@@ -907,14 +916,20 @@ async function reconnectTerminal(tabId, host, name, user, port, term) {
 }
 
 window.openBrowser = function(url, name) {
-  if (openSpecialURL(url)) return;
+  try {
+    if (openSpecialURL(url)) return;
+  } catch (err) {
+    console.warn('special URL routing failed', err);
+  }
   const navUrl = normalizeBrowserURL(url);
   if (!navUrl) return;
 
-  updateNetworkIndicator();
-  setURLProgress(true);
-  saveURLHistory(navUrl);
-  focusContentArea();
+  // Best-effort UI bookkeeping; must never block the actual navigation.
+  try { updateNetworkIndicator(); } catch (err) { console.warn('network indicator failed', err); }
+  try { setURLProgress(true); } catch (err) { console.warn('progress update failed', err); }
+  try { saveURLHistory(navUrl); } catch (err) { console.warn('save history failed', err); }
+  try { focusContentArea(); } catch (err) { console.warn('focus content failed', err); }
+
   // Browser tabs are real WebView2 navigations managed by Go.
   // Do not create shell panels/iframes for external pages.
   if (window.womprat_newBrowser) {
@@ -1179,7 +1194,11 @@ function activateTab(id, options = {}) {
 }
 
 window.showBrowserTab = function(id, url, options = {}) {
-  if (openSpecialURL(url)) return;
+  try {
+    if (openSpecialURL(url)) return;
+  } catch (err) {
+    console.warn('special URL routing failed', err);
+  }
   const navUrl = url === 'about:blank' ? 'about:blank' : normalizeBrowserURL(url);
   if (!navUrl) return;
   let tab = state.tabs.find(t => t.id === id);
@@ -1194,9 +1213,9 @@ window.showBrowserTab = function(id, url, options = {}) {
   renderTabs();
   activateTab(id, { skipNative: !!options.skipNative });
   setBrowserStatus(id, `Loading ${navUrl}…`);
-  saveURLHistory(navUrl);
-  registerLocalTab(tab);
-  saveOpenTabs();
+  try { saveURLHistory(navUrl); } catch (err) { console.warn('save history failed', err); }
+  try { registerLocalTab(tab); } catch (err) { console.warn('register local tab failed', err); }
+  try { saveOpenTabs(); } catch (err) { console.warn('save open tabs failed', err); }
 };
 
 window.historyBack = function() { if (window.womprat_browserBack) window.womprat_browserBack(); };

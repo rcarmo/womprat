@@ -651,7 +651,7 @@ func TestCustomSchemesUseSingleFrontendDispatcher(t *testing.T) {
 		"function callNativeCustomViewer(target, text)",
 		"if (target.scheme === 'vnc' || target.scheme === 'rdp') return callNativeCustomViewer(target, text);",
 		"if (openSpecialURL(url)) return;",
-		"if (openSpecialURL(url)) return;\n  const navUrl = normalizeBrowserURL(url);",
+		"const navUrl = normalizeBrowserURL(url);",
 	} {
 		if !strings.Contains(s, want) {
 			t.Fatalf("frontend custom scheme dispatcher missing %q", want)
