@@ -49,7 +49,7 @@ func (a *App) handleVNCWebSocket(w http.ResponseWriter, r *http.Request) {
 	a.mu.Lock()
 	ts := a.tsServer
 	a.mu.Unlock()
-	if ts == nil {
+	if ts == nil && !allowDirectDial {
 		http.Error(w, "tailscale not connected", http.StatusServiceUnavailable)
 		return
 	}

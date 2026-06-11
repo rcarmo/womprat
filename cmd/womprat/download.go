@@ -84,7 +84,7 @@ func (a *App) downloadToFile(targetURL, savePath string, st *downloadState) {
 			a.mu.Lock()
 			ts := a.tsServer
 			a.mu.Unlock()
-			if ts == nil {
+			if ts == nil && !allowDirectDial {
 				return nil, fmt.Errorf("tailscale not connected")
 			}
 			return dialTSNetPreferIPv4(ctx, ts, addr)

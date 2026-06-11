@@ -7,12 +7,19 @@ import (
 	"io"
 	"log"
 	"net"
+	"os"
 	"strings"
 	"sync"
 	"time"
 
 	"tailscale.com/tsnet"
 )
+
+// allowDirectDial enables a testing-only bypass that dials targets directly
+// instead of through tsnet. It is gated on a debug build AND the WOMPRAT_DIRECT
+// environment variable so release builds remain strictly fail-closed through
+// Tailscale. It is a var (not const) so integration tests can toggle it.
+var allowDirectDial = debugBuild == "1" && os.Getenv("WOMPRAT_DIRECT") == "1"
 
 var socksAddr = "127.0.0.1:1080"
 
@@ -86,7 +93,7 @@ func handleSOCKS5(conn net.Conn, app *App) {
 	app.mu.Lock()
 	ts := app.tsServer
 	app.mu.Unlock()
-	if ts == nil {
+	if ts == nil && !allowDirectDial {
 		writeSOCKSReply(conn, 0x05)
 		return
 	}
@@ -145,6 +152,28 @@ func halfCloseWrite(c net.Conn) {
 // and it frequently chose IPv6, which fails when the upstream path is not
 // reliably reachable over v6 and shows up as assets intermittently not loading.
 func dialTSNetPreferIPv4(ctx context.Context, ts *tsnet.Server, addr string) (net.Conn, error) {
+	if allowDirectDial {
+		// Testing bypass: dial the target directly, preferring IPv4.
+		var d net.Dialer
+		var lastErr error
+		for _, network := range []string{"tcp4", "tcp6", "tcp"} {
+			if ctx.Err() != nil {
+				if lastErr != nil {
+					return nil, lastErr
+				}
+				return nil, ctx.Err()
+			}
+			conn, err := d.DialContext(ctx, network, addr)
+			if err == nil {
+				return conn, nil
+			}
+			lastErr = err
+		}
+		return nil, lastErr
+	}
+	if ts == nil {
+		return nil, fmt.Errorf("tailscale not connected")
+	}
 	var lastErr error
 	for _, network := range []string{"tcp4", "tcp6", "tcp"} {
 		if ctx.Err() != nil {

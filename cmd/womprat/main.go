@@ -1108,7 +1108,7 @@ func (a *App) handleSSHConnect(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ts := a.ts()
-	if ts == nil {
+	if ts == nil && !allowDirectDial {
 		httpError(w, 503, "Tailscale not connected", "")
 		return
 	}
@@ -1219,7 +1219,7 @@ func (a *App) handleSSHAuthPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ts := a.ts()
-	if ts == nil {
+	if ts == nil && !allowDirectDial {
 		httpError(w, 503, "Tailscale not connected", "")
 		return
 	}
