@@ -1112,13 +1112,13 @@ function activateTab(id, options = {}) {
         <div class="rdp-toolbar">
           <span class="rdp-status" data-rdp-status>Preparing RDP…</span>
           <span class="rdp-caps" data-rdp-caps title="Negotiated codecs and channels">codec status pending</span>
-          <input class="rdp-field rdp-host" data-rdp-host aria-label="RDP host" readonly>
+          <input class="rdp-field rdp-host" data-rdp-host aria-label="RDP host" readonly hidden>
           <input class="rdp-field rdp-user" data-rdp-user placeholder="User" aria-label="RDP user" autocomplete="username">
           <input class="rdp-field rdp-password" data-rdp-password type="password" placeholder="Password" aria-label="RDP password" autocomplete="current-password" maxlength="1024">
-          <select class="rdp-field rdp-depth" data-rdp-depth aria-label="RDP color depth"><option value="16" selected>16bpp</option><option value="24">24bpp</option><option value="32">32bpp</option><option value="15">15bpp</option><option value="8">8bpp</option></select>
-          <label class="rdp-toggle" title="Use Network Level Authentication"><input data-rdp-nla type="checkbox" checked>NLA</label>
-          <label class="rdp-toggle" title="Enable RDP audio redirection"><input data-rdp-audio type="checkbox">Audio</label>
-          <label class="rdp-toggle" title="RemoteFX/NSCodec surface codecs use the embedded WASM decoder"><input data-rdp-rfx type="checkbox" checked disabled>RFX</label>
+          <select class="rdp-field rdp-depth" data-rdp-depth aria-label="RDP color depth" hidden><option value="16">16bpp</option><option value="24">24bpp</option><option value="32" selected>32bpp</option><option value="15">15bpp</option><option value="8">8bpp</option></select>
+          <label class="rdp-toggle" title="Use Network Level Authentication" hidden><input data-rdp-nla type="checkbox" checked>NLA</label>
+          <label class="rdp-toggle" title="Enable RDP audio redirection" hidden><input data-rdp-audio type="checkbox">Audio</label>
+          <label class="rdp-toggle" title="RemoteFX/NSCodec surface codecs use the embedded WASM decoder" hidden><input data-rdp-rfx type="checkbox" checked disabled>RFX</label>
           <button data-rdp-connect class="icon-button text-button rdp-connect">Connect</button>
           <button data-rdp-scale class="icon-button text-button rdp-scale" aria-pressed="true">Fit</button>
         </div>

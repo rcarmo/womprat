@@ -665,6 +665,32 @@ func TestCustomSchemesUseSingleFrontendDispatcher(t *testing.T) {
 	}
 }
 
+func TestRDPToolbarHidesRedundantControls(t *testing.T) {
+	s := readFileForRegression(t, "frontend/index.html")
+	for _, want := range []string{
+		"data-rdp-host aria-label=\"RDP host\" readonly hidden",
+		"data-rdp-depth aria-label=\"RDP color depth\" hidden",
+		"title=\"Use Network Level Authentication\" hidden",
+		"title=\"Enable RDP audio redirection\" hidden",
+		"the embedded WASM decoder\" hidden",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("RDP redundant control should be hidden: missing %q", want)
+		}
+	}
+	// Essential controls must remain present and visible.
+	for _, want := range []string{
+		"data-rdp-user placeholder=\"User\"",
+		"data-rdp-password type=\"password\"",
+		"data-rdp-connect",
+		"data-rdp-scale",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("essential RDP control missing %q", want)
+		}
+	}
+}
+
 func TestVNCSessionControlsGateOnConnection(t *testing.T) {
 	s := readFileForRegression(t, "frontend/vnc.js")
 	for _, want := range []string{
