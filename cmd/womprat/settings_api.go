@@ -196,6 +196,7 @@ func (a *App) handleTailscaleDisconnect(w http.ResponseWriter, r *http.Request) 
 	a.mu.Lock()
 	ts := a.tsServer
 	a.tsServer = nil
+	useExitNode = false
 	a.mu.Unlock()
 	if ts != nil {
 		ts.Close()

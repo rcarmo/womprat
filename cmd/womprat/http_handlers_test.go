@@ -41,6 +41,9 @@ func TestServeFrontend(t *testing.T) {
 
 func TestDisconnectedTailscaleHandlers(t *testing.T) {
 	app := newTestApp(t)
+	app.config.ExitNode = "exit"
+	useExitNode = true
+	t.Cleanup(func() { useExitNode = false })
 	rr := performJSON(app.handleTSStatus, "GET", "/api/tailscale/status", nil)
 	if rr.Code != 200 || !strings.Contains(rr.Body.String(), "disconnected") {
 		t.Fatalf("ts status = %d %s", rr.Code, rr.Body.String())
@@ -52,6 +55,9 @@ func TestDisconnectedTailscaleHandlers(t *testing.T) {
 	rr = performJSON(app.handleTailscaleDisconnect, "POST", "/api/settings/tailscale-disconnect", nil)
 	if rr.Code != 200 || !strings.Contains(rr.Body.String(), "disconnected") {
 		t.Fatalf("disconnect = %d %s", rr.Code, rr.Body.String())
+	}
+	if useExitNode || app.config.ExitNode != "exit" {
+		t.Fatalf("disconnect should clear active route only: useExitNode=%v exitNode=%q", useExitNode, app.config.ExitNode)
 	}
 }
 
