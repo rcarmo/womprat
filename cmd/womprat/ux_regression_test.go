@@ -724,28 +724,101 @@ func TestCustomSchemesUseSingleFrontendDispatcher(t *testing.T) {
 	}
 }
 
-func TestRDPToolbarHidesRedundantControls(t *testing.T) {
-	s := readFileForRegression(t, "frontend/index.html")
+func TestRemoteDisplayNegotiationDefaultsPreferPerformance(t *testing.T) {
+	vnc := readFileForRegression(t, "frontend/vnc.js")
 	for _, want := range []string{
-		"data-rdp-host aria-label=\"RDP host\" readonly hidden",
-		"data-rdp-depth aria-label=\"RDP color depth\" hidden",
-		"title=\"Use Network Level Authentication\" hidden",
-		"title=\"Enable RDP audio redirection\" hidden",
-		"the embedded WASM decoder\" hidden",
+		"return [0, 5, 1, 16, 2, 4, -239, -307, -224, -223, -308];",
+		"if (values.length > 0)\n    return values;",
 	} {
-		if !strings.Contains(s, want) {
-			t.Fatalf("RDP redundant control should be hidden: missing %q", want)
+		if !strings.Contains(vnc, want) {
+			t.Fatalf("VNC compatibility encoding order missing %q", want)
 		}
 	}
-	// Essential controls must remain present and visible.
+	rdp := readFileForRegression(t, "rdp.go")
 	for _, want := range []string{
+		"enableRFX := !rdpQueryDisabled(r.URL.Query().Get(\"rfx\")) && !rdpQueryEnabled(r.URL.Query().Get(\"compat\"))",
+		"func rdpQueryDisabled(raw string) bool",
+		"case \"0\", \"false\", \"no\", \"off\", \"disable\", \"disabled\":",
+	} {
+		if !strings.Contains(rdp, want) {
+			t.Fatalf("RDP performance negotiation default missing %q", want)
+		}
+	}
+}
+
+func TestRDPCredentialsUseDialogAndStatusbar(t *testing.T) {
+	s := readFileForRegression(t, "frontend/index.html")
+	for _, want := range []string{
+		"<div class=\"rdp-statusbar\" aria-live=\"polite\"><span class=\"rdp-status\" data-rdp-status>Preparing RDP…</span></div>",
+		"<div class=\"rdp-dialog\" role=\"dialog\" aria-label=\"RDP credentials\">",
+		"<div class=\"rdp-dialog-title\">Connect to RDP</div>",
 		"data-rdp-user placeholder=\"User\"",
 		"data-rdp-password type=\"password\"",
 		"data-rdp-connect",
-		"data-rdp-scale",
+		"<div class=\"rdp-config\" hidden aria-hidden=\"true\">",
+		"<span data-rdp-caps>codec status pending</span>",
+		"<select data-rdp-depth>",
+		"<button data-rdp-scale aria-pressed=\"true\">Fit</button>",
+		"function updateRemoteTabTitle(tabId, title)",
+		"function installRemoteTitleSync(root, tabId, type, fallbackURL)",
+		"function installRDPPanelState(root)",
+		"root.dataset.connecting = '1';",
+		"delete root.dataset.connected;",
+		"root.hasAttribute('data-busy') || /connecting|negotiating/.test(text)",
+		"new MutationObserver(sync).observe(root, { attributes: true, attributeFilter: ['data-busy'] });",
+		"enter rdp username|enter rdp password",
 	} {
 		if !strings.Contains(s, want) {
-			t.Fatalf("essential RDP control missing %q", want)
+			t.Fatalf("RDP dialog/statusbar structure missing %q", want)
+		}
+	}
+	if strings.Contains(s, "<div class=\"rdp-toolbar\">") {
+		t.Fatal("RDP toolbar should be replaced by dialog/statusbar")
+	}
+}
+
+func TestRemoteDisplayCanvasesUseSmoothScaling(t *testing.T) {
+	s := readFileForRegression(t, "frontend/index.html")
+	for _, want := range []string{
+		".vnc-panel{position:relative;flex:1;display:grid;grid-template-rows:minmax(0,1fr);",
+		".rdp-panel{position:relative;flex:1;display:grid;grid-template-rows:minmax(0,1fr);",
+		".vnc-toolbar{display:none!important}",
+		".vnc-viewport,.rdp-viewport{position:relative;z-index:1;min-height:0;min-width:0;display:grid;place-items:center;overflow:hidden;contain:layout paint",
+		".rdp-statusbar{position:absolute;z-index:4;left:0;bottom:0;width:max-content;max-width:calc(100% - 2rem);height:2.5em;background:var(--surface-solid);border:1px solid var(--border);border-left:0;border-bottom:0;display:inline-flex;align-items:center;padding:0 1rem;gap:.8rem;font-size:.82em",
+		".rdp-status::before{content:none!important}",
+		".rdp-viewport{display:none}.rdp-panel[data-connecting] .rdp-viewport,.rdp-panel[data-connected] .rdp-viewport{display:grid}",
+		".vnc-viewport canvas,.rdp-viewport canvas{display:block;box-sizing:border-box;max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;image-rendering:auto",
+		".vnc-viewport canvas:focus,.rdp-viewport canvas:focus{border:0!important;box-shadow:none!important;outline:0!important}",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("remote display canvas smooth scaling missing %q", want)
+		}
+	}
+	if strings.Contains(s, "image-rendering:pixelated") {
+		t.Fatal("remote display canvases must not force pixelated scaling")
+	}
+}
+
+func TestVNCKeyboardMappingCoversKeypadAndReleasesModifiers(t *testing.T) {
+	s := readFileForRegression(t, "frontend/vnc.js")
+	for _, want := range []string{
+		"Meta: 65511",
+		"MetaLeft: 65511",
+		"MetaRight: 65512",
+		"OS: 65511",
+		"OSRight: 65512",
+		"Super: 65515",
+		"var KEYSYM_BY_NUMPAD_CODE = {",
+		"Numpad0: 65456",
+		"NumpadEnter: 65421",
+		"for (let i2 = 1;i2 <= 24; i2 += 1)",
+		"KeyboardEvent.DOM_KEY_LOCATION_NUMPAD",
+		"releaseActiveKeys()",
+		"this.releaseActiveKeys();\n    try { this.ws?.close(1000, \"reconnect\")",
+		"window.removeEventListener(\"blur\", this.windowBlurHandler)",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("VNC keyboard mapping/release missing %q", want)
 		}
 	}
 }
@@ -982,6 +1055,19 @@ func TestShellReferencedHelpersAreDefined(t *testing.T) {
 	}
 }
 
+func TestURLBarEnterIsSingleNavigation(t *testing.T) {
+	s := readFileForRegression(t, "frontend/index.html")
+	for _, want := range []string{
+		"event.preventDefault();\n    event.stopPropagation();\n    if (event.repeat) return;\n    window.navigateFromBar();",
+		"let lastURLBarNavigation = { url: '', at: 0 };",
+		"if (lastURLBarNavigation.url === url && now - lastURLBarNavigation.at < 750) return;",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("URL bar duplicate navigation guard missing %q", want)
+		}
+	}
+}
+
 func TestShellControlsUseCentralHandlers(t *testing.T) {
 	s := readFileForRegression(t, "frontend/index.html")
 	if strings.Index(s, "window.navigateFromBar = function()") > strings.Index(s, "installShellControlHandlers();") {
@@ -991,7 +1077,7 @@ func TestShellControlsUseCentralHandlers(t *testing.T) {
 		"function installShellControlHandlers()",
 		"document.getElementById('setup-action')?.addEventListener('click', saveKey)",
 		"document.getElementById('url-go')?.addEventListener('click', () => window.navigateFromBar());",
-		"document.getElementById('url-input')?.addEventListener('keydown', (event) => { if (event.key === 'Enter') window.navigateFromBar(); });",
+		"document.getElementById('url-input')?.addEventListener('keydown', (event) => {",
 		"window.navigateFromBar = function()",
 		"installShellControlHandlers();",
 	} {
@@ -1120,6 +1206,22 @@ func TestFrontendCentralizesBrowserURLNormalization(t *testing.T) {
 	}
 }
 
+func TestRecentTabsAreDedupedByCanonicalTarget(t *testing.T) {
+	s := readFileForRegression(t, "frontend/index.html")
+	for _, want := range []string{
+		"function recentTabKey(tab)",
+		"function dedupeRecentTabs(tabs)",
+		"if (!clean || !key || seen.has(key)) continue;",
+		"const tabs = dedupeRecentTabs(cfg.openTabs || []);",
+		"const tabs = dedupeRecentTabs(state.tabs).slice(0, 100);",
+		"if (clean.type === 'vnc' || clean.type === 'rdp') return `${clean.type}:${String(clean.url || '').toLowerCase()}`;",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("recent tab dedupe missing %q", want)
+		}
+	}
+}
+
 func TestRecentTabsLoadFailureIsVisible(t *testing.T) {
 	s := readFileForRegression(t, "frontend/index.html")
 	for _, want := range []string{
@@ -1236,7 +1338,7 @@ func TestFrontendPersistsOnlySanitizedURLState(t *testing.T) {
 		"function normalizeHistoryURL(url)",
 		"return parsed.map(normalizeHistoryURL).filter(Boolean).slice(0, 100);",
 		"function sanitizeTabForSave(t)",
-		"const tabs = state.tabs.map(sanitizeTabForSave).filter(Boolean).slice(0, 100);",
+		"const tabs = dedupeRecentTabs(state.tabs).slice(0, 100);",
 		"const clean = sanitizeTabForSave(t);",
 		"return clean ? { ...clean, id: String(t.id) } : null;",
 	} {

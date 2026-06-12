@@ -118,15 +118,13 @@ func (a *App) handleRDPWebSocket(w http.ResponseWriter, r *http.Request) {
 	width := clampRDPDim(r.URL.Query().Get("width"), 1280)
 	height := clampRDPDim(r.URL.Query().Get("height"), 720)
 	colorDepth := parseRDPColorDepth(r.URL.Query().Get("colorDepth"), 16)
-	// Keep the server-side connection conservative by default. The bundled
-	// legacy browser client currently hard-codes audio=true and rfx=true in its
-	// WebSocket URL, but several real servers (xrdp/FreeRDP shadow) abort during
-	// setup when those virtual channels/codecs are advertised before a basic
-	// bitmap session is proven. Treat them as explicit backend opt-ins instead.
+	// Default RDP to the performance profile: advertise surface commands and
+	// WASM-backed bitmap codecs. Keep an explicit compatibility escape hatch for
+	// servers/decoders that need plain bitmap updates.
 	enableAudio := r.URL.Query().Get("audio") == "force"
 	disableNLA := r.URL.Query().Get("disableNLA") == "true"
-	enableRFX := r.URL.Query().Get("rfx") == "force"
-	enableDisplayControl := r.URL.Query().Get("displayControl") == "true"
+	enableRFX := !rdpQueryDisabled(r.URL.Query().Get("rfx")) && !rdpQueryEnabled(r.URL.Query().Get("compat"))
+	enableDisplayControl := rdpQueryEnabled(r.URL.Query().Get("displayControl"))
 
 	dial := func(ctx context.Context, network, address string) (net.Conn, error) {
 		// Ignore any client-supplied host in credentials; fail closed via tsnet to URL target.
@@ -196,6 +194,24 @@ func parseRDPColorDepth(raw string, fallback int) int {
 		return cd
 	}
 	return fallback
+}
+
+func rdpQueryEnabled(raw string) bool {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "1", "true", "yes", "on", "force":
+		return true
+	default:
+		return false
+	}
+}
+
+func rdpQueryDisabled(raw string) bool {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "0", "false", "no", "off", "disable", "disabled":
+		return true
+	default:
+		return false
+	}
 }
 
 func sendRDPError(ctx context.Context, ws *websocket.Conn, message string) {

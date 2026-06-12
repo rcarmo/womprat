@@ -1700,7 +1700,7 @@ function normalizeEncodings(encodings) {
   }
   if (values.length > 0)
     return values;
-  return [0, 5, 2, 4, 1, 16, -239, -224, -223, -307, -308];
+  return [0, 5, 1, 16, 2, 4, -239, -307, -224, -223, -308];
 }
 function toUint8Array2(chunk) {
   if (chunk instanceof Uint8Array)
@@ -2788,9 +2788,12 @@ var KEYSYM_BY_KEY = {
   Alt: 65513,
   AltLeft: 65513,
   AltRight: 65514,
-  Meta: 65515,
-  MetaLeft: 65515,
-  MetaRight: 65516,
+  Meta: 65511,
+  MetaLeft: 65511,
+  MetaRight: 65512,
+  OS: 65511,
+  OSLeft: 65511,
+  OSRight: 65512,
   Super: 65515,
   Super_L: 65515,
   Super_R: 65516,
@@ -2803,10 +2806,32 @@ var KEYSYM_BY_KEY = {
   Menu: 65383,
   " ": 32
 };
-for (let i2 = 1;i2 <= 12; i2 += 1) {
+var KEYSYM_BY_NUMPAD_CODE = {
+  Numpad0: 65456,
+  Numpad1: 65457,
+  Numpad2: 65458,
+  Numpad3: 65459,
+  Numpad4: 65460,
+  Numpad5: 65461,
+  Numpad6: 65462,
+  Numpad7: 65463,
+  Numpad8: 65464,
+  Numpad9: 65465,
+  NumpadDecimal: 65454,
+  NumpadDivide: 65455,
+  NumpadMultiply: 65450,
+  NumpadSubtract: 65453,
+  NumpadAdd: 65451,
+  NumpadEnter: 65421,
+  NumpadEqual: 65469
+};
+for (let i2 = 1;i2 <= 24; i2 += 1) {
   KEYSYM_BY_KEY[`F${i2}`] = 65470 + (i2 - 1);
 }
 function resolveVncKeysymFromKeyboardEvent(event) {
+  if (event?.location === KeyboardEvent.DOM_KEY_LOCATION_NUMPAD && event?.code && Object.prototype.hasOwnProperty.call(KEYSYM_BY_NUMPAD_CODE, event.code)) {
+    return KEYSYM_BY_NUMPAD_CODE[event.code];
+  }
   const candidates = [event?.key, event?.code];
   for (const candidate of candidates) {
     if (candidate && Object.prototype.hasOwnProperty.call(KEYSYM_BY_KEY, candidate)) {
@@ -2930,11 +2955,11 @@ class WompratVncViewer {
   async reconnect() {
     if (this.disposed) return;
     this.closedByReconnect = true;
+    this.releaseActiveKeys();
     try { this.ws?.close(1000, "reconnect"); } catch (error) { reportVncNonFatalError("reconnect close", error); }
     this.ws = null;
     this.framebuffer = null;
     this.buttons = 0;
-    this.activeKeys.clear();
     await this.init();
     this.closedByReconnect = false;
     this.connect();
@@ -2942,11 +2967,15 @@ class WompratVncViewer {
   dispose() {
     this.disposed = true;
     this.closedByReconnect = true;
+    this.releaseActiveKeys();
     try { this.ws?.close(1000, "tab closed"); } catch (error) { reportVncNonFatalError("dispose close", error); }
     try { this.resizeObserver?.disconnect?.(); } catch (error) { reportVncNonFatalError("resize observer disconnect", error); }
+    try { if (this.windowResizeHandler) window.removeEventListener("resize", this.windowResizeHandler); } catch (error) { reportVncNonFatalError("resize listener remove", error); }
+    try { if (this.windowBlurHandler) window.removeEventListener("blur", this.windowBlurHandler); } catch (error) { reportVncNonFatalError("blur listener remove", error); }
+    this.windowResizeHandler = null;
+    this.windowBlurHandler = null;
     this.ws = null;
     this.framebuffer = null;
-    this.activeKeys.clear();
     this.canvas.style.cursor = "default";
   }
   connect() {
@@ -3103,11 +3132,22 @@ class WompratVncViewer {
     }
   }
   point(event) {
+    this.fitCanvas();
     return mapClientToFramebufferPoint(event.clientX, event.clientY, this.canvas.getBoundingClientRect(), this.canvas.width, this.canvas.height);
   }
+  releaseActiveKeys() {
+    for (const keysym of Array.from(this.activeKeys)) {
+      this.send(encodeVncKeyEvent(false, keysym));
+    }
+    this.activeKeys.clear();
+  }
   installResize() {
-    this.resizeObserver = new ResizeObserver(() => this.fitCanvas());
+    const refit = () => requestAnimationFrame(() => this.fitCanvas());
+    this.resizeObserver = new ResizeObserver(refit);
     this.resizeObserver.observe(this.viewport);
+    this.resizeObserver.observe(this.root);
+    this.windowResizeHandler = refit;
+    window.addEventListener("resize", this.windowResizeHandler);
   }
   installClipboard() {
     const input = this.root.querySelector("[data-vnc-clipboard]");
@@ -3206,6 +3246,9 @@ class WompratVncViewer {
       this.send(encodeVncKeyEvent(false, keysym));
       event.preventDefault();
     });
+    this.canvas.addEventListener("blur", () => this.releaseActiveKeys());
+    this.windowBlurHandler = () => this.releaseActiveKeys();
+    window.addEventListener("blur", this.windowBlurHandler);
   }
 }
 async function startVNC(root, target) {

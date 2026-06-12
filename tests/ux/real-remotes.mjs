@@ -99,15 +99,16 @@ async function testRDP(page) {
   await openBlank(page);
   await page.fill("#url-input", RDP_TARGET);
   await page.press("#url-input", "Enter");
-  await page.waitForSelector(".rdp-panel canvas", { timeout: 8000 });
-  await page.fill("[data-rdp-user]", RDP_USER);
-  await page.fill("[data-rdp-password]", RDP_PASS);
+  await page.waitForSelector(".rdp-dialog [data-rdp-user]", { timeout: 10000 });
+  await page.fill(".rdp-dialog [data-rdp-user]", RDP_USER);
+  await page.fill(".rdp-dialog [data-rdp-password]", RDP_PASS);
   await page.evaluate(() => {
-    const depth = document.querySelector("[data-rdp-depth]"); if (depth) depth.value = "32";
+    const depth = document.querySelector("[data-rdp-depth]"); if (depth) depth.value = "24";
     const nla = document.querySelector("[data-rdp-nla]"); if (nla) nla.checked = false;
     const audio = document.querySelector("[data-rdp-audio]"); if (audio) audio.checked = false;
     document.querySelector("[data-rdp-connect]")?.click();
   });
+  await page.waitForSelector(".rdp-viewport canvas", { timeout: 10000 });
   let px = { ok: false };
   for (let i = 0; i < 60; i++) {
     await page.waitForTimeout(1000);
@@ -122,7 +123,8 @@ async function testRDP(page) {
     const root = document.querySelector(".rdp-panel");
     const r = root && root.__wompratRdp;
     const c = document.querySelector(".rdp-panel canvas");
-    return { hasViewer: !!r, canvasW: c?.width, canvasH: c?.height, wsState: r?.ws?.readyState };
+    const title = document.querySelector(".tab.active .tab-title")?.textContent || "";
+    return { hasViewer: !!r, canvasW: c?.width, canvasH: c?.height, wsState: r?.ws?.readyState, title };
   });
   console.log("RDP status:", JSON.stringify(status));
   console.log("RDP caps:", JSON.stringify(caps));

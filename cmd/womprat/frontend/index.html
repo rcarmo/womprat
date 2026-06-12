@@ -104,29 +104,21 @@ button,a,.tab,.recent-item,.option{
 .term-panel .xterm .xterm-decoration-overview-ruler{display:none!important}
 
 /* Local panels */
-.browser-panel{flex-direction:column}
+.browser-panel{flex-direction:column;min-height:0;overflow:hidden}
 .browser-placeholder{flex:1;display:flex;align-items:center;justify-content:center;color:var(--dim);font-size:.85em;pointer-events:none}
 .browser-frame{flex:1;border:none}
-.vnc-panel{flex:1;display:flex;flex-direction:column;min-height:0;background:linear-gradient(180deg,#111318 0%,#08090d 100%);color:var(--text)}
-.vnc-toolbar{height:36px;display:flex;align-items:center;gap:8px;padding:4px 8px;border-bottom:1px solid var(--border);background:var(--surface-solid);color:var(--text-secondary);font-size:12px}
-.vnc-status{display:inline-flex;align-items:center;gap:6px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.vnc-status::before{content:"";width:8px;height:8px;border-radius:999px;background:var(--accent);box-shadow:0 0 0 3px rgba(96,205,255,.12)}
-.vnc-panel[data-busy] .vnc-status::before{animation:vncPulse 1.2s ease-in-out infinite;background:#f2c94c}
-.vnc-field{height:24px;background:var(--layer);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);padding:0 8px;font:12px var(--font);outline:none;color-scheme:dark}
-.vnc-field:focus{border-color:var(--accent);background:var(--bg)}
-.vnc-password{margin-left:auto;width:128px}
-.vnc-clipboard{min-width:160px;max-width:360px;width:28vw}
-.vnc-send,.vnc-copy,.vnc-paste,.vnc-reconnect,.vnc-scale{height:24px;min-width:52px;padding:0 10px;font-size:12px;font-weight:600}
-.vnc-viewport{flex:1;min-height:0;display:grid;place-items:center;overflow:hidden;background:radial-gradient(circle at 50% 30%,rgba(255,255,255,.06),transparent 42%),#050609}
-.vnc-viewport canvas{display:block;image-rendering:pixelated;background:#000;border:1px solid rgba(255,255,255,.14);border-radius:var(--radius);box-shadow:0 8px 30px rgba(0,0,0,.45);outline:none}
-.vnc-viewport canvas:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(96,205,255,.22),0 8px 30px rgba(0,0,0,.45)}
-.rdp-panel{flex:1;display:flex;flex-direction:column;min-height:0;background:linear-gradient(180deg,#111318 0%,#08090d 100%);color:var(--text)}
-.rdp-toolbar{height:36px;display:flex;align-items:center;gap:8px;padding:4px 8px;border-bottom:1px solid var(--border);background:var(--surface-solid);color:var(--text-secondary);font-size:12px}
-.rdp-status{display:inline-flex;align-items:center;gap:6px;min-width:130px;max-width:30vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.rdp-status::before{content:"";width:8px;height:8px;border-radius:999px;background:var(--accent);box-shadow:0 0 0 3px rgba(96,205,255,.12)}.rdp-panel[data-busy] .rdp-status::before{animation:vncPulse 1.2s ease-in-out infinite;background:#f2c94c}
-.rdp-caps{min-width:120px;max-width:24vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--dim)}
-.rdp-field{height:24px;background:var(--layer);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);padding:0 8px;font:12px var(--font);outline:none;color-scheme:dark}.rdp-field:focus{border-color:var(--accent);background:var(--bg)}
-.rdp-host{margin-left:auto;width:170px}.rdp-user{width:110px}.rdp-password{width:118px}.rdp-depth{width:74px}.rdp-toggle{display:inline-flex;align-items:center;gap:4px;height:24px;color:var(--text-secondary);white-space:nowrap}.rdp-toggle input{accent-color:var(--accent)}.rdp-connect,.rdp-scale{height:24px;min-width:52px;padding:0 10px;font-size:12px;font-weight:600}
-.rdp-viewport{flex:1;min-height:0;display:grid;place-items:center;overflow:hidden;background:radial-gradient(circle at 50% 30%,rgba(255,255,255,.06),transparent 42%),#050609}.rdp-viewport canvas{display:block;background:#000;border:1px solid rgba(255,255,255,.14);border-radius:var(--radius);box-shadow:0 8px 30px rgba(0,0,0,.45);outline:none}.rdp-viewport canvas:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(96,205,255,.22),0 8px 30px rgba(0,0,0,.45)}
+.vnc-panel{position:relative;flex:1;display:grid;grid-template-rows:minmax(0,1fr);min-height:0;overflow:hidden;isolation:isolate;background:linear-gradient(180deg,#111318 0%,#08090d 100%);color:var(--text)}
+.rdp-panel{position:relative;flex:1;display:grid;grid-template-rows:minmax(0,1fr);min-height:0;overflow:hidden;isolation:isolate;background:#050609;color:var(--text)}
+.vnc-toolbar{display:none!important}
+.vnc-status,.rdp-status{display:inline-flex;align-items:center;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-shadow:none;opacity:1}.vnc-status{gap:8px;color:var(--text)}.vnc-status::before{content:"";width:8px;height:8px;flex:0 0 8px;border-radius:999px;background:var(--accent);box-shadow:none}.vnc-panel[data-busy] .vnc-status::before{animation:vncPulse 1.2s ease-in-out infinite;background:#f2c94c}
+.rdp-statusbar{position:absolute;z-index:4;left:0;bottom:0;width:max-content;max-width:calc(100% - 2rem);height:2.5em;background:var(--surface-solid);border:1px solid var(--border);border-left:0;border-bottom:0;display:inline-flex;align-items:center;padding:0 1rem;gap:.8rem;font-size:.82em;pointer-events:none}.rdp-status{max-width:100%;font-weight:600;color:var(--text)}.rdp-status::before{content:none!important}
+.rdp-dialog{position:absolute;z-index:5;left:50%;top:50%;transform:translate(-50%,-50%);display:flex;flex-direction:column;gap:10px;width:min(360px,calc(100% - 32px));padding:16px;border:1px solid var(--border-strong);border-radius:var(--radius-lg);background:#2d2d2d;box-shadow:0 24px 72px rgba(0,0,0,.55)}.rdp-dialog-title{font-weight:700;color:var(--text);font-size:14px}.rdp-dialog-actions{display:flex;gap:8px;justify-content:flex-end}.rdp-panel[data-connecting] .rdp-dialog,.rdp-panel[data-connected] .rdp-dialog{display:none}
+.rdp-config{display:none!important}.rdp-caps{display:none!important}
+.vnc-field,.rdp-field{height:24px;background:var(--layer);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);padding:0 8px;font:12px var(--font);outline:none;color-scheme:dark}.vnc-field:focus,.rdp-field:focus{border-color:var(--accent);background:var(--bg)}
+.vnc-password{margin-left:auto;width:128px}.vnc-clipboard{min-width:160px;max-width:360px;width:28vw}.vnc-send,.vnc-copy,.vnc-paste,.vnc-reconnect,.vnc-scale,.rdp-connect,.rdp-scale{height:24px;min-width:52px;padding:0 10px;font-size:12px;font-weight:600}.rdp-user,.rdp-password{width:100%;height:30px}.rdp-depth{width:74px}.rdp-toggle{display:inline-flex;align-items:center;gap:4px;height:24px;color:var(--text-secondary);white-space:nowrap}.rdp-toggle input{accent-color:var(--accent)}
+.vnc-viewport,.rdp-viewport{position:relative;z-index:1;min-height:0;min-width:0;display:grid;place-items:center;overflow:hidden;contain:layout paint;background:radial-gradient(circle at 50% 30%,rgba(255,255,255,.06),transparent 42%),#050609}.rdp-viewport{display:none}.rdp-panel[data-connecting] .rdp-viewport,.rdp-panel[data-connected] .rdp-viewport{display:grid}
+.vnc-viewport canvas,.rdp-viewport canvas{display:block;box-sizing:border-box;max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;image-rendering:auto;background:#000;border:0!important;border-radius:0!important;box-shadow:none!important;outline:0!important}
+.vnc-viewport canvas:focus,.rdp-viewport canvas:focus{border:0!important;box-shadow:none!important;outline:0!important}
 @keyframes vncPulse{0%,100%{opacity:.55}50%{opacity:1}}
 
 /* Setup screen */
@@ -176,7 +168,7 @@ button,a,.tab,.recent-item,.option{
 </head>
 <body>
 <canvas id="pointer-cache" width="96" height="96" hidden aria-hidden="true"></canvas>
-<select id="colorDepth" hidden aria-hidden="true"><option value="32" selected>32bpp</option></select>
+<select id="colorDepth" hidden aria-hidden="true"><option value="24" selected>24bpp</option><option value="32">32bpp</option></select>
 <input id="disableNLA" type="checkbox" checked hidden aria-hidden="true">
 
 <div id="setup">
@@ -1105,6 +1097,62 @@ function reorderTab(fromId, beforeId) {
   if (window.womprat_reorderTab) window.womprat_reorderTab(fromId, beforeIndex);
 }
 
+function updateRemoteTabTitle(tabId, title) {
+  const tab = state.tabs.find(t => t.id === tabId);
+  const clean = sanitizeBrowserTitle(title);
+  if (!tab || !clean || tab.title === clean) return;
+  tab.title = clean;
+  renderTabs();
+  registerLocalTab(tab);
+  saveOpenTabs();
+}
+function remoteTitleFromStatus(text, fallbackURL, canvas) {
+  const raw = String(text || '').trim();
+  const dim = raw.match(/(\d+\s*[×x]\s*\d+)/)?.[1]?.replace(/\s+/g, '');
+  const name = raw.replace(/\s*[·-]?\s*\d+\s*[×x]\s*\d+.*/, '').trim();
+  if (name && dim && !/^(preparing|connecting|negotiating|loading|enter\b|vnc\b|rdp\b)/i.test(name)) return `${name} · ${dim}`;
+  if (dim) return `${fallbackURL} · ${dim}`;
+  if (canvas?.width && canvas?.height && canvas.width > 1 && canvas.height > 1) return `${fallbackURL} · ${canvas.width}×${canvas.height}`;
+  return fallbackURL;
+}
+function installRemoteTitleSync(root, tabId, type, fallbackURL) {
+  if (!root || root.dataset.titleSyncInstalled) return;
+  root.dataset.titleSyncInstalled = '1';
+  const status = root.querySelector(`[data-${type}-status]`);
+  const canvas = root.querySelector('canvas');
+  const sync = () => updateRemoteTabTitle(tabId, remoteTitleFromStatus(status?.textContent, fallbackURL, canvas));
+  if (status) new MutationObserver(sync).observe(status, { childList: true, characterData: true, subtree: true });
+  if (canvas) new MutationObserver(sync).observe(canvas, { attributes: true, attributeFilter: ['width', 'height'] });
+  sync();
+}
+
+function installRDPPanelState(root) {
+  if (!root || root.dataset.stateBridgeInstalled) return;
+  root.dataset.stateBridgeInstalled = '1';
+  const status = root.querySelector('[data-rdp-status]');
+  const connect = root.querySelector('[data-rdp-connect]');
+  const sync = () => {
+    const text = String(status?.textContent || '').toLowerCase();
+    if (/failed|error|denied|closed|disconnected|enter rdp username|enter rdp password|username|required|password required/.test(text)) {
+      delete root.dataset.connecting;
+      delete root.dataset.connected;
+    } else if (root.hasAttribute('data-busy') || /connecting|negotiating/.test(text)) {
+      root.dataset.connecting = '1';
+      delete root.dataset.connected;
+    } else if (/connected|negotiated|desktop|codec/.test(text)) {
+      delete root.dataset.connecting;
+      root.dataset.connected = '1';
+    }
+  };
+  connect?.addEventListener('click', () => {
+    root.dataset.connecting = '1';
+    delete root.dataset.connected;
+  });
+  if (status) new MutationObserver(sync).observe(status, { childList: true, characterData: true, subtree: true });
+  new MutationObserver(sync).observe(root, { attributes: true, attributeFilter: ['data-busy'] });
+  sync();
+}
+
 function activateTab(id, options = {}) {
   const tab = state.tabs.find(t => t.id === id);
   if (!tab) return;
@@ -1128,18 +1176,23 @@ function activateTab(id, options = {}) {
     if (tab.type === 'rdp') {
       panel.className = 'panel browser-panel';
       panel.innerHTML = `<div class="rdp-panel">
-        <div class="rdp-toolbar">
-          <span class="rdp-status" data-rdp-status>Preparing RDP…</span>
-          <span class="rdp-caps" data-rdp-caps title="Negotiated codecs and channels">codec status pending</span>
-          <input class="rdp-field rdp-host" data-rdp-host aria-label="RDP host" readonly hidden>
+        <div class="rdp-statusbar" aria-live="polite"><span class="rdp-status" data-rdp-status>Preparing RDP…</span></div>
+        <div class="rdp-dialog" role="dialog" aria-label="RDP credentials">
+          <div class="rdp-dialog-title">Connect to RDP</div>
           <input class="rdp-field rdp-user" data-rdp-user placeholder="User" aria-label="RDP user" autocomplete="username">
           <input class="rdp-field rdp-password" data-rdp-password type="password" placeholder="Password" aria-label="RDP password" autocomplete="current-password" maxlength="1024">
-          <select class="rdp-field rdp-depth" data-rdp-depth aria-label="RDP color depth" hidden><option value="16">16bpp</option><option value="24">24bpp</option><option value="32" selected>32bpp</option><option value="15">15bpp</option><option value="8">8bpp</option></select>
-          <label class="rdp-toggle" title="Use Network Level Authentication" hidden><input data-rdp-nla type="checkbox" checked>NLA</label>
-          <label class="rdp-toggle" title="Enable RDP audio redirection" hidden><input data-rdp-audio type="checkbox">Audio</label>
-          <label class="rdp-toggle" title="RemoteFX/NSCodec surface codecs use the embedded WASM decoder" hidden><input data-rdp-rfx type="checkbox" checked disabled>RFX</label>
-          <button data-rdp-connect class="icon-button text-button rdp-connect">Connect</button>
-          <button data-rdp-scale class="icon-button text-button rdp-scale" aria-pressed="true">Fit</button>
+          <div class="rdp-dialog-actions">
+            <button data-rdp-connect class="icon-button text-button rdp-connect">Connect</button>
+          </div>
+        </div>
+        <div class="rdp-config" hidden aria-hidden="true">
+          <span data-rdp-caps>codec status pending</span>
+          <input data-rdp-host readonly>
+          <select data-rdp-depth><option value="16">16bpp</option><option value="24" selected>24bpp</option><option value="32">32bpp</option><option value="15">15bpp</option><option value="8">8bpp</option></select>
+          <input data-rdp-nla type="checkbox" checked>
+          <input data-rdp-audio type="checkbox">
+          <input data-rdp-rfx type="checkbox" checked disabled>
+          <button data-rdp-scale aria-pressed="true">Fit</button>
         </div>
         <div class="rdp-viewport" data-rdp-viewport><canvas aria-label="RDP remote display" tabindex="0"></canvas></div>
       </div>`;
@@ -1180,6 +1233,7 @@ function activateTab(id, options = {}) {
   renderTabs();
   if (tab.type === 'vnc') {
     const root = document.querySelector(`#panel-${CSS.escape(id)} .vnc-panel`);
+    installRemoteTitleSync(root, id, 'vnc', tab.url || `vnc://${tab.host}:${tab.port||5900}`);
     if (root && !root.dataset.started) {
       root.dataset.started = '1';
       import('./vnc.js')
@@ -1189,6 +1243,8 @@ function activateTab(id, options = {}) {
   }
   if (tab.type === 'rdp') {
     const root = document.querySelector(`#panel-${CSS.escape(id)} .rdp-panel`);
+    installRDPPanelState(root);
+    installRemoteTitleSync(root, id, 'rdp', tab.url || `rdp://${tab.user?tab.user+'@':''}${tab.host}:${tab.port||3389}`);
     if (root && !root.dataset.started) {
       root.dataset.started = '1';
       import('./rdp.js')
@@ -1299,7 +1355,13 @@ function installShellControlHandlers() {
   document.getElementById('nav-forward')?.addEventListener('click', () => historyForward(state.activeTab));
   document.getElementById('nav-reload')?.addEventListener('click', () => historyReload(state.activeTab));
   document.getElementById('url-go')?.addEventListener('click', () => window.navigateFromBar());
-  document.getElementById('url-input')?.addEventListener('keydown', (event) => { if (event.key === 'Enter') window.navigateFromBar(); });
+  document.getElementById('url-input')?.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.repeat) return;
+    window.navigateFromBar();
+  });
 }
 
 function installBrowserHotkeys() {
@@ -1345,9 +1407,14 @@ function installBrowserHotkeys() {
     if (e.altKey && !ctrl && key === 'home') { e.preventDefault(); newBlankTab(); return; }
   }, true);
 }
+let lastURLBarNavigation = { url: '', at: 0 };
 window.navigateFromBar = function() {
-  const url = document.getElementById('url-input').value.trim();
+  const input = document.getElementById('url-input');
+  const url = input?.value.trim() || '';
   if (!url) return;
+  const now = performance.now();
+  if (lastURLBarNavigation.url === url && now - lastURLBarNavigation.at < 750) return;
+  lastURLBarNavigation = { url, at: now };
   openBrowser(url);
 };
 
@@ -1388,6 +1455,27 @@ function activateRecentTab(tab) {
   }
 }
 
+function recentTabKey(tab) {
+  const clean = sanitizeTabForSave(tab);
+  if (!clean) return '';
+  if (clean.type === 'terminal') return `terminal:${formatSSHURL(clean.user || 'root', clean.host || clean.title, clean.port || 22).toLowerCase()}`;
+  if (clean.type === 'browser') return `browser:${normalizeBrowserURL(clean.url).toLowerCase()}`;
+  if (clean.type === 'vnc' || clean.type === 'rdp') return `${clean.type}:${String(clean.url || '').toLowerCase()}`;
+  return `${clean.type}:${String(clean.url || clean.title || '').toLowerCase()}`;
+}
+function dedupeRecentTabs(tabs) {
+  const seen = new Set;
+  const result = [];
+  for (const tab of tabs || []) {
+    const clean = sanitizeTabForSave(tab);
+    const key = recentTabKey(clean);
+    if (!clean || !key || seen.has(key)) continue;
+    seen.add(key);
+    result.push(clean);
+  }
+  return result;
+}
+
 async function loadRecentTabs() {
   const list = document.getElementById('recent-list');
   if (!list) return;
@@ -1395,7 +1483,7 @@ async function loadRecentTabs() {
     const res = await fetch('/api/settings/config');
     if (!res.ok) throw new Error(await res.text());
     const cfg = await res.json();
-    const tabs = cfg.openTabs || [];
+    const tabs = dedupeRecentTabs(cfg.openTabs || []);
     refreshURLHistoryDatalist(tabs.map(t => t.type === 'terminal' ? formatSSHURL(t.user || 'root', t.host || t.title, t.port) : (t.url || t.title)));
     list.textContent = '';
     if (!tabs.length) {
@@ -1503,7 +1591,7 @@ function sanitizeTabForSave(t) {
   return null;
 }
 function saveOpenTabs() {
-  const tabs = state.tabs.map(sanitizeTabForSave).filter(Boolean).slice(0, 100);
+  const tabs = dedupeRecentTabs(state.tabs).slice(0, 100);
   fetch('/api/settings/save-tabs', {
     method: 'POST', headers: {'Content-Type':'application/json'},
     body: JSON.stringify({tabs})
