@@ -202,6 +202,12 @@ func (a *App) onUIThread(fn func()) {
 	}
 }
 
+func (a *App) tailscaleConnected() bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.tsServer != nil
+}
+
 func (a *App) hideBrowserContentOnUI() {
 	if a.contentViews == nil {
 		return
@@ -383,7 +389,7 @@ func clampTabIndex(toIndex, count int) int {
 	return toIndex
 }
 
-func (a *App) reorderTab(tabID string, toIndex int) {
+func (a *App) reorderTab(tabID, beforeID string) {
 	if !validTabID(tabID) {
 		return
 	}
@@ -399,23 +405,25 @@ func (a *App) reorderTab(tabID string, toIndex int) {
 		a.mu.Unlock()
 		return
 	}
-	toIndex = clampTabIndex(toIndex, len(a.tabs))
-	if from == toIndex {
-		a.mu.Unlock()
-		return
-	}
 	tab := a.tabs[from]
 	a.tabs = append(a.tabs[:from], a.tabs[from+1:]...)
-	if toIndex > from {
-		toIndex--
+	// Insert immediately before beforeID, computed against this (authoritative)
+	// slice. An empty/unknown beforeID appends to the end. Using IDs instead of a
+	// precomputed index keeps the persisted order aligned with the shell's even if
+	// the two tab arrays differ (e.g. the shell-only settings tab).
+	insertAt := len(a.tabs)
+	if beforeID != "" && beforeID != tabID {
+		for i, t := range a.tabs {
+			if t.ID == beforeID {
+				insertAt = i
+				break
+			}
+		}
 	}
-	if toIndex < 0 {
-		toIndex = 0
-	}
-	if toIndex >= len(a.tabs) {
+	if insertAt >= len(a.tabs) {
 		a.tabs = append(a.tabs, tab)
 	} else {
-		a.tabs = append(a.tabs[:toIndex], append([]Tab{tab}, a.tabs[toIndex:]...)...)
+		a.tabs = append(a.tabs[:insertAt], append([]Tab{tab}, a.tabs[insertAt:]...)...)
 	}
 	a.mu.Unlock()
 	a.persistOpenTabs()

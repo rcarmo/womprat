@@ -164,6 +164,30 @@ button,a,.tab,.recent-item,.option{
 #download-bar .progress{flex:1;height:4px;background:var(--layer);border-radius:2px;overflow:hidden}
 #download-bar .progress-fill{height:100%;background:var(--accent);transition:width .2s}
 #download-bar .status{color:var(--dim)}
+#nav-status{display:flex;align-items:center;gap:8px;min-height:28px;padding:4px 10px;font-size:12px;
+  border-bottom:1px solid var(--border);background:var(--surface-solid);color:var(--text)}
+#nav-status[hidden]{display:none}
+#nav-status.loading{color:var(--text-secondary)}
+#nav-status.error{background:rgba(248,81,73,.12);border-bottom-color:rgba(248,81,73,.32);color:#ffb4ad}
+#nav-status-text{flex:1 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#nav-status-actions{display:inline-flex;gap:6px;flex:0 0 auto}
+#nav-status.loading #nav-status-actions{display:none}
+.nav-status-btn{height:22px;padding:0 8px;font-size:11px;font-weight:600;border-radius:var(--radius);
+  border:1px solid var(--border-strong);background:var(--layer);color:var(--text);cursor:pointer}
+.nav-status-btn:hover{background:var(--subtle-hover)}
+#nav-status-dismiss{min-width:22px;padding:0 6px}
+.nav-spinner{width:13px;height:13px;flex:0 0 13px;border-radius:50%;border:2px solid rgba(255,255,255,.25);
+  border-top-color:var(--accent);animation:navSpin .7s linear infinite;display:none}
+#nav-status.loading .nav-spinner{display:inline-block}
+@keyframes navSpin{to{transform:rotate(360deg)}}
+.icon-button:disabled{opacity:.35;cursor:default;pointer-events:none}
+.url-mode{flex:0 0 auto;display:inline-flex;align-items:center;height:22px;padding:0 7px;border-radius:999px;
+  border:1px solid var(--border);background:var(--layer);color:var(--dim);font-size:11px;font-weight:700;
+  letter-spacing:.03em;white-space:nowrap}
+.url-mode[hidden]{display:none}
+.url-mode.insecure{color:#d2992a;border-color:rgba(210,153,34,.4)}
+.tab-spinner{width:14px;height:14px;flex:0 0 14px;border-radius:50%;border:2px solid rgba(255,255,255,.25);
+  border-top-color:var(--accent);animation:navSpin .7s linear infinite;display:inline-block}
 </style>
 </head>
 <body>
@@ -194,10 +218,20 @@ button,a,.tab,.recent-item,.option{
   <button id="nav-back" class="icon-button" title="Back" aria-label="Back" data-icon="arrowLeft"></button>
   <button id="nav-forward" class="icon-button" title="Forward" aria-label="Forward" data-icon="arrowRight"></button>
   <button id="nav-reload" class="icon-button" title="Reload" aria-label="Reload" data-icon="arrowClockwise"></button>
+  <span id="url-mode" class="url-mode" hidden aria-hidden="true"></span>
   <input id="url-input" list="url-history" placeholder="Enter URL, ssh://user@host, vnc://host or rdp://user@host">
   <datalist id="url-history"></datalist>
   <span id="route-pill" class="route-pill" title="Exit node route status"></span>
   <button id="url-go" class="icon-button text-button">Go</button>
+</div>
+<div id="nav-status" role="status" aria-live="polite" hidden>
+  <span id="nav-status-spinner" class="nav-spinner" aria-hidden="true"></span>
+  <span id="nav-status-text"></span>
+  <span id="nav-status-actions">
+    <button id="nav-status-reload" class="nav-status-btn" type="button">Reload</button>
+    <button id="nav-status-settings" class="nav-status-btn" type="button">Settings</button>
+    <button id="nav-status-dismiss" class="nav-status-btn" type="button" aria-label="Dismiss">×</button>
+  </span>
 </div>
 
 <div id="panels">
@@ -308,9 +342,105 @@ function saveShellContentZoom(value) {
   catch (err) { console.warn('shell zoom storage save failed', err); }
 }
 let shellContentZoom = readShellContentZoom();
-function setURLProgress(_active, _done = false) {
-  // Disabled for now: native WebView2 navigation events can arrive out of phase
-  // with shell state, and a stuck strip is worse than no progress indicator.
+function navStatusEl() { return document.getElementById('nav-status'); }
+let navStatusState = { kind: 'none', tabId: null };
+function hostLabelForURL(url) {
+  const u = safeURL(String(url || ''));
+  return u ? (u.host || u.hostname || String(url)) : String(url || '');
+}
+function applyNavStatus(kind, message, tabId) {
+  const el = navStatusEl();
+  if (!el) return;
+  navStatusState = { kind, tabId: tabId ?? state.activeTab };
+  const text = document.getElementById('nav-status-text');
+  if (kind === 'none') {
+    el.hidden = true;
+    el.classList.remove('loading', 'error');
+    if (text) text.textContent = '';
+  } else {
+    el.hidden = false;
+    el.classList.toggle('loading', kind === 'loading');
+    el.classList.toggle('error', kind === 'error');
+    if (text) text.textContent = String(message || '');
+  }
+  try { wompratReportChrome(); } catch (err) { console.warn('chrome report after nav status failed', err); }
+}
+function clearNavStatus() { applyNavStatus('none', '', null); }
+async function preflightConnectivity(tabId) {
+  // Surface the most likely root cause (Tailscale not connected) immediately
+  // instead of waiting out the ~10s SOCKS dial timeout and a blank error page.
+  if (!window.womprat_getNetworkState) return;
+  try {
+    const ns = JSON.parse(await window.womprat_getNetworkState());
+    if (ns && ns.tsConnected === false && tabId === state.activeTab && loadingTabs.has(tabId)) {
+      applyNavStatus('error', 'Tailscale is not connected — open Settings to connect.', tabId);
+    }
+  } catch (err) { console.warn('connectivity preflight failed', err); }
+}
+function setURLProgress(active, _done = false) {
+  // Reflect navigation progress in the shell chrome (always visible above the
+  // native WebView content region). Loading is shown for the active browser tab;
+  // completion/failure is driven by wompratNavigationDone.
+  if (active) {
+    const tab = state.tabs.find(t => t.id === state.activeTab);
+    const label = tab ? hostLabelForURL(tab.url) : '';
+    applyNavStatus('loading', label ? `Loading ${label}…` : 'Loading…', state.activeTab);
+  } else if (navStatusState.kind === 'loading') {
+    clearNavStatus();
+  }
+}
+const loadingTabs = new Set();
+let navAvailability = { tabId: null, back: false, forward: false };
+function activeTabObj() { return state.tabs.find(t => t.id === state.activeTab); }
+function updateNavButtonsUI() {
+  const t = activeTabObj();
+  const browser = !!t && t.type === 'browser';
+  const sameTab = navAvailability.tabId === state.activeTab;
+  const back = document.getElementById('nav-back');
+  const fwd = document.getElementById('nav-forward');
+  const reload = document.getElementById('nav-reload');
+  if (back) back.disabled = !(browser && sameTab && navAvailability.back);
+  if (fwd) fwd.disabled = !(browser && sameTab && navAvailability.forward);
+  if (reload) reload.disabled = !browser;
+}
+window.wompratSetNavState = function(tabId, canBack, canForward) {
+  navAvailability = { tabId, back: !!canBack, forward: !!canForward };
+  if (tabId === state.activeTab) updateNavButtonsUI();
+};
+function setTabLoading(tabId, loading) {
+  if (!tabId) return;
+  const had = loadingTabs.has(tabId);
+  if (loading) loadingTabs.add(tabId); else loadingTabs.delete(tabId);
+  if (had !== loadingTabs.has(tabId)) renderTabs();
+}
+const URL_MODE_LABELS = { ssh: 'SSH', vnc: 'VNC', rdp: 'RDP', settings: 'CFG' };
+function updateURLMode(tab) {
+  const badge = document.getElementById('url-mode');
+  if (!badge) return;
+  let label = '';
+  let title = '';
+  if (tab) {
+    if (URL_MODE_LABELS[tab.type]) {
+      label = URL_MODE_LABELS[tab.type];
+      title = `${label} session`;
+    } else if (tab.type === 'browser') {
+      const u = safeURL(tab.url || '');
+      if (u) {
+        label = u.protocol === 'https:' ? 'HTTPS' : 'HTTP';
+        title = u.protocol === 'https:' ? 'Secure connection' : 'Unencrypted connection';
+        badge.classList.toggle('insecure', u.protocol !== 'https:');
+      }
+    }
+  }
+  if (label) {
+    badge.textContent = label;
+    badge.title = title;
+    badge.hidden = false;
+    if (tab?.type !== 'browser') badge.classList.remove('insecure');
+  } else {
+    badge.hidden = true;
+    badge.classList.remove('insecure');
+  }
 }
 function setBrowserStatus(tabId, message) {
   const panel = document.getElementById(`panel-${tabId}`);
@@ -322,16 +452,22 @@ function setBrowserStatus(tabId, message) {
   panel.appendChild(placeholder);
 }
 window.wompratContentError = function(tabId, message) {
+  setTabLoading(tabId, false);
   const tab = state.tabs.find(t => t.id === tabId);
   if (tab) tab.title = 'Browser error';
   setBrowserStatus(tabId, `Browser WebView failed: ${message || 'unknown error'}`);
+  if (tabId === state.activeTab || !state.activeTab) {
+    applyNavStatus('error', `Browser engine failed: ${message || 'unknown error'}`, tabId);
+  }
   renderTabs();
 };
 window.wompratReportChrome = function() {
   try {
     const bar = document.getElementById('url-bar');
     if (!bar || !window.womprat_setChromeHeight) return;
-    const bottom = bar.getBoundingClientRect().bottom;
+    const status = navStatusEl();
+    const useStatus = status && !status.hidden;
+    const bottom = (useStatus ? status.getBoundingClientRect().bottom : bar.getBoundingClientRect().bottom);
     const px = Math.round(bottom * (window.devicePixelRatio || 1));
     if (px > 0) window.womprat_setChromeHeight(px);
   } catch (err) { console.warn('chrome height report failed', err); }
@@ -378,7 +514,8 @@ window.wompratSetTabMeta = function(tabId, title, favicon) {
   registerLocalTab(tab);
   saveOpenTabs();
 };
-window.wompratNavigationDone = function(tabId, url) {
+window.wompratNavigationDone = function(tabId, url, ok, errorCode, errorMessage) {
+  setTabLoading(tabId, false);
   const tab = state.tabs.find(t => t.id === tabId);
   if (tab && url && /^https?:\/\//i.test(url)) {
     tab.url = url;
@@ -386,7 +523,16 @@ window.wompratNavigationDone = function(tabId, url) {
     registerLocalTab(tab);
     saveOpenTabs();
   }
-  setURLProgress(false, true);
+  // Older native callers pass only (tabId, url); treat missing result as success
+  // so a 2-arg call never raises a spurious error banner.
+  const succeeded = arguments.length < 3 ? true : !!ok;
+  if (tabId !== state.activeTab) return;
+  if (succeeded) {
+    clearNavStatus();
+  } else {
+    const message = String(errorMessage || '').trim() || 'Page failed to load.';
+    applyNavStatus('error', message, tabId);
+  }
 };
 function applyShellContentZoom() {
   shellContentZoom = Math.max(0.5, Math.min(3, shellContentZoom));
@@ -590,16 +736,22 @@ function purgeLegacyExternalIframes() {
   // External web pages must never be iframe-hosted; that is what triggers
   // frame-ancestors CSP errors. Settings remains the only local iframe.
   document.querySelectorAll('.browser-bar').forEach(el => el.remove());
+  let firstExternal = '';
   document.querySelectorAll('iframe').forEach(frame => {
     const src = frame.getAttribute('src') || '';
     if (/^https?:\/\//i.test(src) && !src.startsWith(location.origin)) {
       const panel = frame.closest('.panel');
       frame.remove();
       if (panel && panel.id !== 'panel-settings') panel.remove();
-      if (window.womprat_newBrowser) window.womprat_newBrowser(src);
-      else location.href = src;
+      // Open at most one recovered page so a cached DOM with several stale
+      // external iframes cannot spawn a burst of unexpected tabs.
+      if (!firstExternal) firstExternal = src;
     }
   });
+  if (firstExternal) {
+    if (window.womprat_newBrowser) window.womprat_newBrowser(firstExternal);
+    else location.href = firstExternal;
+  }
 }
 purgeLegacyExternalIframes();
 
@@ -677,11 +829,14 @@ window.saveKey = async function() {
 
 window.newBlankTab = function() {
   state.activeTab = null;
+  clearNavStatus();
   if (window.womprat_clearActiveTab) window.womprat_clearActiveTab();
   document.getElementById('panels')?.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   updateHomeVisibility();
   renderTabs();
   refreshURLHistoryDatalist();
+  updateURLMode(null);
+  updateNavButtonsUI();
   const input = document.getElementById('url-input');
   if (input) {
     input.value = '';
@@ -931,7 +1086,6 @@ window.openBrowser = function(url, name) {
 
   // Best-effort UI bookkeeping; must never block the actual navigation.
   try { updateNetworkIndicator(); } catch (err) { console.warn('network indicator failed', err); }
-  try { setURLProgress(true); } catch (err) { console.warn('progress update failed', err); }
   try { saveURLHistory(navUrl); } catch (err) { console.warn('save history failed', err); }
   try { focusContentArea(); } catch (err) { console.warn('focus content failed', err); }
 
@@ -942,11 +1096,11 @@ window.openBrowser = function(url, name) {
       const result = window.womprat_newBrowser(navUrl);
       if (result && typeof result.catch === 'function') result.catch(err => {
         console.warn('native browser open failed', err);
-        setURLProgress(false, true);
+        applyNavStatus('error', 'Could not open the browser view.', state.activeTab);
       });
     } catch (err) {
       console.warn('native browser open failed', err);
-      setURLProgress(false, true);
+      applyNavStatus('error', 'Could not open the browser view.', state.activeTab);
     }
   } else {
     location.href = navUrl;
@@ -955,6 +1109,7 @@ window.openBrowser = function(url, name) {
 
 window.closeTab = function(id, e) {
   e?.stopPropagation?.();
+  loadingTabs.delete(id);
   const closingActive = state.activeTab === id;
   const closing = state.tabs.find(t => t.id === id);
   state.tabs = state.tabs.filter(t => t.id !== id);
@@ -1013,6 +1168,13 @@ function tabIconName(tab) {
 function tabIconElement(tab) {
   const slot = document.createElement('span');
   slot.className = 'tab-icon-slot';
+  if (loadingTabs.has(tab.id)) {
+    const spinner = document.createElement('span');
+    spinner.className = 'tab-spinner';
+    spinner.setAttribute('aria-label', 'Loading');
+    slot.appendChild(spinner);
+    return slot;
+  }
   if (tab.type === 'browser') {
     const favicon = sanitizeFaviconURL(tab.favicon);
     if (favicon) {
@@ -1094,7 +1256,9 @@ function reorderTab(fromId, beforeId) {
   state.tabs.splice(insertAt, 0, tab);
   renderTabs();
   saveOpenTabs();
-  if (window.womprat_reorderTab) window.womprat_reorderTab(fromId, beforeIndex);
+  // Pass the destination tab id (not an index) so Go reorders against its own
+  // authoritative array with identical "insert before id" semantics.
+  if (window.womprat_reorderTab) window.womprat_reorderTab(fromId, beforeId);
 }
 
 function updateRemoteTabTitle(tabId, title) {
@@ -1156,6 +1320,9 @@ function installRDPPanelState(root) {
 function activateTab(id, options = {}) {
   const tab = state.tabs.find(t => t.id === id);
   if (!tab) return;
+  // Navigation status is per active tab; clear any stale loading/error banner
+  // when moving to a different tab so it never lingers over an unrelated page.
+  if (navStatusState.tabId && navStatusState.tabId !== id) clearNavStatus();
   state.activeTab = id;
   if (!options.skipNative && window.womprat_switchTab) { try { window.womprat_switchTab(id); } catch (err) { console.warn('native tab switch failed', err); } }
 
@@ -1231,6 +1398,8 @@ function activateTab(id, options = {}) {
   registerLocalTab(tab);
   updateHomeVisibility();
   renderTabs();
+  updateURLMode(tab);
+  updateNavButtonsUI();
   if (tab.type === 'vnc') {
     const root = document.querySelector(`#panel-${CSS.escape(id)} .vnc-panel`);
     installRemoteTitleSync(root, id, 'vnc', tab.url || `vnc://${tab.host}:${tab.port||5900}`);
@@ -1281,6 +1450,9 @@ window.showBrowserTab = function(id, url, options = {}) {
   }
   renderTabs();
   activateTab(id, { skipNative: !!options.skipNative });
+  applyNavStatus('loading', `Loading ${hostLabelForURL(navUrl)}…`, id);
+  setTabLoading(id, true);
+  preflightConnectivity(id);
   setBrowserStatus(id, `Loading ${navUrl}…`);
   try { saveURLHistory(navUrl); } catch (err) { console.warn('save history failed', err); }
   try { registerLocalTab(tab); } catch (err) { console.warn('register local tab failed', err); }
@@ -1355,6 +1527,9 @@ function installShellControlHandlers() {
   document.getElementById('nav-forward')?.addEventListener('click', () => historyForward(state.activeTab));
   document.getElementById('nav-reload')?.addEventListener('click', () => historyReload(state.activeTab));
   document.getElementById('url-go')?.addEventListener('click', () => window.navigateFromBar());
+  document.getElementById('nav-status-reload')?.addEventListener('click', () => { clearNavStatus(); historyReload(state.activeTab); });
+  document.getElementById('nav-status-settings')?.addEventListener('click', () => openSettings());
+  document.getElementById('nav-status-dismiss')?.addEventListener('click', () => clearNavStatus());
   document.getElementById('url-input')?.addEventListener('keydown', (event) => {
     if (event.key !== 'Enter') return;
     event.preventDefault();
@@ -1413,8 +1588,12 @@ window.navigateFromBar = function() {
   const url = input?.value.trim() || '';
   if (!url) return;
   const now = performance.now();
-  if (lastURLBarNavigation.url === url && now - lastURLBarNavigation.at < 750) return;
+  // Only collapse a genuine double-dispatch (e.g. Enter immediately followed by
+  // a Go-button click). Intentional re-entry of the same URL — retrying a failed
+  // load — must always navigate, so the window is deliberately tiny.
+  if (lastURLBarNavigation.url === url && now - lastURLBarNavigation.at < 150) return;
   lastURLBarNavigation = { url, at: now };
+  clearNavStatus();
   openBrowser(url);
 };
 

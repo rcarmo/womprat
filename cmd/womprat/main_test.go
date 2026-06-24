@@ -140,7 +140,7 @@ func TestTabMutationsRejectInvalidIDs(t *testing.T) {
 	app.switchTab("bad/id")
 	app.closeTab("bad/id")
 	app.forgetTab("bad/id")
-	app.reorderTab("bad/id", 0)
+	app.reorderTab("bad/id", "a")
 	if len(app.tabs) != 2 || app.activeTab != "a" {
 		t.Fatalf("invalid tab mutation changed state: active=%q tabs=%+v", app.activeTab, app.tabs)
 	}
@@ -170,10 +170,25 @@ func TestClampTabIndex(t *testing.T) {
 func TestReorderTab(t *testing.T) {
 	app := newTestApp(t)
 	app.tabs = []Tab{{ID: "a"}, {ID: "b"}, {ID: "c"}}
-	app.reorderTab("c", 0)
+	// Move c before a.
+	app.reorderTab("c", "a")
 	got := []string{app.tabs[0].ID, app.tabs[1].ID, app.tabs[2].ID}
 	if strings.Join(got, ",") != "c,a,b" {
 		t.Fatalf("order = %v", got)
+	}
+	// Empty/unknown beforeID appends to the end.
+	app.reorderTab("c", "")
+	got = []string{app.tabs[0].ID, app.tabs[1].ID, app.tabs[2].ID}
+	if strings.Join(got, ",") != "a,b,c" {
+		t.Fatalf("append order = %v", got)
+	}
+	// Reorder against an array that differs from the shell's (extra settings tab)
+	// must still place relative to the named id, not a precomputed index.
+	app.tabs = []Tab{{ID: "settings"}, {ID: "a"}, {ID: "b"}, {ID: "c"}}
+	app.reorderTab("c", "b")
+	got = []string{app.tabs[0].ID, app.tabs[1].ID, app.tabs[2].ID, app.tabs[3].ID}
+	if strings.Join(got, ",") != "settings,a,c,b" {
+		t.Fatalf("id-relative order = %v", got)
 	}
 }
 

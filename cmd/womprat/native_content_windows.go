@@ -85,6 +85,7 @@ type nativeContentManager struct {
 	shellHWND     uintptr
 	dataPath      string
 	shell         shellWebView
+	tsConnected   func() bool
 	browserActive string
 	views         map[string]*nativeContentView
 }
@@ -103,7 +104,7 @@ func (m *nativeContentManager) Ensure(tabID string) browserContentView {
 	if v := m.views[tabID]; v != nil {
 		return v
 	}
-	v, err := newNativeContentView(m.parent, m.dataPath, tabID, m.shell)
+	v, err := newNativeContentView(m.parent, m.dataPath, tabID, m.shell, m.tsConnected)
 	if err != nil {
 		log.Printf("content WebView for %s unavailable: %v", tabID, err)
 		if m.shell != nil {
@@ -251,15 +252,16 @@ func (nilContentView) Hide()           {}
 func (nilContentView) Destroy()        {}
 
 type nativeContentView struct {
-	parent uintptr
-	hwnd   uintptr
-	tabID  string
-	url    string
-	shell  shellWebView
-	edge   *webview2edge.Chromium
+	parent      uintptr
+	hwnd        uintptr
+	tabID       string
+	url         string
+	shell       shellWebView
+	tsConnected func() bool
+	edge        *webview2edge.Chromium
 }
 
-func newNativeContentView(parent uintptr, dataPath, tabID string, shell shellWebView) (*nativeContentView, error) {
+func newNativeContentView(parent uintptr, dataPath, tabID string, shell shellWebView, tsConnected func() bool) (*nativeContentView, error) {
 	if err := registerChildClass(); err != nil {
 		return nil, err
 	}
@@ -268,7 +270,7 @@ func newNativeContentView(parent uintptr, dataPath, tabID string, shell shellWeb
 	if hwnd == 0 {
 		return nil, fmt.Errorf("create content child window: %w", err)
 	}
-	cv := &nativeContentView{parent: parent, hwnd: hwnd, tabID: tabID, shell: shell}
+	cv := &nativeContentView{parent: parent, hwnd: hwnd, tabID: tabID, shell: shell, tsConnected: tsConnected}
 	edge := webview2edge.NewChromium()
 	edge.MessageCallback = func(raw string) {
 		if action := parseHotkeyMessage(raw); action != "" && cv.shell != nil {
@@ -293,7 +295,7 @@ func newNativeContentView(parent uintptr, dataPath, tabID string, shell shellWeb
 		return nil, fmt.Errorf("create content data path: %w", err)
 	}
 	edge.DataPath = dataPath
-	edge.NavigationCompletedCallback = func(_ *webview2edge.ICoreWebView2, _ *webview2edge.ICoreWebView2NavigationCompletedEventArgs) {
+	edge.NavigationCompletedCallback = func(_ *webview2edge.ICoreWebView2, args *webview2edge.ICoreWebView2NavigationCompletedEventArgs) {
 		// Re-inject the bridge on every completed navigation as well as via Init,
 		// because AddScriptToExecuteOnDocumentCreated can miss the very first page
 		// (script registration races the first navigation). The bridge self-guards
@@ -302,7 +304,19 @@ func newNativeContentView(parent uintptr, dataPath, tabID string, shell shellWeb
 			cv.edge.Eval(browserTitleReporterJS)
 		}
 		if cv.shell != nil {
-			cv.shell.Eval(fmt.Sprintf("window.wompratNavigationDone(%s,%s)", jsString(cv.tabID), jsString(cv.url)))
+			ok := args != nil && args.IsSuccess()
+			var code int32
+			var message string
+			if !ok {
+				if args != nil {
+					code = args.WebErrorStatus()
+				}
+				connected := cv.tsConnected == nil || cv.tsConnected()
+				message = webErrorStatusMessage(code, connected)
+			}
+			cv.shell.Eval(fmt.Sprintf("window.wompratNavigationDone(%s,%s,%t,%d,%s)",
+				jsString(cv.tabID), jsString(cv.url), ok, code, jsString(message)))
+			cv.reportNavState()
 		}
 	}
 	if !edge.Embed(hwnd) {
@@ -427,18 +441,28 @@ func (v *nativeContentView) Navigate(url string) {
 }
 func (v *nativeContentView) GoBack() {
 	if v != nil && v.edge != nil {
-		v.edge.Eval("history.back()")
+		v.edge.GoBack()
 	}
 }
 func (v *nativeContentView) GoForward() {
 	if v != nil && v.edge != nil {
-		v.edge.Eval("history.forward()")
+		v.edge.GoForward()
 	}
 }
 func (v *nativeContentView) Reload() {
 	if v != nil && v.edge != nil {
 		v.edge.Eval("location.reload()")
 	}
+}
+
+// reportNavState pushes current back/forward availability for this tab to the
+// shell so the chrome nav buttons can reflect real session history.
+func (v *nativeContentView) reportNavState() {
+	if v == nil || v.edge == nil || v.shell == nil {
+		return
+	}
+	v.shell.Eval(fmt.Sprintf("window.wompratSetNavState(%s,%t,%t)",
+		jsString(v.tabID), v.edge.CanGoBack(), v.edge.CanGoForward()))
 }
 func (v *nativeContentView) Show() {
 	if v != nil && v.hwnd != 0 {
@@ -459,6 +483,7 @@ func (v *nativeContentView) Show() {
 		nativeShowWindow(v.hwnd, swShow, "content view show")
 		if v.edge != nil {
 			v.edge.Resize()
+			v.reportNavState()
 		}
 	}
 }

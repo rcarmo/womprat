@@ -80,6 +80,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
 .badge{display:inline-block;padding:.15rem .4rem;border-radius:4px;font-size:.7rem;font-weight:700}
 .badge-green{background:rgba(63,185,80,.15);color:var(--success)}
 .badge-dim{background:rgba(139,148,158,.12);color:var(--dim)}
+.diag-grid{display:grid;gap:8px;margin-top:10px}.diag-card{display:grid;grid-template-columns:minmax(160px,1fr) auto;gap:6px 12px;align-items:center;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--layer)}.diag-name{font-weight:700}.diag-detail{grid-column:1 / -1;color:var(--dim);font-size:.8rem;overflow-wrap:anywhere}.diag-time{color:var(--dim);font-size:.75rem}.diag-status{justify-self:end}.diag-status.ok{color:var(--success)}.diag-status.error{color:var(--danger)}
 </style>
 </head>
 <body>
@@ -92,6 +93,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
   <button class="tab-btn" data-tab="keys">SSH Keys</button>
   <button class="tab-btn" data-tab="hosts">Hosts</button>
   <button class="tab-btn" data-tab="browser">Browser</button>
+  <button class="tab-btn" data-tab="diagnostics">Diagnostics</button>
   <button class="tab-btn" data-tab="appearance">Appearance</button>
   <button class="tab-btn" data-tab="about">About</button>
 </div>
@@ -231,6 +233,19 @@ tr:hover td{background:rgba(255,255,255,.02)}
     </div>
     <p style="color:var(--dim);font-size:.78rem;margin-top:.5rem">This clears cache, cookies, saved passwords, and browsing history.</p>
     <div id="browser-status" style="margin-top:.5rem"></div>
+  </div>
+</div>
+
+<!-- ═══ Diagnostics ═══ -->
+<div class="tab-panel" id="panel-diagnostics">
+  <div class="section">
+    <h3>Connectivity Diagnostics</h3>
+    <p style="color:var(--dim);font-size:.82rem;margin-bottom:.6rem">Checks Tailscale status, local SOCKS availability, and a domain CONNECT probe for google.com through SOCKS.</p>
+    <div class="btn-row">
+      <button class="btn-primary" data-action="run-diagnostics">Run Diagnostics</button>
+    </div>
+    <div id="diag-status" style="margin-top:.5rem"></div>
+    <div id="diagnostics-grid" class="diag-grid"></div>
   </div>
 </div>
 
@@ -785,6 +800,51 @@ async function setDebugLog(enabled) {
     setStatus('debug-status', 'ok', d.enabled ? 'Debug logging enabled' : 'Debug logging disabled');
   } catch (err) { setStatus('debug-status', 'error', err.message); }
 }
+function renderDiagnostics(data) {
+  const grid = document.getElementById('diagnostics-grid');
+  if (!grid) return;
+  grid.textContent = '';
+  const checks = Array.isArray(data?.checks) ? data.checks : [];
+  if (!checks.length) {
+    const empty = document.createElement('div');
+    empty.style.cssText = 'color:var(--dim);font-size:.85em';
+    empty.textContent = 'No diagnostics have been run yet.';
+    grid.appendChild(empty);
+    return;
+  }
+  checks.forEach(check => {
+    const card = document.createElement('div');
+    card.className = 'diag-card';
+    const name = document.createElement('div');
+    name.className = 'diag-name';
+    name.textContent = check.name || 'Check';
+    const status = document.createElement('div');
+    status.className = `diag-status ${check.status === 'ok' ? 'ok' : 'error'}`;
+    status.textContent = check.status === 'ok' ? 'OK' : 'Error';
+    const detail = document.createElement('div');
+    detail.className = 'diag-detail mono';
+    detail.textContent = check.detail || '—';
+    const time = document.createElement('div');
+    time.className = 'diag-time';
+    time.textContent = `${Number(check.durationMs || 0)} ms`;
+    card.append(name, status, detail, time);
+    grid.appendChild(card);
+  });
+}
+async function runDiagnostics() {
+  setStatus('diag-status', 'warn', 'Running diagnostics…');
+  try {
+    const res = await fetch('/api/settings/diagnostics');
+    if (!res.ok) { setStatus('diag-status', 'error', await res.text()); return; }
+    const data = await res.json();
+    renderDiagnostics(data);
+    const failed = (data.checks || []).filter(c => c.status !== 'ok').length;
+    setStatus('diag-status', failed ? 'error' : 'ok', failed ? `${failed} diagnostic check(s) failed` : 'All diagnostics passed');
+  } catch (err) {
+    setStatus('diag-status', 'error', `Diagnostics failed: ${err.message}`);
+  }
+}
+
 async function loadAbout() {
   try {
     const about = await fetchJSON('/api/about', {});
@@ -825,6 +885,8 @@ async function loadConfigSettings() {
 }
 
 async function initSettings() {
+  document.querySelector('[data-action="run-diagnostics"]')?.addEventListener('click', runDiagnostics);
+  renderDiagnostics({checks: []});
   document.getElementById('save-passwords')?.addEventListener('change', async (e) => {
     try {
       const res = await fetch('/api/settings/browser/save-passwords', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({enabled: e.target.checked})});

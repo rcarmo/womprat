@@ -391,6 +391,41 @@ func TestSettingsExitNodeSelectUsesSafeDOMConstruction(t *testing.T) {
 	}
 }
 
+func TestSettingsDiagnosticsPanelCoversNetworkChecks(t *testing.T) {
+	settings := readFileForRegression(t, "frontend/settings.html")
+	for _, want := range []string{
+		"data-tab=\"diagnostics\"",
+		"id=\"panel-diagnostics\"",
+		"data-action=\"run-diagnostics\"",
+		"async function runDiagnostics()",
+		"fetch('/api/settings/diagnostics')",
+		"diagnostics-grid",
+		"google.com through SOCKS",
+	} {
+		if !strings.Contains(settings, want) {
+			t.Fatalf("settings diagnostics UI missing %q", want)
+		}
+	}
+	api := readFileForRegression(t, "settings_api.go")
+	if !strings.Contains(api, "a.handleDiagnostics") {
+		t.Fatal("settings diagnostics route missing")
+	}
+	diag := readFileForRegression(t, "diagnostics.go")
+	for _, want := range []string{
+		"func (a *App) handleDiagnostics",
+		"Tailscale connectivity",
+		"SOCKS listener",
+		"SOCKS DNS/connect to google.com",
+		"diagnoseSOCKSDomainConnect",
+		"google.com",
+		"byte(len(host))",
+	} {
+		if !strings.Contains(diag, want) {
+			t.Fatalf("diagnostics backend missing %q", want)
+		}
+	}
+}
+
 func TestSettingsReportsAsyncOperationFailures(t *testing.T) {
 	s := readFileForRegression(t, "frontend/settings.html")
 	for _, want := range []string{
@@ -777,6 +812,191 @@ func TestRDPCredentialsUseDialogAndStatusbar(t *testing.T) {
 	}
 }
 
+func TestNavigationResultReportedToShell(t *testing.T) {
+	native := readFileForRegression(t, "native_content_windows.go")
+	for _, want := range []string{
+		"ok := args != nil && args.IsSuccess()",
+		"code = args.WebErrorStatus()",
+		"webErrorStatusMessage(code, connected)",
+		"window.wompratNavigationDone(%s,%s,%t,%d,%s)",
+		"tsConnected func() bool",
+	} {
+		if !strings.Contains(native, want) {
+			t.Fatalf("native navigation result wiring missing %q", want)
+		}
+	}
+	args := readFileForRegression(t, "../../internal/go-webview2/pkg/edge/ICoreWebView2NavigationCompletedEventArgs.go")
+	for _, want := range []string{
+		"func (i *ICoreWebView2NavigationCompletedEventArgs) IsSuccess() bool",
+		"func (i *ICoreWebView2NavigationCompletedEventArgs) WebErrorStatus() int32",
+	} {
+		if !strings.Contains(args, want) {
+			t.Fatalf("navigation completed args accessor missing %q", want)
+		}
+	}
+	gui := readFileForRegression(t, "gui_windows.go")
+	if !strings.Contains(gui, "contentViews.tsConnected = app.tailscaleConnected") {
+		t.Fatal("content manager tsConnected closure not wired")
+	}
+}
+
+func TestNavigationStatusSurfaceLivesInChrome(t *testing.T) {
+	s := readFileForRegression(t, "frontend/index.html")
+	for _, want := range []string{
+		"<div id=\"nav-status\" role=\"status\" aria-live=\"polite\" hidden>",
+		"id=\"nav-status-reload\"",
+		"id=\"nav-status-settings\"",
+		"id=\"nav-status-dismiss\"",
+		"#nav-status{display:flex",
+		"#nav-status.error{background:rgba(248,81,73,.12)",
+		"function applyNavStatus(kind, message, tabId)",
+		"function clearNavStatus()",
+		"function setURLProgress(active, _done = false)",
+		"applyNavStatus('loading'",
+		"const useStatus = status && !status.hidden;",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("navigation status chrome surface missing %q", want)
+		}
+	}
+	if strings.Contains(s, "Disabled for now: native WebView2 navigation events can arrive out of phase") {
+		t.Fatal("setURLProgress must no longer be a no-op")
+	}
+}
+
+func TestNavigationDoneHandlesSuccessAndFailure(t *testing.T) {
+	s := readFileForRegression(t, "frontend/index.html")
+	for _, want := range []string{
+		"window.wompratNavigationDone = function(tabId, url, ok, errorCode, errorMessage)",
+		"const succeeded = arguments.length < 3 ? true : !!ok;",
+		"applyNavStatus('error', message, tabId);",
+		"if (navStatusState.tabId && navStatusState.tabId !== id) clearNavStatus();",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("navigation done success/failure handling missing %q", want)
+		}
+	}
+}
+
+func TestBrowserUXAuditFixesArePresent(t *testing.T) {
+	s := readFileForRegression(t, "frontend/index.html")
+	native := readFileForRegression(t, "native_content_windows.go")
+	chromium := readFileForRegression(t, "../../internal/go-webview2/pkg/edge/chromium.go")
+	gui := readFileForRegression(t, "gui_windows.go")
+	socks := readFileForRegression(t, "socks.go")
+
+	// Issue 4: id-relative reorder semantics.
+	if !strings.Contains(s, "window.womprat_reorderTab(fromId, beforeId)") {
+		t.Fatal("Issue 4: shell must pass destination tab id, not index")
+	}
+	if !strings.Contains(gui, "func(tabID, beforeID string) { app.reorderTab(tabID, beforeID) }") {
+		t.Fatal("Issue 4: reorder binding must take before id")
+	}
+
+	// Issue 5: retry-friendly dedupe.
+	if !strings.Contains(s, "now - lastURLBarNavigation.at < 150") {
+		t.Fatal("Issue 5: URL bar dedupe window must be reduced for retries")
+	}
+	if strings.Contains(s, "now - lastURLBarNavigation.at < 750") {
+		t.Fatal("Issue 5: stale 750ms dedupe window still present")
+	}
+
+	// Issue 6: tsnet pre-flight.
+	for _, want := range []string{
+		"async function preflightConnectivity(tabId)",
+		"ns.tsConnected === false",
+		"preflightConnectivity(id);",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("Issue 6: connectivity pre-flight missing %q", want)
+		}
+	}
+	if !strings.Contains(gui, "\"tsConnected\": app.tsServer != nil") {
+		t.Fatal("Issue 6: getNetworkState must expose tsConnected")
+	}
+
+	// Issue 7: SOCKS failure classification.
+	for _, want := range []string{
+		"func socksReplyForDialError(err error) byte",
+		"writeSOCKSReply(conn, socksReplyNetworkUnreach)",
+		"writeSOCKSReply(conn, socksReplyForDialError(err))",
+	} {
+		if !strings.Contains(socks, want) {
+			t.Fatalf("Issue 7: SOCKS reply classification missing %q", want)
+		}
+	}
+
+	// Issue 8: native back/forward + can-go.
+	for _, want := range []string{
+		"func (e *Chromium) GoBack()",
+		"func (e *Chromium) GoForward()",
+		"func (e *Chromium) CanGoBack() bool",
+		"func (e *Chromium) CanGoForward() bool",
+	} {
+		if !strings.Contains(chromium, want) {
+			t.Fatalf("Issue 8: native nav wrapper missing %q", want)
+		}
+	}
+	if strings.Contains(native, "history.back()") || strings.Contains(native, "history.forward()") {
+		t.Fatal("Issue 8: native view must not use history.back()/forward() eval")
+	}
+	if !strings.Contains(native, "v.edge.GoBack()") || !strings.Contains(native, "v.edge.GoForward()") {
+		t.Fatal("Issue 8: native view must call edge.GoBack/GoForward")
+	}
+
+	// Issue 9: nav button availability.
+	for _, want := range []string{
+		"window.wompratSetNavState = function(tabId, canBack, canForward)",
+		"function updateNavButtonsUI()",
+		"back.disabled = !(browser && sameTab && navAvailability.back)",
+		"reload.disabled = !browser",
+		"v.reportNavState()",
+	} {
+		if !strings.Contains(s+native, want) {
+			t.Fatalf("Issue 9: nav button availability missing %q", want)
+		}
+	}
+
+	// Issue 10: per-tab loading spinner.
+	for _, want := range []string{
+		"const loadingTabs = new Set();",
+		"function setTabLoading(tabId, loading)",
+		"if (loadingTabs.has(tab.id)) {",
+		".tab-spinner{",
+		"setTabLoading(id, true);",
+		"setTabLoading(tabId, false);",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("Issue 10: per-tab spinner missing %q", want)
+		}
+	}
+
+	// Issue 11: bounded legacy iframe purge.
+	for _, want := range []string{
+		"let firstExternal = '';",
+		"if (!firstExternal) firstExternal = src;",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("Issue 11: bounded iframe purge missing %q", want)
+		}
+	}
+	if strings.Contains(s, "if (window.womprat_newBrowser) window.womprat_newBrowser(src);") {
+		t.Fatal("Issue 11: per-iframe navigation must be replaced by single navigation")
+	}
+
+	// Issue 12: URL-bar mode/hint.
+	for _, want := range []string{
+		"id=\"url-mode\"",
+		"function updateURLMode(tab)",
+		"const URL_MODE_LABELS = { ssh: 'SSH', vnc: 'VNC', rdp: 'RDP', settings: 'CFG' };",
+		"badge.classList.toggle('insecure'",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("Issue 12: URL-bar mode hint missing %q", want)
+		}
+	}
+}
+
 func TestRemoteDisplayCanvasesUseSmoothScaling(t *testing.T) {
 	s := readFileForRegression(t, "frontend/index.html")
 	for _, want := range []string{
@@ -1060,7 +1280,7 @@ func TestURLBarEnterIsSingleNavigation(t *testing.T) {
 	for _, want := range []string{
 		"event.preventDefault();\n    event.stopPropagation();\n    if (event.repeat) return;\n    window.navigateFromBar();",
 		"let lastURLBarNavigation = { url: '', at: 0 };",
-		"if (lastURLBarNavigation.url === url && now - lastURLBarNavigation.at < 750) return;",
+		"if (lastURLBarNavigation.url === url && now - lastURLBarNavigation.at < 150) return;",
 	} {
 		if !strings.Contains(s, want) {
 			t.Fatalf("URL bar duplicate navigation guard missing %q", want)
@@ -1348,14 +1568,15 @@ func TestFrontendPersistsOnlySanitizedURLState(t *testing.T) {
 	}
 }
 
-func TestNoProgressStripInShell(t *testing.T) {
+func TestNoOccludedProgressStripInShell(t *testing.T) {
 	s := readFileForRegression(t, "frontend/index.html")
 	for _, forbidden := range []string{"id=\"url-progress\"", "urlProgressIndeterminate", "#url-progress"} {
 		if strings.Contains(s, forbidden) {
-			t.Fatalf("progress strip should remain disabled; found %q", forbidden)
+			t.Fatalf("legacy occluded progress strip should remain absent; found %q", forbidden)
 		}
 	}
-	if !strings.Contains(s, "function setURLProgress(_active, _done = false)") {
-		t.Fatal("setURLProgress should remain a no-op while native navigation is stabilized")
+	// Navigation progress now lives in the chrome-level status surface.
+	if !strings.Contains(s, "function setURLProgress(active, _done = false)") {
+		t.Fatal("setURLProgress should drive the chrome navigation status surface")
 	}
 }

@@ -120,6 +120,43 @@ func (e *Chromium) Navigate(url string) {
 	)
 }
 
+// GoBack navigates the WebView back in its session history using the native
+// WebView2 navigation stack (more reliable than evaluating history.back()).
+func (e *Chromium) GoBack() {
+	_, _, _ = e.webview.vtbl.GoBack.Call(uintptr(unsafe.Pointer(e.webview)))
+}
+
+// GoForward navigates the WebView forward in its session history.
+func (e *Chromium) GoForward() {
+	_, _, _ = e.webview.vtbl.GoForward.Call(uintptr(unsafe.Pointer(e.webview)))
+}
+
+// CanGoBack reports whether back navigation is currently available.
+func (e *Chromium) CanGoBack() bool {
+	var can int32
+	r, _, _ := e.webview.vtbl.GetCanGoBack.Call(
+		uintptr(unsafe.Pointer(e.webview)),
+		uintptr(unsafe.Pointer(&can)),
+	)
+	if r != 0 {
+		return false
+	}
+	return can != 0
+}
+
+// CanGoForward reports whether forward navigation is currently available.
+func (e *Chromium) CanGoForward() bool {
+	var can int32
+	r, _, _ := e.webview.vtbl.GetCanGoForward.Call(
+		uintptr(unsafe.Pointer(e.webview)),
+		uintptr(unsafe.Pointer(&can)),
+	)
+	if r != 0 {
+		return false
+	}
+	return can != 0
+}
+
 func (e *Chromium) NavigateToString(htmlContent string) {
 	_, _, _ = e.webview.vtbl.NavigateToString.Call(
 		uintptr(unsafe.Pointer(e.webview)),

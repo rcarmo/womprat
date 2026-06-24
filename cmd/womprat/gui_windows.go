@@ -220,6 +220,7 @@ func runGUI(app *App, shellURL string) {
 	if err != nil {
 		log.Printf("content WebView manager unavailable: %v", err)
 	} else {
+		contentViews.tsConnected = app.tailscaleConnected
 		app.contentViews = contentViews
 		activeHost = contentViews
 		contentViews.HideAll()
@@ -233,7 +234,7 @@ func runGUI(app *App, shellURL string) {
 	w.Bind("womprat_getNetworkState", func() string {
 		app.mu.Lock()
 		defer app.mu.Unlock()
-		return jsString(map[string]interface{}{"exitNode": app.config.ExitNode, "exitActive": useExitNode})
+		return jsString(map[string]interface{}{"exitNode": app.config.ExitNode, "exitActive": useExitNode, "tsConnected": app.tsServer != nil})
 	})
 	w.Bind("womprat_navigate", func(url string) { app.navigateBrowser(url) })
 	w.Bind("womprat_switchTab", func(tabID string) { app.switchTab(tabID) })
@@ -257,7 +258,7 @@ func runGUI(app *App, shellURL string) {
 	})
 	w.Bind("womprat_updateTitle", func(title, url, favicon string) { app.updateActiveBrowserTitle(title, url, favicon) })
 	w.Bind("womprat_closeTab", func(tabID string) { app.closeTab(tabID) })
-	w.Bind("womprat_reorderTab", func(tabID string, toIndex int) { app.reorderTab(tabID, toIndex) })
+	w.Bind("womprat_reorderTab", func(tabID, beforeID string) { app.reorderTab(tabID, beforeID) })
 	w.Bind("womprat_forgetTab", func(tabID string) { app.forgetTab(tabID) })
 	w.Bind("womprat_newBrowser", func(url string) { app.newBrowserTab(url) })
 	w.Bind("womprat_openSettings", func() { app.openSettingsTab() })

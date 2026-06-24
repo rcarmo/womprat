@@ -25,6 +25,46 @@ var socksAddr = "127.0.0.1:1080"
 
 const socksDialTimeout = 10 * time.Second
 
+// SOCKS5 reply codes (RFC 1928 section 6). Using accurate codes lets the browser
+// distinguish failure causes (not connected vs host unreachable vs refused)
+// instead of collapsing everything into a single generic error.
+const (
+	socksReplySucceeded         byte = 0x00
+	socksReplyGeneralFailure    byte = 0x01
+	socksReplyNetworkUnreach    byte = 0x03
+	socksReplyHostUnreachable   byte = 0x04
+	socksReplyConnectionRefused byte = 0x05
+	socksReplyCommandNotSupp    byte = 0x07
+	socksReplyAddrTypeNotSupp   byte = 0x08
+)
+
+// socksReplyForDialError classifies a tsnet dial failure into the closest SOCKS5
+// reply code so the browser can render an accurate, actionable message.
+func socksReplyForDialError(err error) byte {
+	if err == nil {
+		return socksReplySucceeded
+	}
+	msg := strings.ToLower(err.Error())
+	switch {
+	case strings.Contains(msg, "no such host"),
+		strings.Contains(msg, "name resolution"),
+		strings.Contains(msg, "server misbehaving"),
+		strings.Contains(msg, "no address"):
+		return socksReplyHostUnreachable
+	case strings.Contains(msg, "connection refused"):
+		return socksReplyConnectionRefused
+	case strings.Contains(msg, "network is unreachable"),
+		strings.Contains(msg, "no route to host"):
+		return socksReplyNetworkUnreach
+	case strings.Contains(msg, "timeout"),
+		strings.Contains(msg, "deadline exceeded"),
+		strings.Contains(msg, "i/o timeout"):
+		return socksReplyHostUnreachable
+	default:
+		return socksReplyGeneralFailure
+	}
+}
+
 // startSOCKS5Listener starts the SOCKS5 listener immediately.
 // It can serve requests as soon as app.tsServer is non-nil.
 func startSOCKS5Listener(app *App) {
@@ -79,13 +119,13 @@ func handleSOCKS5(conn net.Conn, app *App) {
 		return
 	}
 	if req[1] != 0x01 { // CONNECT only
-		writeSOCKSReply(conn, 0x07)
+		writeSOCKSReply(conn, socksReplyCommandNotSupp)
 		return
 	}
 
 	host, port, err := readSOCKSAddr(conn, req[3])
 	if err != nil {
-		writeSOCKSReply(conn, 0x08)
+		writeSOCKSReply(conn, socksReplyAddrTypeNotSupp)
 		return
 	}
 	addr := net.JoinHostPort(host, fmt.Sprintf("%d", port))
@@ -94,7 +134,9 @@ func handleSOCKS5(conn net.Conn, app *App) {
 	ts := app.tsServer
 	app.mu.Unlock()
 	if ts == nil && !allowDirectDial {
-		writeSOCKSReply(conn, 0x05)
+		// tsnet not connected: report Network unreachable so the browser can guide
+		// the user to connect Tailscale rather than showing a generic failure.
+		writeSOCKSReply(conn, socksReplyNetworkUnreach)
 		return
 	}
 
@@ -109,12 +151,12 @@ func handleSOCKS5(conn net.Conn, app *App) {
 	remote, err := dialTSNetPreferIPv4(dialCtx, ts, addr)
 	if err != nil {
 		log.Printf("SOCKS5 tsnet dial failed for %s: %v", addr, err)
-		writeSOCKSReply(conn, 0x05)
+		writeSOCKSReply(conn, socksReplyForDialError(err))
 		return
 	}
 	defer remote.Close()
 
-	if err := writeSOCKSReply(conn, 0x00); err != nil {
+	if err := writeSOCKSReply(conn, socksReplySucceeded); err != nil {
 		return
 	}
 
