@@ -25,6 +25,91 @@ func TestDownloadHandlerUsesSharedGetMethodGuard(t *testing.T) {
 	}
 }
 
+func TestSettingsDiagnosticsTabIsFirstWithRuntimeData(t *testing.T) {
+	s := readFileForRegression(t, "frontend/settings.html")
+	// Diagnostics must be the first tab button and the default-active panel.
+	firstBtn := strings.Index(s, "data-tab=\"diagnostics\"")
+	securityBtn := strings.Index(s, "data-tab=\"security\"")
+	if firstBtn < 0 || securityBtn < 0 || firstBtn > securityBtn {
+		t.Fatal("Diagnostics must be the first settings tab (before Security)")
+	}
+	if !strings.Contains(s, "<button class=\"tab-btn active\" data-tab=\"diagnostics\">") {
+		t.Fatal("Diagnostics tab button must be default-active")
+	}
+	if !strings.Contains(s, "<div class=\"tab-panel active\" id=\"panel-diagnostics\">") {
+		t.Fatal("Diagnostics panel must be default-active")
+	}
+	if strings.Contains(s, "<div class=\"tab-panel active\" id=\"panel-security\">") {
+		t.Fatal("Security panel must no longer be default-active")
+	}
+	// Runtime/Storage/Debug-logging diagnostics data must live in the Diagnostics
+	// panel, between its open and the next panel.
+	diagStart := strings.Index(s, "id=\"panel-diagnostics\"")
+	diagEnd := strings.Index(s, "id=\"panel-appearance\"")
+	if diagStart < 0 || diagEnd < 0 || diagStart > diagEnd {
+		t.Fatal("could not locate diagnostics panel bounds")
+	}
+	diagPanel := s[diagStart:diagEnd]
+	for _, id := range []string{"about-ts-connected", "about-exit-node", "about-socks", "about-config-dir", "about-webview-data", "debug-log"} {
+		if !strings.Contains(diagPanel, "id=\""+id+"\"") {
+			t.Fatalf("diagnostics runtime field %q must be in the Diagnostics panel", id)
+		}
+	}
+	// About panel keeps version info + links but no runtime diagnostics.
+	aboutStart := strings.Index(s, "id=\"panel-about\"")
+	if aboutStart < 0 {
+		t.Fatal("about panel missing")
+	}
+	aboutPanel := s[aboutStart:]
+	if !strings.Contains(aboutPanel, "id=\"about-version\"") {
+		t.Fatal("About panel must keep version info")
+	}
+	if strings.Contains(aboutPanel, "id=\"about-ts-connected\"") || strings.Contains(aboutPanel, "id=\"debug-log\"") {
+		t.Fatal("About panel must no longer contain runtime/diagnostics data")
+	}
+}
+
+func TestSettingsUsesInAppModalNotNativeDialogs(t *testing.T) {
+	s := readFileForRegression(t, "frontend/settings.html")
+	// Native confirm()/alert()/prompt() show the internal "127.0.0.1:<port> says"
+	// origin chrome, so settings must use the in-app modal instead.
+	for _, banned := range []string{"confirm(", "alert(", "prompt("} {
+		idx := 0
+		for {
+			j := strings.Index(s[idx:], banned)
+			if j < 0 {
+				break
+			}
+			pos := idx + j
+			// Allow method-style calls (confirmDialog/promptDialog) and comment text.
+			prev := byte(' ')
+			if pos > 0 {
+				prev = s[pos-1]
+			}
+			word := s[pos : pos+len(banned)]
+			isIdentChar := prev == '.' || prev == 'm' || prev == 'D' // .confirm, confirmDialog, promptDialog
+			lineStart := strings.LastIndexByte(s[:pos], '\n') + 1
+			line := s[lineStart:pos]
+			isComment := strings.Contains(line, "//")
+			if !isIdentChar && !isComment {
+				t.Fatalf("settings.html uses native dialog %q at offset %d (line: %q)", word, pos, strings.TrimSpace(s[lineStart:pos+40]))
+			}
+			idx = pos + len(banned)
+		}
+	}
+	for _, want := range []string{
+		"function confirmDialog(message",
+		"function promptDialog(message",
+		"id=\"app-modal\"",
+		"await confirmDialog(",
+		"await promptDialog(",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("settings in-app modal missing %q", want)
+		}
+	}
+}
+
 func TestSettingsMultiMethodHandlersUseHTTPMethodConstants(t *testing.T) {
 	s := readFileForRegression(t, "settings_api.go")
 	for _, want := range []string{
@@ -396,7 +481,6 @@ func TestSettingsDiagnosticsPanelCoversNetworkChecks(t *testing.T) {
 	for _, want := range []string{
 		"data-tab=\"diagnostics\"",
 		"id=\"panel-diagnostics\"",
-		"data-action=\"run-diagnostics\"",
 		"async function runDiagnostics()",
 		"fetch('/api/settings/diagnostics')",
 		"diagnostics-grid",
@@ -405,6 +489,13 @@ func TestSettingsDiagnosticsPanelCoversNetworkChecks(t *testing.T) {
 		if !strings.Contains(settings, want) {
 			t.Fatalf("settings diagnostics UI missing %q", want)
 		}
+	}
+	// Diagnostics auto-runs on open (no manual Run button).
+	if strings.Contains(settings, "data-action=\"run-diagnostics\"") {
+		t.Fatal("Diagnostics must auto-run on open, not via a Run button")
+	}
+	if !strings.Contains(settings, "if (id === 'diagnostics' && typeof runDiagnostics === 'function') runDiagnostics();") {
+		t.Fatal("Diagnostics must run when its tab is opened")
 	}
 	api := readFileForRegression(t, "settings_api.go")
 	if !strings.Contains(api, "a.handleDiagnostics") {
@@ -878,6 +969,68 @@ func TestNavigationDoneHandlesSuccessAndFailure(t *testing.T) {
 	}
 }
 
+func TestURLBarSelectAllAndNoCompletionPopup(t *testing.T) {
+	s := readFileForRegression(t, "frontend/index.html")
+	// The persistent native datalist completion popup is removed and browser
+	// autofill suppressed.
+	if strings.Contains(s, "id=\"url-input\" list=\"url-history\"") {
+		t.Fatal("url-input must not bind the always-on datalist completion popup")
+	}
+	if !strings.Contains(s, "<input id=\"url-input\" autocomplete=\"off\"") {
+		t.Fatal("url-input must disable browser autocomplete")
+	}
+	// Address-bar select-all on first click.
+	for _, want := range []string{
+		"let selectAllPending = false;",
+		"urlInput.addEventListener('focus', () => { selectAllPending = true; });",
+		"if (document.activeElement === urlInput) selectAllPending = false;",
+		"urlInput.select();",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("URL-bar select-all behavior missing %q", want)
+		}
+	}
+}
+
+func TestURLBarNavigatesInPlaceAndSyncsLiveURL(t *testing.T) {
+	s := readFileForRegression(t, "frontend/index.html")
+	native := readFileForRegression(t, "native_content_windows.go")
+	chromium := readFileForRegression(t, "../../internal/go-webview2/pkg/edge/chromium.go")
+
+	// URL bar acts like a real address bar: in-place navigation on a browser tab.
+	for _, want := range []string{
+		"const active = activeTabObj();",
+		"active.type === 'browser' && window.womprat_navigate",
+		"window.womprat_navigate(url); return;",
+		"function openSpecialURLPreview(url)",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("in-place URL-bar navigation missing %q", want)
+		}
+	}
+
+	// Live URL sync from the native view back into the shell address bar/tab.
+	for _, want := range []string{
+		"window.wompratSyncTabURL = function(tabId, url)",
+		"if (input && document.activeElement !== input) input.value = url;",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("live URL sync missing %q", want)
+		}
+	}
+	if !strings.Contains(chromium, "func (e *Chromium) GetSource() string") {
+		t.Fatal("edge package must expose GetSource to read the live document URL")
+	}
+	for _, want := range []string{
+		"src := cv.edge.GetSource();",
+		"window.wompratSyncTabURL(%s,%s)",
+	} {
+		if !strings.Contains(native, want) {
+			t.Fatalf("native navigation-completed URL sync missing %q", want)
+		}
+	}
+}
+
 func TestBrowserUXAuditFixesArePresent(t *testing.T) {
 	s := readFileForRegression(t, "frontend/index.html")
 	native := readFileForRegression(t, "native_content_windows.go")
@@ -984,16 +1137,18 @@ func TestBrowserUXAuditFixesArePresent(t *testing.T) {
 		t.Fatal("Issue 11: per-iframe navigation must be replaced by single navigation")
 	}
 
-	// Issue 12: URL-bar mode/hint.
+	// Issue 12: URL-bar mode/hint (custom schemes only; no HTTP/HTTPS pill).
 	for _, want := range []string{
 		"id=\"url-mode\"",
 		"function updateURLMode(tab)",
 		"const URL_MODE_LABELS = { ssh: 'SSH', vnc: 'VNC', rdp: 'RDP', settings: 'CFG' };",
-		"badge.classList.toggle('insecure'",
 	} {
 		if !strings.Contains(s, want) {
 			t.Fatalf("Issue 12: URL-bar mode hint missing %q", want)
 		}
+	}
+	if strings.Contains(s, "label = u.protocol === 'https:' ? 'HTTPS' : 'HTTP';") {
+		t.Fatal("Issue 12: HTTP/HTTPS pill must not be shown for browser tabs")
 	}
 }
 

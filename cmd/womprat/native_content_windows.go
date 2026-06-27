@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"unsafe"
@@ -100,10 +101,19 @@ func newNativeContentManager(parent uintptr, shellHWND uintptr, dataPath string,
 
 func (m *nativeContentManager) Ensure(tabID string) browserContentView {
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	if v := m.views[tabID]; v != nil {
+		m.mu.Unlock()
+		log.Printf("content: Ensure %s -> reusing existing view", tabID)
 		return v
 	}
+	m.mu.Unlock()
+
+	// Create the WebView2 view WITHOUT holding m.mu. newNativeContentView runs a
+	// nested message loop inside edge.Embed; while it pumps, the shell can invoke
+	// bindings (e.g. womprat_setChromeHeight -> resizeAll) that also lock m.mu on
+	// this same UI thread. Holding the lock across the pump self-deadlocks. We
+	// re-acquire only to publish the finished view.
+	log.Printf("content: Ensure %s -> creating new view (parent=0x%x dataPath=%q)", tabID, m.parent, m.dataPath)
 	v, err := newNativeContentView(m.parent, m.dataPath, tabID, m.shell, m.tsConnected)
 	if err != nil {
 		log.Printf("content WebView for %s unavailable: %v", tabID, err)
@@ -113,7 +123,17 @@ func (m *nativeContentManager) Ensure(tabID string) browserContentView {
 		return nilContentView{}
 	}
 	v.Hide()
+
+	m.mu.Lock()
+	if existing := m.views[tabID]; existing != nil {
+		// A re-entrant Ensure for the same tab raced during the pump; keep the
+		// first view and discard this duplicate.
+		m.mu.Unlock()
+		v.Destroy()
+		return existing
+	}
 	m.views[tabID] = v
+	m.mu.Unlock()
 	return v
 }
 
@@ -270,6 +290,7 @@ func newNativeContentView(parent uintptr, dataPath, tabID string, shell shellWeb
 	if hwnd == 0 {
 		return nil, fmt.Errorf("create content child window: %w", err)
 	}
+	log.Printf("content: %s child window hwnd=0x%x created; building WebView2 environment", tabID, hwnd)
 	cv := &nativeContentView{parent: parent, hwnd: hwnd, tabID: tabID, shell: shell, tsConnected: tsConnected}
 	edge := webview2edge.NewChromium()
 	edge.MessageCallback = func(raw string) {
@@ -295,6 +316,7 @@ func newNativeContentView(parent uintptr, dataPath, tabID string, shell shellWeb
 		return nil, fmt.Errorf("create content data path: %w", err)
 	}
 	edge.DataPath = dataPath
+	log.Printf("content: %s embedding WebView2 (DataPath=%q) — this may pump a nested loop", tabID, dataPath)
 	edge.NavigationCompletedCallback = func(_ *webview2edge.ICoreWebView2, args *webview2edge.ICoreWebView2NavigationCompletedEventArgs) {
 		// Re-inject the bridge on every completed navigation as well as via Init,
 		// because AddScriptToExecuteOnDocumentCreated can miss the very first page
@@ -314,6 +336,16 @@ func newNativeContentView(parent uintptr, dataPath, tabID string, shell shellWeb
 				connected := cv.tsConnected == nil || cv.tsConnected()
 				message = webErrorStatusMessage(code, connected)
 			}
+			// Read the live document URL so in-page link clicks / redirects update the
+			// shell address bar and tab, instead of leaving the URL we last passed to
+			// Navigate(). Only trust it on success (failures may land on chrome-error://).
+			if ok && cv.edge != nil {
+				if src := cv.edge.GetSource(); src != "" && !strings.HasPrefix(src, "chrome-error://") {
+					cv.url = src
+					cv.shell.Eval(fmt.Sprintf("window.wompratSyncTabURL(%s,%s)", jsString(cv.tabID), jsString(src)))
+				}
+			}
+			log.Printf("content: %s navigation completed url=%q ok=%t webErrorStatus=%d msg=%q", cv.tabID, cv.url, ok, code, message)
 			cv.shell.Eval(fmt.Sprintf("window.wompratNavigationDone(%s,%s,%t,%d,%s)",
 				jsString(cv.tabID), jsString(cv.url), ok, code, jsString(message)))
 			cv.reportNavState()
@@ -323,6 +355,7 @@ func newNativeContentView(parent uintptr, dataPath, tabID string, shell shellWeb
 		procDestroyWindow.Call(hwnd)
 		return nil, fmt.Errorf("embed content WebView2")
 	}
+	log.Printf("content: %s WebView2 embedded", tabID)
 	cv.edge = edge
 	if err := edge.PutAreBrowserAcceleratorKeysEnabled(false); err != nil {
 		log.Printf("content: disable browser accelerator keys failed: %v", err)

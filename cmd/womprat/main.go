@@ -138,6 +138,11 @@ func main() {
 		locked:       shouldStartLocked(cfg),
 	}
 	useExitNode = cfg.ExitNode != ""
+	if cfg.ExitNode != "" {
+		log.Printf("config: exit node = %q (public internet routed via exit node)", cfg.ExitNode)
+	} else {
+		log.Printf("config: no exit node (tailnet-only; public sites unreachable until one is set)")
+	}
 
 	// Start local HTTP server for API + shell pages
 	mux := http.NewServeMux()
@@ -506,6 +511,7 @@ func (a *App) closeTab(tabID string) {
 func (a *App) newBrowserTab(url string) {
 	log.Printf("tab: newBrowserTab %s", url)
 	if a.openSpecialURL(url) {
+		log.Printf("tab: newBrowserTab %s handled as special/custom-scheme URL", url)
 		return
 	}
 	normalized, err := normalizeBrowserURL(url)
@@ -521,13 +527,24 @@ func (a *App) newBrowserTab(url string) {
 	a.mu.Unlock()
 	a.persistOpenTabs()
 	a.evalShell("window.showBrowserTab(%s,%s,{skipNative:true})", jsString(tabID), jsString(url))
-	if a.contentViews != nil {
-		a.onUIThread(func() {
-			view := a.contentViews.Ensure(tabID)
-			a.contentViews.Show(tabID)
-			view.Navigate(url)
-		})
+	if a.contentViews == nil {
+		log.Printf("tab: newBrowserTab %s has no native content manager (contentViews=nil); page cannot render", tabID)
+		a.evalShell("window.wompratContentError(%s,%s)", jsString(tabID), jsString("Native browser engine unavailable (WebView2 content manager not initialized)."))
+		return
 	}
+	log.Printf("tab: newBrowserTab %s dispatching native create+navigate %s", tabID, url)
+	a.onUIThread(func() {
+		log.Printf("tab: %s UI-thread create begin", tabID)
+		view := a.contentViews.Ensure(tabID)
+		if view == nil {
+			log.Printf("tab: %s Ensure returned nil view", tabID)
+			return
+		}
+		a.contentViews.Show(tabID)
+		log.Printf("tab: %s navigate dispatch -> %s", tabID, url)
+		view.Navigate(url)
+		log.Printf("tab: %s UI-thread create done", tabID)
+	})
 }
 
 func (a *App) openSpecialURL(raw string) bool {
@@ -747,7 +764,50 @@ func (a *App) startTailscale() error {
 	if old != nil {
 		old.Close()
 	}
+
+	// Apply the configured exit node to the freshly started tsnet and log the
+	// effective routing. tsnet persists prefs in its state dir, but applying
+	// explicitly each run makes routing deterministic (rather than depending on
+	// whatever tailscaled.state happened to carry) and surfaces, in the log,
+	// exactly what public-internet routing is in effect.
+	exitNode := a.config.ExitNode
+	if exitNode != "" {
+		applyCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		err := a.applyExitNodePreference(applyCtx, exitNode)
+		cancel()
+		if err != nil {
+			log.Printf("tsnet: FAILED to apply configured exit node %q: %v (public sites will be unreachable)", exitNode, err)
+		} else {
+			log.Printf("tsnet: applied configured exit node %q", exitNode)
+		}
+	} else {
+		log.Printf("tsnet: no exit node configured — only tailnet hosts are reachable, public internet is not")
+	}
+	a.logTSNetRouting()
 	return nil
+}
+
+// logTSNetRouting records the effective tsnet routing preferences so the log
+// shows whether public traffic is routed through an exit node.
+func (a *App) logTSNetRouting() {
+	ts := a.ts()
+	if ts == nil {
+		return
+	}
+	lc, err := ts.LocalClient()
+	if err != nil {
+		log.Printf("tsnet: routing prefs unavailable (localclient: %v)", err)
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	prefs, err := lc.GetPrefs(ctx)
+	if err != nil {
+		log.Printf("tsnet: routing prefs unavailable (getprefs: %v)", err)
+		return
+	}
+	log.Printf("tsnet: routing prefs RouteAll=%t ExitNodeID=%q ExitNodeIP=%q",
+		prefs.RouteAll, prefs.ExitNodeID, prefs.ExitNodeIP)
 }
 
 func tsnetStateDir() string {

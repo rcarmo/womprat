@@ -224,6 +224,7 @@ func runGUI(app *App, shellURL string) {
 		app.contentViews = contentViews
 		activeHost = contentViews
 		contentViews.HideAll()
+		log.Printf("gui: native content manager ready (host=0x%x shellChild=0x%x dataPath=%q)", host, shellChild, webviewDataPath())
 	}
 
 	w.Bind("womprat_getTabs", func() string {

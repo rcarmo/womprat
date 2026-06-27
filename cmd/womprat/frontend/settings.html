@@ -18,7 +18,8 @@ h2{font-size:20px;font-weight:600;margin-bottom:16px;display:flex;align-items:ce
 h3{font-size:12px;color:var(--dim);margin:20px 0 8px;text-transform:uppercase;letter-spacing:.04em;font-weight:600}
 
 /* Tabs */
-.tabs{display:flex;gap:2px;border-bottom:1px solid var(--border);margin-bottom:24px;overflow-x:auto}
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--border);margin-bottom:24px;overflow-x:auto;scrollbar-width:none;-ms-overflow-style:none}
+.tabs::-webkit-scrollbar{display:none;width:0;height:0}
 .tab-btn{height:36px;padding:0 14px;background:none;border:none;color:var(--dim);font-family:var(--font);font-size:14px;
   font-weight:600;cursor:pointer;border-bottom:2px solid transparent;transition:.1s;white-space:nowrap;border-radius:var(--radius) var(--radius) 0 0}
 .tab-btn:hover{color:var(--text);background:var(--subtle-hover)}
@@ -48,6 +49,14 @@ button{height:32px;padding:0 12px;border:none;border-radius:var(--radius);font-f
 .btn-secondary:hover{background:var(--subtle-hover);border-color:var(--border-strong)}
 .btn-danger{background:rgba(248,81,73,.12);color:var(--danger);border:1px solid rgba(248,81,73,.3)}
 .btn-danger:hover{background:rgba(248,81,73,.2)}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;z-index:1000}
+.modal-overlay.open{display:flex}
+.modal-card{background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--radius);
+  box-shadow:0 12px 40px rgba(0,0,0,.5);width:min(420px,calc(100vw - 48px));padding:20px}
+.modal-title{font-size:15px;font-weight:600;margin-bottom:6px}
+.modal-message{color:var(--dim);font-size:13px;margin-bottom:16px;white-space:pre-wrap;word-break:break-word}
+.modal-input{margin-bottom:16px}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end}
 .btn-row{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
 
 /* Status */
@@ -88,18 +97,18 @@ tr:hover td{background:rgba(255,255,255,.02)}
 <h2>Settings</h2>
 
 <div class="tabs">
-  <button class="tab-btn active" data-tab="security">Security</button>
+  <button class="tab-btn active" data-tab="diagnostics">Diagnostics</button>
+  <button class="tab-btn" data-tab="security">Security</button>
   <button class="tab-btn" data-tab="tailscale">Tailscale</button>
   <button class="tab-btn" data-tab="keys">SSH Keys</button>
   <button class="tab-btn" data-tab="hosts">Hosts</button>
   <button class="tab-btn" data-tab="browser">Browser</button>
-  <button class="tab-btn" data-tab="diagnostics">Diagnostics</button>
   <button class="tab-btn" data-tab="appearance">Appearance</button>
   <button class="tab-btn" data-tab="about">About</button>
 </div>
 
 <!-- ═══ Security ═══ -->
-<div class="tab-panel active" id="panel-security">
+<div class="tab-panel" id="panel-security">
   <div class="section">
     <h3>Unlock Method</h3>
     <p style="color:var(--dim);font-size:.82rem;margin-bottom:.8rem">How should womprat protect your stored secrets?</p>
@@ -237,15 +246,45 @@ tr:hover td{background:rgba(255,255,255,.02)}
 </div>
 
 <!-- ═══ Diagnostics ═══ -->
-<div class="tab-panel" id="panel-diagnostics">
+<div class="tab-panel active" id="panel-diagnostics">
   <div class="section">
     <h3>Connectivity Diagnostics</h3>
-    <p style="color:var(--dim);font-size:.82rem;margin-bottom:.6rem">Checks Tailscale status, local SOCKS availability, and a domain CONNECT probe for google.com through SOCKS.</p>
-    <div class="btn-row">
-      <button class="btn-primary" data-action="run-diagnostics">Run Diagnostics</button>
-    </div>
+    <p style="color:var(--dim);font-size:.82rem;margin-bottom:.6rem">Runs automatically when this tab opens. Checks Tailscale status, local SOCKS availability, and a domain CONNECT probe for google.com through SOCKS.</p>
     <div id="diag-status" style="margin-top:.5rem"></div>
     <div id="diagnostics-grid" class="diag-grid"></div>
+  </div>
+  <div class="section">
+    <h3>Runtime</h3>
+    <table>
+      <tr><td style="color:var(--dim)">Tailscale</td><td class="mono" id="about-ts-connected">—</td></tr>
+      <tr><td style="color:var(--dim)">Exit Node</td><td class="mono" id="about-exit-node">—</td></tr>
+      <tr><td style="color:var(--dim)">SOCKS Proxy</td><td class="mono" id="about-socks">—</td></tr>
+      <tr><td style="color:var(--dim)">Local API</td><td class="mono" id="about-api">—</td></tr>
+      <tr><td style="color:var(--dim)">Open Tabs</td><td class="mono" id="about-tabs">—</td></tr>
+      <tr><td style="color:var(--dim)">SSH Host Keys</td><td class="mono" id="about-hostkey-policy">—</td></tr>
+      <tr><td style="color:var(--dim)">Proxy Mode</td><td class="mono" id="about-proxy-mode">—</td></tr>
+      <tr><td style="color:var(--dim)">Downloads</td><td class="mono" id="about-downloads">—</td></tr>
+      <tr><td style="color:var(--dim)">Cookies</td><td class="mono" id="about-cookie-backend">—</td></tr>
+    </table>
+  </div>
+  <div class="section">
+    <h3>Storage</h3>
+    <table>
+      <tr><td style="color:var(--dim)">Config</td><td class="mono" id="about-config-dir" style="word-break:break-all">—</td></tr>
+      <tr><td style="color:var(--dim)">WebView Data</td><td class="mono" id="about-webview-data" style="word-break:break-all">—</td></tr>
+      <tr><td style="color:var(--dim)">Restore Tabs</td><td class="mono" id="about-restore-tabs">—</td></tr>
+      <tr><td style="color:var(--dim)">Auto-connect</td><td class="mono" id="about-auto-connect">—</td></tr>
+    </table>
+  </div>
+  <div class="section">
+    <h3>Debug Logging</h3>
+    <p style="color:var(--dim);font-size:.82rem;margin-bottom:.6rem">Debug logging writes a runtime log next to the executable and enables WebView dev tooling. Leave off for normal use.</p>
+    <label style="display:flex;align-items:center;gap:.6rem;cursor:pointer">
+      <input type="checkbox" id="debug-log">
+      <span>Enable debug logging</span>
+    </label>
+    <div id="debug-log-path" class="mono" style="margin-top:.5rem;color:var(--dim);font-size:.78rem;word-break:break-all"></div>
+    <div id="debug-status" style="margin-top:.5rem"></div>
   </div>
 </div>
 
@@ -294,41 +333,20 @@ tr:hover td{background:rgba(255,255,255,.02)}
     </table>
   </div>
   <div class="section">
-    <h3>Diagnostics</h3>
-    <p style="color:var(--dim);font-size:.82rem;margin-bottom:.6rem">Debug logging writes a runtime log next to the executable and enables WebView dev tooling. Leave off for normal use.</p>
-    <label style="display:flex;align-items:center;gap:.6rem;cursor:pointer">
-      <input type="checkbox" id="debug-log">
-      <span>Enable debug logging</span>
-    </label>
-    <div id="debug-log-path" class="mono" style="margin-top:.5rem;color:var(--dim);font-size:.78rem;word-break:break-all"></div>
-    <div id="debug-status" style="margin-top:.5rem"></div>
-  </div>
-  <div class="section">
-    <h3>Runtime</h3>
-    <table>
-      <tr><td style="color:var(--dim)">Tailscale</td><td class="mono" id="about-ts-connected">—</td></tr>
-      <tr><td style="color:var(--dim)">Exit Node</td><td class="mono" id="about-exit-node">—</td></tr>
-      <tr><td style="color:var(--dim)">SOCKS Proxy</td><td class="mono" id="about-socks">—</td></tr>
-      <tr><td style="color:var(--dim)">Local API</td><td class="mono" id="about-api">—</td></tr>
-      <tr><td style="color:var(--dim)">Open Tabs</td><td class="mono" id="about-tabs">—</td></tr>
-      <tr><td style="color:var(--dim)">SSH Host Keys</td><td class="mono" id="about-hostkey-policy">—</td></tr>
-      <tr><td style="color:var(--dim)">Proxy Mode</td><td class="mono" id="about-proxy-mode">—</td></tr>
-      <tr><td style="color:var(--dim)">Downloads</td><td class="mono" id="about-downloads">—</td></tr>
-      <tr><td style="color:var(--dim)">Cookies</td><td class="mono" id="about-cookie-backend">—</td></tr>
-    </table>
-  </div>
-  <div class="section">
-    <h3>Storage</h3>
-    <table>
-      <tr><td style="color:var(--dim)">Config</td><td class="mono" id="about-config-dir" style="word-break:break-all">—</td></tr>
-      <tr><td style="color:var(--dim)">WebView Data</td><td class="mono" id="about-webview-data" style="word-break:break-all">—</td></tr>
-      <tr><td style="color:var(--dim)">Restore Tabs</td><td class="mono" id="about-restore-tabs">—</td></tr>
-      <tr><td style="color:var(--dim)">Auto-connect</td><td class="mono" id="about-auto-connect">—</td></tr>
-    </table>
-  </div>
-  <div class="section">
     <h3>Links</h3>
     <p><a href="https://github.com/rcarmo/womprat" style="color:var(--accent)">Source (GitHub)</a></p>
+  </div>
+</div>
+
+<div class="modal-overlay" id="app-modal" role="dialog" aria-modal="true" aria-labelledby="app-modal-title">
+  <div class="modal-card">
+    <div class="modal-title" id="app-modal-title">Confirm</div>
+    <div class="modal-message" id="app-modal-message"></div>
+    <input class="modal-input" id="app-modal-input" style="display:none" autocomplete="off" spellcheck="false">
+    <div class="modal-actions">
+      <button class="btn btn-secondary" id="app-modal-cancel" type="button">Cancel</button>
+      <button class="btn btn-primary" id="app-modal-ok" type="button">OK</button>
+    </div>
   </div>
 </div>
 
@@ -347,6 +365,51 @@ window.fetch = (url, opts = {}) => {
 function escapeHTML(value) {
   return String(value ?? '').replace(/[&<>'"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch]));
 }
+// In-app modal dialogs replace native confirm()/prompt() so the popup does not
+// show the internal "127.0.0.1:<port> says" origin chrome.
+let _modalResolve = null;
+function _closeModal(result) {
+  const overlay = document.getElementById('app-modal');
+  if (overlay) overlay.classList.remove('open');
+  const r = _modalResolve; _modalResolve = null;
+  if (r) r(result);
+}
+function _showModal({ title, message, withInput = false, defaultValue = '', okLabel = 'OK', danger = false }) {
+  return new Promise(resolve => {
+    _modalResolve = resolve;
+    const overlay = document.getElementById('app-modal');
+    document.getElementById('app-modal-title').textContent = title;
+    document.getElementById('app-modal-message').textContent = message || '';
+    const input = document.getElementById('app-modal-input');
+    input.style.display = withInput ? '' : 'none';
+    input.value = withInput ? (defaultValue || '') : '';
+    const ok = document.getElementById('app-modal-ok');
+    ok.textContent = okLabel;
+    ok.className = 'btn ' + (danger ? 'btn-danger' : 'btn-primary');
+    overlay.classList.add('open');
+    if (withInput) { setTimeout(() => { input.focus(); input.select(); }, 0); }
+    else { setTimeout(() => ok.focus(), 0); }
+  });
+}
+function confirmDialog(message, { title = 'Confirm', okLabel = 'OK', danger = true } = {}) {
+  return _showModal({ title, message, okLabel, danger }).then(r => r === true);
+}
+function promptDialog(message, defaultValue = '', { title = 'Enter value', okLabel = 'OK' } = {}) {
+  return _showModal({ title, message, withInput: true, defaultValue, okLabel }).then(r => (r === false ? null : r));
+}
+document.addEventListener('DOMContentLoaded', () => {
+  const overlay = document.getElementById('app-modal');
+  const input = document.getElementById('app-modal-input');
+  document.getElementById('app-modal-ok').addEventListener('click', () => {
+    _closeModal(input.style.display === 'none' ? true : input.value);
+  });
+  document.getElementById('app-modal-cancel').addEventListener('click', () => _closeModal(false));
+  overlay.addEventListener('click', e => { if (e.target === overlay) _closeModal(false); });
+  overlay.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { e.preventDefault(); _closeModal(false); }
+    else if (e.key === 'Enter' && input.style.display !== 'none') { e.preventDefault(); _closeModal(input.value); }
+  });
+});
 function jsArg(value) { return JSON.stringify(String(value ?? '')); }
 async function fetchJSON(url, fallback) {
   try {
@@ -394,6 +457,8 @@ function showTab(id) {
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === id));
   document.getElementById('panel-'+id)?.classList.add('active');
+  // The Diagnostics tab runs its checks on open so there is no button to press.
+  if (id === 'diagnostics' && typeof runDiagnostics === 'function') runDiagnostics();
 }
 
 document.querySelectorAll('.tab-btn[data-tab]').forEach(btn => btn.addEventListener('click', () => showTab(btn.dataset.tab)));
@@ -596,25 +661,25 @@ async function postBrowserAction(url, options = {}) {
   }
 }
 async function clearCache() {
-  if (!confirm('Clear all cached data?')) return;
+  if (!await confirmDialog('Clear all cached data?', {title: 'Clear cache'})) return;
   if (await postBrowserAction('/api/settings/browser/clear-cache')) document.getElementById('cache-size').textContent = '0 KB';
 }
 async function clearAllCookies() {
-  if (!confirm('Clear all cookies? You will be logged out of all services.')) return;
+  if (!await confirmDialog('Clear all cookies? You will be logged out of all services.', {title: 'Clear cookies'})) return;
   if (await postBrowserAction('/api/settings/browser/clear-cookies')) loadBrowserSettings();
 }
 async function clearCookiesFor(domain) {
   if (await postBrowserAction('/api/settings/browser/clear-cookies', {headers:{'Content-Type':'application/json'}, body: JSON.stringify({domain})})) loadBrowserSettings();
 }
 async function clearAllPasswords() {
-  if (!confirm('Delete all saved passwords?')) return;
+  if (!await confirmDialog('Delete all saved passwords?', {title: 'Delete passwords'})) return;
   if (await postBrowserAction('/api/settings/browser/clear-passwords')) loadBrowserSettings();
 }
 async function deletePassword(site) {
   if (await postBrowserAction('/api/settings/browser/clear-passwords', {headers:{'Content-Type':'application/json'}, body: JSON.stringify({site})})) loadBrowserSettings();
 }
 async function clearAllBrowsingData() {
-  if (!confirm('Clear ALL browsing data (cache, cookies, passwords, history)?')) return;
+  if (!await confirmDialog('Clear ALL browsing data (cache, cookies, passwords, history)?', {title: 'Clear all browsing data'})) return;
   if (await postBrowserAction('/api/settings/browser/clear-all')) loadBrowserSettings();
 }
 
@@ -646,7 +711,7 @@ async function handleKeyFile(input) {
   input.value = '';
 }
 async function generateKey() {
-  const name = safeSSHKeyName(prompt('Key name:'));
+  const name = safeSSHKeyName(await promptDialog('Key name:', '', {title: 'Generate SSH key'}));
   if (!name) { setStatus('keys-status', 'error', 'Invalid key name'); return; }
   if (await postSSHKeyJSON('/api/settings/ssh-keys/generate', {name})) {
     setStatus('keys-status', 'ok', 'Key generated');
@@ -681,7 +746,7 @@ async function loadKeys() {
   });
 }
 async function deleteKey(name) {
-  if (!confirm(`Delete key "${name}"?`)) return;
+  if (!await confirmDialog(`Delete key "${name}"?`, {title: 'Delete SSH key'})) return;
   try {
     const res = await fetch('/api/settings/ssh-keys/'+encodeURIComponent(name), {method:'DELETE'});
     if (!res.ok) { setStatus('keys-status', 'error', await res.text()); return; }
@@ -753,10 +818,10 @@ async function updateHost(host, field, value) {
     return false;
   }
 }
-function addHost() {
-  const host = safeHostName(prompt('Hostname or IP:'));
+async function addHost() {
+  const host = safeHostName(await promptDialog('Hostname or IP:', '', {title: 'Add host'}));
   if (!host) { setStatus('hosts-status', 'error', 'Invalid host'); return; }
-  const url = prompt('Browser URL:', `http://${host}:8080`) || '';
+  const url = (await promptDialog('Browser URL:', `http://${host}:8080`, {title: 'Add host'})) || '';
   updateHost(host, 'url', url).then(ok => { if (ok) refreshHosts(); });
 }
 
@@ -885,7 +950,6 @@ async function loadConfigSettings() {
 }
 
 async function initSettings() {
-  document.querySelector('[data-action="run-diagnostics"]')?.addEventListener('click', runDiagnostics);
   renderDiagnostics({checks: []});
   document.getElementById('save-passwords')?.addEventListener('change', async (e) => {
     try {
@@ -903,6 +967,8 @@ async function initSettings() {
   await loadKeys();
   await loadAbout();
   await loadDebugLog();
+  // Diagnostics is the default-active tab, so run its checks on initial load.
+  runDiagnostics();
 }
 initSettings();
 </script>

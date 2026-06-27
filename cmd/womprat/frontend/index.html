@@ -219,7 +219,7 @@ button,a,.tab,.recent-item,.option{
   <button id="nav-forward" class="icon-button" title="Forward" aria-label="Forward" data-icon="arrowRight"></button>
   <button id="nav-reload" class="icon-button" title="Reload" aria-label="Reload" data-icon="arrowClockwise"></button>
   <span id="url-mode" class="url-mode" hidden aria-hidden="true"></span>
-  <input id="url-input" list="url-history" placeholder="Enter URL, ssh://user@host, vnc://host or rdp://user@host">
+  <input id="url-input" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Enter URL, ssh://user@host, vnc://host or rdp://user@host">
   <datalist id="url-history"></datalist>
   <span id="route-pill" class="route-pill" title="Exit node route status"></span>
   <button id="url-go" class="icon-button text-button">Go</button>
@@ -417,29 +417,17 @@ const URL_MODE_LABELS = { ssh: 'SSH', vnc: 'VNC', rdp: 'RDP', settings: 'CFG' };
 function updateURLMode(tab) {
   const badge = document.getElementById('url-mode');
   if (!badge) return;
-  let label = '';
-  let title = '';
-  if (tab) {
-    if (URL_MODE_LABELS[tab.type]) {
-      label = URL_MODE_LABELS[tab.type];
-      title = `${label} session`;
-    } else if (tab.type === 'browser') {
-      const u = safeURL(tab.url || '');
-      if (u) {
-        label = u.protocol === 'https:' ? 'HTTPS' : 'HTTP';
-        title = u.protocol === 'https:' ? 'Secure connection' : 'Unencrypted connection';
-        badge.classList.toggle('insecure', u.protocol !== 'https:');
-      }
-    }
-  }
+  // Only show a scheme badge for custom-protocol tabs (ssh/vnc/rdp/settings).
+  // Browser tabs deliberately show no HTTP/HTTPS pill — it is redundant next to
+  // the address itself and was visually noisy.
+  const label = (tab && URL_MODE_LABELS[tab.type]) || '';
+  badge.classList.remove('insecure');
   if (label) {
     badge.textContent = label;
-    badge.title = title;
+    badge.title = `${label} session`;
     badge.hidden = false;
-    if (tab?.type !== 'browser') badge.classList.remove('insecure');
   } else {
     badge.hidden = true;
-    badge.classList.remove('insecure');
   }
 }
 function setBrowserStatus(tabId, message) {
@@ -1537,6 +1525,26 @@ function installShellControlHandlers() {
     if (event.repeat) return;
     window.navigateFromBar();
   });
+  // Address-bar select-all: a single click anywhere in the field selects the
+  // whole URL (like Chrome/Edge), so it can be replaced or copied immediately.
+  // We select on focus, then suppress the click's mouseup which would otherwise
+  // collapse the selection to a caret. Subsequent clicks/drags behave normally.
+  const urlInput = document.getElementById('url-input');
+  if (urlInput) {
+    let selectAllPending = false;
+    urlInput.addEventListener('focus', () => { selectAllPending = true; });
+    urlInput.addEventListener('mousedown', () => {
+      // If already focused, let the click place the caret / start a drag.
+      if (document.activeElement === urlInput) selectAllPending = false;
+    });
+    urlInput.addEventListener('mouseup', (event) => {
+      if (!selectAllPending) return;
+      selectAllPending = false;
+      event.preventDefault();
+      urlInput.select();
+    });
+    urlInput.addEventListener('blur', () => { selectAllPending = false; });
+  }
 }
 
 function installBrowserHotkeys() {
@@ -1594,7 +1602,40 @@ window.navigateFromBar = function() {
   if (lastURLBarNavigation.url === url && now - lastURLBarNavigation.at < 150) return;
   lastURLBarNavigation = { url, at: now };
   clearNavStatus();
+  // The URL bar behaves like a real browser address bar: if the active tab is a
+  // browser tab, navigate it IN PLACE rather than spawning a new tab. Custom
+  // schemes and the no-active-browser case fall through to opening a new tab.
+  // (The Go navigate handler also routes ssh/vnc/rdp correctly.)
+  const active = activeTabObj();
+  if (active && active.type === 'browser' && window.womprat_navigate && !openSpecialURLPreview(url)) {
+    try { window.womprat_navigate(url); return; } catch (err) { console.warn('in-place navigate failed', err); }
+  }
   openBrowser(url);
+};
+
+// openSpecialURLPreview reports whether a URL is a custom scheme (ssh/vnc/rdp)
+// WITHOUT acting on it, so navigateFromBar can decide between in-place browser
+// navigation and the special-scheme/new-tab path.
+function openSpecialURLPreview(url) {
+  try { return /^(ssh|vnc|rdp):\/\//i.test((url || '').trim()); } catch (err) { return false; }
+}
+
+// wompratSyncTabURL is called by the native browser view whenever a navigation
+// completes (including in-page link clicks and redirects) so the shell address
+// bar, tab record, and recent history reflect the live document URL.
+window.wompratSyncTabURL = function(tabId, url) {
+  if (!tabId || !url) return;
+  const tab = state.tabs.find(t => t.id === tabId);
+  if (!tab) return;
+  tab.url = url;
+  if (!tab.title || tab.title === tab.url) tab.title = url;
+  if (state.activeTab === tabId) {
+    const input = document.getElementById('url-input');
+    if (input && document.activeElement !== input) input.value = url;
+    updateURLMode(tab);
+  }
+  try { saveURLHistory(url); } catch (err) { console.warn('sync history failed', err); }
+  try { saveOpenTabs(); } catch (err) { console.warn('sync open tabs failed', err); }
 };
 
 installShellControlHandlers();

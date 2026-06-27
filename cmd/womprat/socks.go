@@ -145,7 +145,11 @@ func handleSOCKS5(conn net.Conn, app *App) {
 	// names, MagicDNS, and .local aliases must all use Tailscale's resolver and
 	// routing policy. If an exit node is configured, tsnet handles it; otherwise
 	// non-tailnet destinations fail closed instead of escaping locally.
-	log.Printf("SOCKS5 connect %s via tsnet", addr)
+	routing := "tailnet-only (no exit node)"
+	if app.config.ExitNode != "" {
+		routing = fmt.Sprintf("exit node %q", app.config.ExitNode)
+	}
+	log.Printf("SOCKS5 connect %s via tsnet [%s]", addr, routing)
 	dialCtx, cancelDial := context.WithTimeout(context.Background(), socksDialTimeout)
 	defer cancelDial()
 	remote, err := dialTSNetPreferIPv4(dialCtx, ts, addr)

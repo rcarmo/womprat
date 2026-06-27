@@ -157,6 +157,26 @@ func (e *Chromium) CanGoForward() bool {
 	return can != 0
 }
 
+// GetSource returns the WebView's current document URL. Unlike the URL we pass
+// to Navigate(), this reflects the live location after in-page link clicks,
+// redirects, and history navigation, so the shell address bar can stay in sync.
+func (e *Chromium) GetSource() string {
+	if e.webview == nil {
+		return ""
+	}
+	var ptr *uint16
+	_, _, _ = e.webview.vtbl.GetSource.Call(
+		uintptr(unsafe.Pointer(e.webview)),
+		uintptr(unsafe.Pointer(&ptr)),
+	)
+	if ptr == nil {
+		return ""
+	}
+	s := w32.Utf16PtrToString(ptr)
+	windows.CoTaskMemFree(unsafe.Pointer(ptr))
+	return s
+}
+
 func (e *Chromium) NavigateToString(htmlContent string) {
 	_, _, _ = e.webview.vtbl.NavigateToString.Call(
 		uintptr(unsafe.Pointer(e.webview)),
@@ -209,6 +229,7 @@ func (e *Chromium) EnvironmentCompleted(res uintptr, env *ICoreWebView2Environme
 	if int64(res) < 0 {
 		log.Fatalf("Creating environment failed with %08x", res)
 	}
+	log.Printf("webview2: environment created (res=%08x); creating controller", res)
 	_, _, _ = env.vtbl.AddRef.Call(uintptr(unsafe.Pointer(env)))
 	e.environment = env
 
@@ -224,6 +245,7 @@ func (e *Chromium) CreateCoreWebView2ControllerCompleted(res uintptr, controller
 	if int64(res) < 0 {
 		log.Fatalf("Creating controller failed with %08x", res)
 	}
+	log.Printf("webview2: controller created (res=%08x)", res)
 	_, _, _ = controller.vtbl.AddRef.Call(uintptr(unsafe.Pointer(controller)))
 	e.controller = controller
 
