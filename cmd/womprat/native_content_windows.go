@@ -306,6 +306,12 @@ func newNativeContentView(parent uintptr, dataPath, tabID string, shell shellWeb
 		if (title != "" || favicon != "") && cv.shell != nil {
 			cv.shell.Eval(fmt.Sprintf("window.wompratSetTabMeta(%s,%s,%s)", jsString(cv.tabID), jsString(title), jsString(favicon)))
 		}
+		// Same-document navigations (fragment/hash, pushState) report the live URL
+		// so the address bar stays in sync even without a NavigationCompleted event.
+		if url := parseURLMessage(raw); url != "" && cv.shell != nil {
+			cv.url = url
+			cv.shell.Eval(fmt.Sprintf("window.wompratSyncTabURL(%s,%s)", jsString(cv.tabID), jsString(url)))
+		}
 	}
 	// All browser tabs share the same WebView2 user-data folder as the shell so
 	// they share one browser process and one proxy/network configuration. Using a
@@ -376,9 +382,19 @@ const browserTitleReporterJS = `(function(){
     } catch(e){ return ''; }
   }
   function reportBridgeError(context, error){ try { console.debug('womprat bridge '+context+' failed', error); } catch(e) { /* console unavailable */ } }
-  function send(){ try{ window.chrome.webview.postMessage(JSON.stringify({wompratTitle: document.title || location.hostname || location.href, wompratFavicon: favicon()})); }catch(e){ reportBridgeError('metadata post', e); } }
+  function send(){ try{ window.chrome.webview.postMessage(JSON.stringify({wompratTitle: document.title || location.hostname || location.href, wompratFavicon: favicon(), wompratURL: location.href})); }catch(e){ reportBridgeError('metadata post', e); } }
   document.addEventListener('DOMContentLoaded', send);
   window.addEventListener('load', send);
+  // Same-document navigations (hash/fragment changes and SPA pushState/popstate)
+  // do not raise WebView2 NavigationCompleted, so report the live URL here to
+  // keep the shell address bar in sync.
+  window.addEventListener('hashchange', send);
+  window.addEventListener('popstate', send);
+  try {
+    var _ps = history.pushState, _rs = history.replaceState;
+    history.pushState = function(){ var r = _ps.apply(this, arguments); try { send(); } catch(e){} return r; };
+    history.replaceState = function(){ var r = _rs.apply(this, arguments); try { send(); } catch(e){} return r; };
+  } catch(e){ reportBridgeError('history patch', e); }
   try { var t=document.querySelector('title'); if(t){ new MutationObserver(send).observe(t,{childList:true}); } } catch(e){ reportBridgeError('title observer', e); }
   try { new MutationObserver(function(){ send(); }).observe(document.head||document.documentElement,{subtree:true,childList:true}); } catch(e){ reportBridgeError('head observer', e); }
   function fire(action, arg){ try{ window.chrome.webview.postMessage(JSON.stringify({wompratKey: action, wompratArg: arg||''})); }catch(e){ reportBridgeError('hotkey post', e); } }
@@ -410,6 +426,30 @@ func parseTitleMessage(raw string) (string, string) {
 		return "", ""
 	}
 	return sanitizeBrowserTitle(m.WompratTitle), sanitizeFaviconURL(m.WompratFavicon)
+}
+
+// parseURLMessage extracts the live document URL reported by the in-page bridge
+// (used for same-document navigations like fragment/hash changes). Only http(s)
+// URLs are accepted so nothing else can be injected into the address bar.
+func parseURLMessage(raw string) string {
+	if len(raw) > maxWebViewMessage {
+		return ""
+	}
+	var m struct {
+		WompratURL string `json:"wompratURL"`
+	}
+	if err := json.Unmarshal([]byte(raw), &m); err != nil {
+		return ""
+	}
+	url := strings.TrimSpace(m.WompratURL)
+	if len(url) > 4096 {
+		return ""
+	}
+	lower := strings.ToLower(url)
+	if !strings.HasPrefix(lower, "http://") && !strings.HasPrefix(lower, "https://") {
+		return ""
+	}
+	return url
 }
 
 func parseHotkeyMessage(raw string) string {

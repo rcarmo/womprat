@@ -125,6 +125,8 @@ func (a *App) handleRDPWebSocket(w http.ResponseWriter, r *http.Request) {
 	disableNLA := r.URL.Query().Get("disableNLA") == "true"
 	enableRFX := !rdpQueryDisabled(r.URL.Query().Get("rfx")) && !rdpQueryEnabled(r.URL.Query().Get("compat"))
 	enableDisplayControl := rdpQueryEnabled(r.URL.Query().Get("displayControl"))
+	log.Printf("rdp: requested %dx%d colorDepth=%d rfx=%t displayControl=%t NLA=%t audio=%t",
+		width, height, colorDepth, enableRFX, enableDisplayControl, !disableNLA, enableAudio)
 
 	dial := func(ctx context.Context, network, address string) (net.Conn, error) {
 		// Ignore any client-supplied host in credentials; fail closed via tsnet to URL target.
@@ -292,6 +294,9 @@ func sendRDPCapabilities(ctx context.Context, ws *websocket.Conn, mu *sync.Mutex
 	if caps == nil {
 		return
 	}
+	log.Printf("rdp caps: colorDepth=%d desktop=%v codecs=%v surfaceCommands=%v largePointer=%v frameAck=%v NLA=%v audio=%v displayControlReady=%t channels=%v",
+		caps.ColorDepth, caps.DesktopSize, caps.BitmapCodecs, caps.SurfaceCommands, caps.LargePointer,
+		caps.FrameAcknowledge, caps.UseNLA, caps.AudioEnabled, client.IsDisplayControlReady(), caps.Channels)
 	payload, err := json.Marshal(map[string]any{
 		"type":                "capabilities",
 		"codecs":              caps.BitmapCodecs,

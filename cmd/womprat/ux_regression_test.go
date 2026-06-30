@@ -6,6 +6,53 @@ import (
 	"testing"
 )
 
+func TestBrowserURLBarSyncsFragmentNavigations(t *testing.T) {
+	native := readFileForRegression(t, "native_content_windows.go")
+	// The in-page bridge must report the live URL on same-document navigations
+	// (fragment/hash and SPA pushState/popstate), which do not fire
+	// NavigationCompleted.
+	for _, want := range []string{
+		"wompratURL: location.href",
+		"window.addEventListener('hashchange', send);",
+		"window.addEventListener('popstate', send);",
+		"history.pushState = function()",
+		"func parseURLMessage(raw string) string",
+		"window.wompratSyncTabURL(%s,%s)",
+	} {
+		if !strings.Contains(native, want) {
+			t.Fatalf("fragment URL sync missing %q", want)
+		}
+	}
+}
+
+func TestRDPViewportFillAndStableResize(t *testing.T) {
+	rdpjs := readFileForRegression(t, "frontend/rdp.js")
+	rdpgo := readFileForRegression(t, "rdp.go")
+	// (a) Fit must be allowed to upscale so the canvas fills the viewport (no
+	// letterbox); the old `,1` cap that prevented upscaling must be gone.
+	if strings.Contains(rdpjs, "Math.min(Z.width/$,Z.height/J,1)||1") {
+		t.Fatal("fitCanvas must allow upscaling to fill the viewport (remove the cap at 1)")
+	}
+	if !strings.Contains(rdpjs, "Math.min(Z.width/$,Z.height/J)||1") {
+		t.Fatal("fitCanvas fill scaling missing")
+	}
+	// (c) Resize must not trigger a reconnect (which re-prompts credentials):
+	// request DisplayControl for dynamic resize and neutralize reconnectWithNewSize.
+	if !strings.Contains(rdpjs, `Q.searchParams.set("displayControl","true")`) {
+		t.Fatal("RDP connect must request displayControl for dynamic resize")
+	}
+	if !strings.Contains(rdpjs, "this.client.reconnectWithNewSize=()=>{}") {
+		t.Fatal("RDP wrapper must disable reconnect-on-resize to avoid re-auth prompts")
+	}
+	// (b) Negotiated encodings must be logged server-side for verification.
+	if !strings.Contains(rdpgo, "rdp caps: colorDepth=") {
+		t.Fatal("negotiated RDP capabilities must be logged")
+	}
+	if !strings.Contains(rdpgo, "rdp: requested %dx%d colorDepth=") {
+		t.Fatal("requested RDP parameters must be logged")
+	}
+}
+
 func readFileForRegression(t *testing.T, path string) string {
 	t.Helper()
 	b, err := os.ReadFile(path)
