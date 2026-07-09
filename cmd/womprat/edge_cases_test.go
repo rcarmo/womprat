@@ -17,8 +17,8 @@ import (
 )
 
 func TestNonWindowsStubsAndPaths(t *testing.T) {
-	app := newTestApp(t)
-	runGUI(app, "http://127.0.0.1:1/")
+	// runGUI intentionally blocks while serving the headless shell and cannot be
+	// called as a synchronous stub test. Exercise only the non-blocking helpers.
 	applyDarkMode(nil)
 	applyAppIcon(nil)
 	if got := tsnetStateDir(); !strings.Contains(got, "womprat") || !strings.HasSuffix(got, "tsnet") {

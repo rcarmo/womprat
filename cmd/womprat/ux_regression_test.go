@@ -44,6 +44,14 @@ func TestRDPViewportFillAndStableResize(t *testing.T) {
 	if !strings.Contains(rdpjs, "this.client.reconnectWithNewSize=()=>{}") {
 		t.Fatal("RDP wrapper must disable reconnect-on-resize to avoid re-auth prompts")
 	}
+	// Capability messages reach handleMessage as a raw ArrayBuffer. Parse that
+	// form so the visible status/capability fields leave their pending state.
+	if !strings.Contains(rdpjs, "G instanceof ArrayBuffer?new Uint8Array(G)") {
+		t.Fatal("RDP capability interceptor must accept raw ArrayBuffer messages")
+	}
+	if !strings.Contains(rdpjs, "Connected · ${V.desktopSize") {
+		t.Fatal("RDP capability handling must surface a connected status")
+	}
 	// (b) Negotiated encodings must be logged server-side for verification.
 	if !strings.Contains(rdpgo, "rdp caps: colorDepth=") {
 		t.Fatal("negotiated RDP capabilities must be logged")

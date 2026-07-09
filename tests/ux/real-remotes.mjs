@@ -3,6 +3,10 @@
 // connection status. Intended for local/integration runs, not stub-only CI.
 import { chromium } from "playwright";
 import { spawn } from "node:child_process";
+import { mkdirSync } from "node:fs";
+
+const ARTIFACT_DIR = process.env.WOMPRAT_UX_ARTIFACT_DIR || "dist/ux-artifacts";
+mkdirSync(ARTIFACT_DIR, { recursive: true });
 
 const BIN = process.env.WOMPRAT_BIN || "dist/womprat-linux-debug";
 const VNC_TARGET = process.env.VNC_TARGET || "vnc://127.0.0.1:5902";
@@ -89,6 +93,7 @@ async function testVNC(page) {
     const c = document.querySelector(".vnc-panel canvas");
     return { hasViewer: !!v, fbw: v?.framebufferWidth, fbh: v?.framebufferHeight, canvasW: c?.width, canvasH: c?.height, wsState: v?.ws?.readyState };
   });
+  await page.screenshot({ path: `${ARTIFACT_DIR}/vnc-browser-proof.png`, fullPage: true });
   console.log("VNC status:", JSON.stringify(status));
   console.log("VNC canvas:", JSON.stringify(px));
   console.log("VNC diag:", JSON.stringify(diag));
@@ -119,18 +124,33 @@ async function testRDP(page) {
   }
   const status = await page.evaluate(() => document.querySelector("[data-rdp-status]")?.textContent || "");
   const caps = await page.evaluate(() => document.querySelector("[data-rdp-caps]")?.textContent || "");
-  const diag = await page.evaluate(() => {
+  const beforeSocket = await page.evaluateHandle(() => document.querySelector(".rdp-panel")?.__wompratRdp?.client?.socket);
+  await page.setViewportSize({ width: 1100, height: 760 });
+  await page.waitForTimeout(1200);
+  const diag = await page.evaluate((socket) => {
     const root = document.querySelector(".rdp-panel");
     const r = root && root.__wompratRdp;
     const c = document.querySelector(".rdp-panel canvas");
+    const vp = document.querySelector(".rdp-viewport");
+    const dialog = document.querySelector(".rdp-dialog");
     const title = document.querySelector(".tab.active .tab-title")?.textContent || "";
-    return { hasViewer: !!r, canvasW: c?.width, canvasH: c?.height, wsState: r?.ws?.readyState, title };
-  });
+    const cr = c?.getBoundingClientRect(), vr = vp?.getBoundingClientRect();
+    const coverage = cr && vr && vr.width && vr.height ? (cr.width * cr.height) / (vr.width * vr.height) : 0;
+    return {
+      hasViewer: !!r, canvasW: c?.width, canvasH: c?.height,
+      wsState: r?.client?.socket?.readyState, socketStable: r?.client?.socket === socket,
+      authDialogHidden: dialog ? getComputedStyle(dialog).display === "none" : false,
+      coverage, title
+    };
+  }, beforeSocket);
+  await beforeSocket.dispose();
+  await page.screenshot({ path: `${ARTIFACT_DIR}/rdp-browser-proof.png`, fullPage: true });
   console.log("RDP status:", JSON.stringify(status));
   console.log("RDP caps:", JSON.stringify(caps));
   console.log("RDP canvas:", JSON.stringify(px));
   console.log("RDP diag:", JSON.stringify(diag));
-  return px.ok;
+  const capsReady = caps && !/pending/i.test(caps) && /RemoteFX|NSCodec|bitmap/i.test(caps);
+  return px.ok && /^Connected/.test(status) && capsReady && diag.socketStable && diag.authDialogHidden && diag.coverage > 0.75;
 }
 
 const consoleErrors = [];
@@ -151,6 +171,10 @@ try {
   });
   await page.goto(url, { waitUntil: "domcontentloaded" });
   await page.waitForSelector("#url-input", { timeout: 5000 });
+  // The integration harness deliberately uses WOMPRAT_DIRECT and no stored
+  // Tailscale key. Hide the setup gate so screenshots prove the actual remote
+  // framebuffer rather than an auth overlay; this does not alter connection code.
+  await page.evaluate(() => document.getElementById("setup")?.classList.add("hidden"));
 
   if (RUN_VNC) results.push(["vnc renders real framebuffer", await testVNC(page)]);
   if (RUN_RDP) results.push(["rdp renders real framebuffer", await testRDP(page)]);
