@@ -109,6 +109,9 @@ func (e *Chromium) Embed(hwnd uintptr) bool {
 		_, _, _ = w32.User32TranslateMessage.Call(uintptr(unsafe.Pointer(&msg)))
 		_, _, _ = w32.User32DispatchMessageW.Call(uintptr(unsafe.Pointer(&msg)))
 	}
+	if atomic.LoadUintptr(&e.inited) != 1 || e.webview == nil {
+		return false
+	}
 	e.Init("window.external={invoke:s=>window.chrome.webview.postMessage(s)}")
 	return true
 }
@@ -129,6 +132,15 @@ func (e *Chromium) GoBack() {
 // GoForward navigates the WebView forward in its session history.
 func (e *Chromium) GoForward() {
 	_, _, _ = e.webview.vtbl.GoForward.Call(uintptr(unsafe.Pointer(e.webview)))
+}
+
+// Reload uses WebView2's native operation so reload also works on
+// browser-generated error pages and cannot be blocked by page script policy.
+func (e *Chromium) Reload() {
+	if e.webview == nil {
+		return
+	}
+	_, _, _ = e.webview.vtbl.Reload.Call(uintptr(unsafe.Pointer(e.webview)))
 }
 
 // CanGoBack reports whether back navigation is currently available.
@@ -226,8 +238,10 @@ func (e *Chromium) Release() uintptr {
 }
 
 func (e *Chromium) EnvironmentCompleted(res uintptr, env *ICoreWebView2Environment) uintptr {
-	if int64(res) < 0 {
-		log.Fatalf("Creating environment failed with %08x", res)
+	if int64(res) < 0 || env == nil {
+		log.Printf("Creating environment failed with %08x", res)
+		atomic.StoreUintptr(&e.inited, 2)
+		return 0
 	}
 	log.Printf("webview2: environment created (res=%08x); creating controller", res)
 	_, _, _ = env.vtbl.AddRef.Call(uintptr(unsafe.Pointer(env)))
@@ -242,8 +256,10 @@ func (e *Chromium) EnvironmentCompleted(res uintptr, env *ICoreWebView2Environme
 }
 
 func (e *Chromium) CreateCoreWebView2ControllerCompleted(res uintptr, controller *ICoreWebView2Controller) uintptr {
-	if int64(res) < 0 {
-		log.Fatalf("Creating controller failed with %08x", res)
+	if int64(res) < 0 || controller == nil {
+		log.Printf("Creating controller failed with %08x", res)
+		atomic.StoreUintptr(&e.inited, 2)
+		return 0
 	}
 	log.Printf("webview2: controller created (res=%08x)", res)
 	_, _, _ = controller.vtbl.AddRef.Call(uintptr(unsafe.Pointer(controller)))
@@ -318,7 +334,7 @@ func (e *Chromium) PermissionRequested(_ *ICoreWebView2, args *iCoreWebView2Perm
 	var kind CoreWebView2PermissionKind
 	_, _, _ = args.vtbl.GetPermissionKind.Call(
 		uintptr(unsafe.Pointer(args)),
-		uintptr(kind),
+		uintptr(unsafe.Pointer(&kind)),
 	)
 	var result CoreWebView2PermissionState
 	if e.globalPermission != nil {

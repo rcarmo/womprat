@@ -67,6 +67,11 @@ func (a *App) handleDownload(w http.ResponseWriter, r *http.Request) {
 		Path:     savePath,
 	}
 	downloadMu.Lock()
+	if currentDownload != nil && currentDownload.Status == "downloading" {
+		downloadMu.Unlock()
+		httpError(w, http.StatusConflict, "A download is already in progress", "Wait for it to finish before starting another download.")
+		return
+	}
 	currentDownload = st
 	downloadMu.Unlock()
 

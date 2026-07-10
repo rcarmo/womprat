@@ -69,7 +69,7 @@ func runGUI(app *App, shellURL string) {
 	w.Bind("womprat_registerLocalTab", func(tabJSON string) { app.registerLocalTab(tabJSON) })
 	w.Bind("womprat_switchTab", func(tabID string) { app.switchTab(tabID) })
 	w.Bind("womprat_closeTab", func(tabID string) { app.closeTab(tabID) })
-	w.Bind("womprat_reorderTab", func(tabID string, toIndex int) { app.reorderTab(tabID, toIndex) })
+	w.Bind("womprat_reorderTab", func(tabID, beforeID string) { app.reorderTab(tabID, beforeID) })
 	w.Bind("womprat_forgetTab", func(tabID string) { app.forgetTab(tabID) })
 	w.Bind("womprat_openSettings", func() { app.openSettingsTab() })
 	w.Bind("womprat_clearActiveTab", func() { app.clearActiveTab() })

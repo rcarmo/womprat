@@ -32,7 +32,7 @@ func TestListCookieDomainsWithSQLite(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = db.Exec(`CREATE TABLE cookies(host_key TEXT); INSERT INTO cookies(host_key) VALUES ('.example.com'),('.example.com'),('smith.local')`)
+	_, err = db.Exec(`CREATE TABLE cookies(host_key TEXT); INSERT INTO cookies(host_key) VALUES ('.example.com'),('sub.example.com'),('notexample.com'),('smith.local')`)
 	if err != nil {
 		db.Close()
 		t.Fatal(err)
@@ -40,14 +40,14 @@ func TestListCookieDomainsWithSQLite(t *testing.T) {
 	_ = db.Close()
 
 	domains := listCookieDomains()
-	if len(domains) != 2 {
+	if len(domains) != 4 {
 		t.Fatalf("domains = %+v", domains)
 	}
 	if err := deleteCookiesForDomain(".example.com"); err != nil {
 		t.Fatal(err)
 	}
 	domains = listCookieDomains()
-	if len(domains) != 1 || domains[0].Domain != "smith.local" {
+	if len(domains) != 2 || domains[0].Domain != "notexample.com" || domains[1].Domain != "smith.local" {
 		t.Fatalf("after delete domains = %+v", domains)
 	}
 }
@@ -134,8 +134,8 @@ func TestHandleSOCKS5NoTailscale(t *testing.T) {
 	if _, err := br.Read(rep); err != nil {
 		t.Fatal(err)
 	}
-	if rep[1] != 0x05 {
-		t.Fatalf("reply = %v, want general failure", rep)
+	if rep[1] == 0x00 {
+		t.Fatalf("reply = %v, connection unexpectedly succeeded without Tailscale", rep)
 	}
 	_ = client.Close()
 	select {

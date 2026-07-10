@@ -3,7 +3,11 @@
 // viewer can fully connect. Captures console/page errors and asserts UX flows.
 import { chromium } from "playwright";
 import net from "node:net";
+import http from "node:http";
 import { spawn } from "node:child_process";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 const BIN = process.env.WOMPRAT_BIN || "dist/womprat-linux-debug";
 
@@ -52,9 +56,21 @@ function startRFBStub() {
   });
 }
 
-function startWomprat() {
+function startDownloadStub() {
+  return new Promise((resolve) => {
+    const srv = http.createServer((req, res) => {
+      if (req.url === "/audit.txt") {
+        res.writeHead(200, { "content-type": "text/plain", "content-length": "20" });
+        res.end("WOMPRAT-DOWNLOAD-OK\n");
+      } else { res.writeHead(404); res.end(); }
+    });
+    srv.listen(0, "127.0.0.1", () => resolve(srv));
+  });
+}
+
+function startWomprat(homeDir) {
   return new Promise((resolve, reject) => {
-    const env = { ...process.env, WOMPRAT_HEADLESS: "1", WOMPRAT_DIRECT: "1" };
+    const env = { ...process.env, HOME: homeDir, WOMPRAT_HEADLESS: "1", WOMPRAT_DIRECT: "1" };
     const p = spawn(BIN, [], { env });
     let url = null, tok = null, out = "";
     const onData = (d) => {
@@ -77,7 +93,10 @@ function check(name, ok, detail = "") { results.push({ name, ok, detail }); cons
 
 const rfb = await startRFBStub();
 const rfbPort = rfb.address().port;
-const { proc, url, token } = await startWomprat();
+const downloadStub = await startDownloadStub();
+const downloadPort = downloadStub.address().port;
+const testHome = mkdtempSync(join(tmpdir(), "womprat-browser-audit-"));
+const { proc, url, token } = await startWomprat(testHome);
 
 const consoleErrors = [];
 const pageErrors = [];
@@ -90,7 +109,16 @@ try {
 
   await page.goto(url, { waitUntil: "domcontentloaded" });
   await page.waitForSelector("#url-input", { timeout: 5000 });
+  await page.evaluate(() => document.getElementById("setup")?.classList.add("hidden"));
   check("shell loads", true);
+
+  // Routed download manager: start, poll to completion, and verify file bytes.
+  await page.evaluate((u) => window.triggerDownload(u), `http://127.0.0.1:${downloadPort}/audit.txt`);
+  const downloadComplete = await page.waitForFunction(() => document.getElementById("dl-status")?.textContent === "Saved to Downloads", { timeout: 10000 }).then(() => true).catch(() => false);
+  const downloadedPath = join(testHome, "Downloads", "audit.txt");
+  const downloadStatus = await page.locator("#dl-status").textContent().catch(() => "missing");
+  const downloadedBytes = existsSync(downloadedPath) ? readFileSync(downloadedPath, "utf8") : "";
+  check("download completes through managed route", downloadComplete && downloadedBytes === "WOMPRAT-DOWNLOAD-OK\n", `${downloadStatus}; path=${downloadedPath}; bytes=${JSON.stringify(downloadedBytes)}`);
 
   // 1) Settings opens and renders.
   await page.evaluate(() => window.openSettings && window.openSettings());
@@ -130,6 +158,17 @@ try {
   const termPanel = await page.waitForSelector(".term-panel, .term-container", { timeout: 5000 }).then(() => true).catch(() => false);
   check("ssh terminal panel created", termPanel);
 
+  // Standard tab lifecycle over the real tabs created above: reorder by stable
+  // id through drag-and-drop, then close that exact tab.
+  const tabOrder = await page.evaluate(() => Array.from(document.querySelectorAll("#tab-list .tab")).map(t => t.dataset.tabId).filter(Boolean));
+  const moving = tabOrder.at(-1), before = tabOrder.at(-2);
+  await page.locator(`#tab-list .tab[data-tab-id="${moving}"]`).dragTo(page.locator(`#tab-list .tab[data-tab-id="${before}"]`));
+  const reordered = await page.evaluate(() => Array.from(document.querySelectorAll("#tab-list .tab")).map(t => t.dataset.tabId).filter(Boolean));
+  check("tab reorder uses stable ids", reordered.indexOf(moving) + 1 === reordered.indexOf(before), JSON.stringify(reordered));
+  await page.locator(`#tab-list .tab[data-tab-id="${moving}"] .tab-close`).click();
+  await page.waitForFunction((id) => !document.querySelector(`#tab-list .tab[data-tab-id="${id}"]`), moving);
+  check("tab close removes exact tab", await page.locator(`#tab-list .tab[data-tab-id="${moving}"]`).count() === 0);
+
   check("no pageerror", pageErrors.length === 0, pageErrors.join(" | "));
   check("no console errors", consoleErrors.length === 0, consoleErrors.slice(0,5).join(" | "));
   console.log("RDP tabs:", rdpHostShown);
@@ -137,6 +176,8 @@ try {
   if (browser) await browser.close();
   proc.kill("SIGTERM");
   rfb.close();
+  downloadStub.close();
+  rmSync(testHome, { recursive: true, force: true });
 }
 
 const failed = results.filter(r => !r.ok);

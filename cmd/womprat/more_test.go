@@ -87,6 +87,30 @@ func TestDownloadStatusAndError(t *testing.T) {
 	}
 }
 
+func TestHandleDownloadRejectsConcurrentDownload(t *testing.T) {
+	app := newTestApp(t)
+	t.Setenv("HOME", t.TempDir())
+	downloadMu.Lock()
+	currentDownload = &downloadState{Filename: "first.zip", Status: "downloading"}
+	downloadMu.Unlock()
+	t.Cleanup(func() {
+		downloadMu.Lock()
+		currentDownload = nil
+		downloadMu.Unlock()
+	})
+
+	rr := performJSON(app.handleDownload, "GET", "/api/download?url=https://example.com/second.zip", nil)
+	if rr.Code != http.StatusConflict || !strings.Contains(rr.Body.String(), "already in progress") {
+		t.Fatalf("concurrent download = %d %s", rr.Code, rr.Body.String())
+	}
+	downloadMu.Lock()
+	got := currentDownload.Filename
+	downloadMu.Unlock()
+	if got != "first.zip" {
+		t.Fatalf("active download replaced with %q", got)
+	}
+}
+
 func TestHandleDownloadValidation(t *testing.T) {
 	app := newTestApp(t)
 	rr := performJSON(app.handleDownload, "POST", "/api/download?url=https://example.com/file.txt", nil)

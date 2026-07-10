@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/url"
 	"os"
 	"strings"
 	"sync"
@@ -300,6 +301,15 @@ func newNativeContentView(parent uintptr, dataPath, tabID string, shell shellWeb
 			cv.shell.Eval(fmt.Sprintf("window.wompratBrowserHotkey(%s,%s)", jsString(action), jsString(arg)))
 			return
 		}
+		if action, targetURL := parseBrowserActionMessage(raw); action != "" && cv.shell != nil {
+			switch action {
+			case "open":
+				cv.shell.Eval(fmt.Sprintf("window.womprat_newBrowser(%s)", jsString(targetURL)))
+			case "download":
+				cv.shell.Eval(fmt.Sprintf("window.triggerDownload(%s)", jsString(targetURL)))
+			}
+			return
+		}
 		// Browser content reports its document title and favicon via postMessage so
 		// the shell tab can display the page title and icon instead of the raw URL.
 		title, favicon := parseTitleMessage(raw)
@@ -392,12 +402,36 @@ const browserTitleReporterJS = `(function(){
   window.addEventListener('popstate', send);
   try {
     var _ps = history.pushState, _rs = history.replaceState;
-    history.pushState = function(){ var r = _ps.apply(this, arguments); try { send(); } catch(e){} return r; };
-    history.replaceState = function(){ var r = _rs.apply(this, arguments); try { send(); } catch(e){} return r; };
+    history.pushState = function(){ var r = _ps.apply(this, arguments); try { send(); } catch(e){ reportBridgeError('pushState metadata', e); } return r; };
+    history.replaceState = function(){ var r = _rs.apply(this, arguments); try { send(); } catch(e){ reportBridgeError('replaceState metadata', e); } return r; };
   } catch(e){ reportBridgeError('history patch', e); }
   try { var t=document.querySelector('title'); if(t){ new MutationObserver(send).observe(t,{childList:true}); } } catch(e){ reportBridgeError('title observer', e); }
   try { new MutationObserver(function(){ send(); }).observe(document.head||document.documentElement,{subtree:true,childList:true}); } catch(e){ reportBridgeError('head observer', e); }
   function fire(action, arg){ try{ window.chrome.webview.postMessage(JSON.stringify({wompratKey: action, wompratArg: arg||''})); }catch(e){ reportBridgeError('hotkey post', e); } }
+  function browserAction(action, url){
+    try {
+      var u = new URL(String(url || ''), location.href);
+      if (u.protocol !== 'http:' && u.protocol !== 'https:') return false;
+      window.chrome.webview.postMessage(JSON.stringify({wompratBrowserAction: action, wompratURL: u.href}));
+      return true;
+    } catch(e){ reportBridgeError('browser action', e); return false; }
+  }
+  document.addEventListener('click', function(e){
+    var a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
+    if (!a) return;
+    if (a.hasAttribute('download')) {
+      if (browserAction('download', a.href)) e.preventDefault();
+    } else if ((a.target || '').toLowerCase() === '_blank') {
+      if (browserAction('open', a.href)) e.preventDefault();
+    }
+  }, true);
+  try {
+    var nativeOpen = window.open;
+    window.open = function(url, target, features){
+      if ((!target || target === '_blank') && browserAction('open', url)) return null;
+      return nativeOpen.call(window, url, target, features);
+    };
+  } catch(e){ reportBridgeError('window.open patch', e); }
   document.addEventListener('keydown', function(e){
     var ctrl = e.ctrlKey || e.metaKey;
     var k = (e.key||'').toLowerCase();
@@ -450,6 +484,33 @@ func parseURLMessage(raw string) string {
 		return ""
 	}
 	return url
+}
+
+func parseBrowserActionMessage(raw string) (string, string) {
+	if len(raw) > maxWebViewMessage {
+		return "", ""
+	}
+	var m struct {
+		Action string `json:"wompratBrowserAction"`
+		URL    string `json:"wompratURL"`
+	}
+	if err := json.Unmarshal([]byte(raw), &m); err != nil {
+		return "", ""
+	}
+	if m.Action != "open" && m.Action != "download" {
+		return "", ""
+	}
+	parsed, err := url.Parse(strings.TrimSpace(m.URL))
+	if err != nil || parsed.Host == "" || parsed.User != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+		return "", ""
+	}
+	if m.Action == "download" && parsed.Fragment != "" {
+		return "", ""
+	}
+	if len(parsed.String()) > 4096 {
+		return "", ""
+	}
+	return m.Action, parsed.String()
 }
 
 func parseHotkeyMessage(raw string) string {
@@ -524,7 +585,7 @@ func (v *nativeContentView) GoForward() {
 }
 func (v *nativeContentView) Reload() {
 	if v != nil && v.edge != nil {
-		v.edge.Eval("location.reload()")
+		v.edge.Reload()
 	}
 }
 

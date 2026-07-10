@@ -307,7 +307,10 @@ func deleteCookiesForDomain(domain string) error {
 			errs = append(errs, err)
 			continue
 		}
-		if _, err := db.Exec(`DELETE FROM cookies WHERE host_key = ? OR host_key = ? OR host_key LIKE ?`, domain, strings.TrimPrefix(domain, "."), "%"+strings.TrimPrefix(domain, ".")); err != nil {
+		bareDomain := strings.TrimPrefix(domain, ".")
+		// Match the exact host and true subdomains only. A suffix pattern such as
+		// %example.com would also delete unrelated notexample.com cookies.
+		if _, err := db.Exec(`DELETE FROM cookies WHERE host_key = ? OR host_key = ? OR host_key LIKE ?`, domain, bareDomain, "%."+bareDomain); err != nil {
 			errs = append(errs, err)
 		}
 		if err := db.Close(); err != nil {

@@ -1091,7 +1091,40 @@ func TestBrowserUXAuditFixesArePresent(t *testing.T) {
 	native := readFileForRegression(t, "native_content_windows.go")
 	chromium := readFileForRegression(t, "../../internal/go-webview2/pkg/edge/chromium.go")
 	gui := readFileForRegression(t, "gui_windows.go")
+	linuxGUI := readFileForRegression(t, "gui_linux.go")
 	socks := readFileForRegression(t, "socks.go")
+
+	// Standard browser audit: permissions must pass an output pointer, reload
+	// must use the native WebView2 API, and all GUI bindings must share the
+	// id-relative tab reorder contract.
+	if !strings.Contains(chromium, "uintptr(unsafe.Pointer(&kind))") {
+		t.Fatal("permission kind must be read through an output pointer")
+	}
+	if strings.Contains(chromium, `log.Fatalf("Creating environment failed`) || strings.Contains(chromium, `log.Fatalf("Creating controller failed`) {
+		t.Fatal("WebView2 initialization failures must not terminate the whole application")
+	}
+	if !strings.Contains(chromium, "atomic.StoreUintptr(&e.inited, 2)") {
+		t.Fatal("WebView2 initialization failures must unblock Embed with failure state")
+	}
+	if !strings.Contains(native, "v.edge.Reload()") || strings.Contains(native, `v.edge.Eval("location.reload()")`) {
+		t.Fatal("browser reload must use native WebView2 reload")
+	}
+	if !strings.Contains(linuxGUI, `func(tabID, beforeID string) { app.reorderTab(tabID, beforeID) }`) {
+		t.Fatal("Linux reorder binding must use the same id-relative contract")
+	}
+	for _, want := range []string{
+		"wompratBrowserAction: action",
+		"a.hasAttribute('download')",
+		"a.target || '').toLowerCase() === '_blank'",
+		"window.open = function(url, target, features)",
+		"func parseBrowserActionMessage(raw string) (string, string)",
+		"window.womprat_newBrowser(%s)",
+		"window.triggerDownload(%s)",
+	} {
+		if !strings.Contains(native, want) {
+			t.Fatalf("popup/download bridge missing %q", want)
+		}
+	}
 
 	// Issue 4: id-relative reorder semantics.
 	if !strings.Contains(s, "window.womprat_reorderTab(fromId, beforeId)") {
