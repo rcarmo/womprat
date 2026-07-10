@@ -126,7 +126,13 @@ async function testRDP(page) {
   const caps = await page.evaluate(() => document.querySelector("[data-rdp-caps]")?.textContent || "");
   const beforeSocket = await page.evaluateHandle(() => document.querySelector(".rdp-panel")?.__wompratRdp?.client?.socket);
   await page.setViewportSize({ width: 1100, height: 760 });
-  await page.waitForTimeout(1200);
+  await page.waitForFunction(() => {
+    const r = document.querySelector(".rdp-panel")?.__wompratRdp;
+    const c = r?.canvas, vr = r?.viewport?.getBoundingClientRect();
+    if (!c || !vr) return false;
+    return !r.client?.serverCapabilities?.displayControlReady ||
+      (Math.abs(c.width - Math.floor(vr.width)) <= 1 && Math.abs(c.height - Math.floor(vr.height)) <= 1);
+  }, undefined, { timeout: 8000 });
   const diag = await page.evaluate((socket) => {
     const root = document.querySelector(".rdp-panel");
     const r = root && root.__wompratRdp;
@@ -136,8 +142,14 @@ async function testRDP(page) {
     const title = document.querySelector(".tab.active .tab-title")?.textContent || "";
     const cr = c?.getBoundingClientRect(), vr = vp?.getBoundingClientRect();
     const coverage = cr && vr && vr.width && vr.height ? (cr.width * cr.height) / (vr.width * vr.height) : 0;
+    const mappedCenter = cr && r?.client?.screenToDesktop
+      ? r.client.screenToDesktop(cr.left + cr.width / 2, cr.top + cr.height / 2)
+      : null;
     return {
       hasViewer: !!r, canvasW: c?.width, canvasH: c?.height,
+      viewportW: Math.floor(vr?.width || 0), viewportH: Math.floor(vr?.height || 0),
+      displayControlReady: !!r?.client?.serverCapabilities?.displayControlReady,
+      mappedCenter,
       wsState: r?.client?.socket?.readyState, socketStable: r?.client?.socket === socket,
       authDialogHidden: dialog ? getComputedStyle(dialog).display === "none" : false,
       coverage, title
@@ -150,7 +162,13 @@ async function testRDP(page) {
   console.log("RDP canvas:", JSON.stringify(px));
   console.log("RDP diag:", JSON.stringify(diag));
   const capsReady = caps && !/pending/i.test(caps) && /RemoteFX|NSCodec|bitmap/i.test(caps);
-  return px.ok && /^Connected/.test(status) && capsReady && diag.socketStable && diag.authDialogHidden && diag.coverage > 0.75;
+  const centerMapped = diag.mappedCenter &&
+    Math.abs(diag.mappedCenter.x - diag.canvasW / 2) <= 2 &&
+    Math.abs(diag.mappedCenter.y - diag.canvasH / 2) <= 2;
+  const resizedDesktop = !diag.displayControlReady ||
+    (Math.abs(diag.canvasW - diag.viewportW) <= 1 && Math.abs(diag.canvasH - diag.viewportH) <= 1);
+  return px.ok && /^Connected/.test(status) && capsReady && diag.socketStable &&
+    diag.authDialogHidden && diag.coverage > 0.98 && centerMapped && resizedDesktop;
 }
 
 const consoleErrors = [];

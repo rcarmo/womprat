@@ -28,13 +28,12 @@ func TestBrowserURLBarSyncsFragmentNavigations(t *testing.T) {
 func TestRDPViewportFillAndStableResize(t *testing.T) {
 	rdpjs := readFileForRegression(t, "frontend/rdp.js")
 	rdpgo := readFileForRegression(t, "rdp.go")
-	// (a) Fit must be allowed to upscale so the canvas fills the viewport (no
-	// letterbox); the old `,1` cap that prevented upscaling must be gone.
-	if strings.Contains(rdpjs, "Math.min(Z.width/$,Z.height/J,1)||1") {
-		t.Fatal("fitCanvas must allow upscaling to fill the viewport (remove the cap at 1)")
-	}
-	if !strings.Contains(rdpjs, "Math.min(Z.width/$,Z.height/J)||1") {
-		t.Fatal("fitCanvas fill scaling missing")
+	// (a) Fit must consume both viewport dimensions. Servers without dynamic
+	// DisplayControl keep their original framebuffer aspect ratio, so uniform
+	// scaling would leave unused bars and make the pointer scale ambiguous.
+	if !strings.Contains(rdpjs, "Q=this.fitToViewport?Z.width:$") ||
+		!strings.Contains(rdpjs, "X=this.fitToViewport?Z.height:J") {
+		t.Fatal("fitCanvas must fill both viewport dimensions")
 	}
 	// (c) Resize must not trigger a reconnect (which re-prompts credentials):
 	// request DisplayControl for dynamic resize and neutralize reconnectWithNewSize.
@@ -43,6 +42,19 @@ func TestRDPViewportFillAndStableResize(t *testing.T) {
 	}
 	if !strings.Contains(rdpjs, "this.client.reconnectWithNewSize=()=>{}") {
 		t.Fatal("RDP wrapper must disable reconnect-on-resize to avoid re-auth prompts")
+	}
+	if !strings.Contains(rdpjs, "this.client.handleResize=()=>this.resizeToViewport()") ||
+		!strings.Contains(rdpjs, "this.client?.sendResizeRequest?.(J,Z)") {
+		t.Fatal("RDP resize must send the actual content viewport through DisplayControl")
+	}
+	if !strings.Contains(rdpjs, `this.root.dataset.connecting="1"`) ||
+		strings.Contains(rdpjs, "Math.floor($.width||innerWidth||1280)") {
+		t.Fatal("initial RDP desktop size must be measured from the visible content viewport")
+	}
+	if !strings.Contains(rdpjs, "this.canvas.width/Z.width") ||
+		!strings.Contains(rdpjs, "this.canvas.height/Z.height") ||
+		!strings.Contains(rdpjs, "this.canvas.getBoundingClientRect()") {
+		t.Fatal("RDP pointer coordinates must invert the canvas CSS scale")
 	}
 	// Capability messages reach handleMessage as a raw ArrayBuffer. Parse that
 	// form so the visible status/capability fields leave their pending state.
