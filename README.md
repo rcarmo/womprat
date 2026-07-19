@@ -14,7 +14,7 @@ I kept finding myself in places I couldn't install the full Tailscale client but
 
 And then I got a corporate, locked-down Windows ARM laptop to test and realized that I really wanted to get at my Proxmox cluster from outside the house.
 
-`womprat` takes the opposite approach: the tailnet identity belongs to the app, not the machine. When it is running, it can reach your tailnet. When it is closed, there is no VPN client left behind.
+`womprat` takes the opposite approach to setting up a VPN or a Tailscale client: the tailnet identity belongs to the app, not the machine. When it is running, it can reach your tailnet. When it is closed, there is no VPN client left behind.
 
 That makes it useful for portable operations work, especially when SSH and internal web UIs are the only things you need.
 
