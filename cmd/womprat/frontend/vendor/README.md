@@ -1,6 +1,6 @@
 # Vendored xterm.js runtime
 
-This directory vendors the browser runtime used by `@rcarmo/piclaw-addon-lite-term` so low-spec Piclaw deployments do not depend on core Ghostty/WASM assets.
+This directory vendors the xterm.js browser runtime used by Womprat's SSH terminal tabs, so the executable does not fetch terminal code or CSS at runtime.
 
 Vendored packages:
 
@@ -19,4 +19,4 @@ Vendored packages:
 - `@xterm/addon-web-links` 0.12.0
 - `@xterm/addon-webgl` 0.19.0
 
-All are MIT licensed by the xterm.js authors. Piclaw provides the terminal font assets; this add-on only vendors xterm runtime code and CSS.
+All are MIT licensed by the xterm.js authors. Womprat currently imports xterm core plus the Attach, Clipboard, Fit, Search, Unicode 11, Unicode Graphemes, Web Links, and WebGL add-ons from this directory. The other checked-in packages are retained as part of the pinned vendor set. See [LICENSES.md](LICENSES.md) for the bundled notices.

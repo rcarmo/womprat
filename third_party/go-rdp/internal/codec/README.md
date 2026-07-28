@@ -20,8 +20,8 @@ This package implements RDP bitmap decompression and color conversion utilities.
 For RemoteFX (RFX) wavelet codec, see the [`rfx/`](./rfx/) subpackage.
 
 For detailed technical documentation:
-- NSCodec: [docs/NSCODEC.md](/docs/NSCODEC.md)
-- RemoteFX: [docs/REMOTEFX.md](/docs/REMOTEFX.md)
+- NSCodec: [docs/NSCODEC.md](../../docs/NSCODEC.md)
+- RemoteFX: [docs/REMOTEFX.md](../../docs/REMOTEFX.md)
 
 ## Files
 

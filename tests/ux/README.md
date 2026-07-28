@@ -46,8 +46,9 @@ PLAYWRIGHT_BROWSERS_PATH=$HOME/.cache/ms-playwright bun run ux.mjs
 ```
 
 This exercises the app shell, URL routing, settings panel, VNC panel creation,
-RDP panel creation, SSH terminal panel creation, and fails on page/console
-errors.
+RDP panel creation, SSH terminal panel creation, stable-ID tab reorder/close, and
+a managed HTTP download whose saved bytes are checked on disk. It also fails on
+page or console errors.
 
 ## Real remote pixel proof
 
@@ -83,14 +84,20 @@ WOMPRAT_UX_SKIP_RDP=1 VNC_TARGET=vnc://127.0.0.1:5902 bun run tests/ux/real-remo
 
 The RDP harness uses the current credential-dialog UX: it opens the RDP tab,
 fills `.rdp-dialog [data-rdp-user]` and `.rdp-dialog [data-rdp-password]`, clicks
-Connect, waits for the canvas, and then samples framebuffer pixels. It also
-records the active tab title so session-name/dimension title updates can be
-inspected in logs.
+Connect, waits for the canvas, and then samples framebuffer pixels. After
+resizing the browser it verifies that the WebSocket remains unchanged, the
+credential dialog stays hidden, the canvas covers the complete viewport, and
+the visual centre maps to the centre of the remote framebuffer. When the server
+advertises Display Control, it also waits for the backing canvas dimensions to
+match the resized content viewport. The active title and negotiated codecs are
+recorded in the log and a screenshot is written to
+`dist/ux-artifacts/rdp-browser-proof.png`.
 
 The VNC harness waits for a real server-reported size in `[data-vnc-status]`,
 then samples `.vnc-panel canvas` for non-uniform pixels. Current VNC negotiation
 is Raw-first for correctness, with Hextile/CopyRect/ZRLE/RRE/CoRRE still
-advertised afterward.
+advertised afterward. Its screenshot is written to
+`dist/ux-artifacts/vnc-browser-proof.png`.
 
 ## Useful local real-server setup
 
@@ -111,6 +118,15 @@ The previous integration runs used:
 user: womptest
 pass: womptest
 ```
+
+## Test boundaries
+
+The browser-level harnesses run the Linux shell in headless Chromium. They cover
+the shared frontend and bridge protocols, including real framebuffer output,
+but they do not instantiate the native Windows WebView2 child-window host.
+Windows-specific behaviour is covered by Go regression tests plus ARM64/x64
+cross-build and vet checks; final release validation should still include a
+manual run on Windows.
 
 ## Exit codes
 

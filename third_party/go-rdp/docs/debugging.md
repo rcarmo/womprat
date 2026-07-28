@@ -17,7 +17,7 @@ export LOG_LEVEL=debug
 Or with Docker:
 
 ```bash
-docker run -e LOG_LEVEL=debug -p 8080:8080 ghcr.io/rcarmo/rdp-html5:latest
+docker run -e LOG_LEVEL=debug -p 8080:8080 ghcr.io/rcarmo/go-rdp:latest
 ```
 
 ### What Each Level Shows

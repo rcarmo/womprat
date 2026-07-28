@@ -206,7 +206,7 @@ docker run -d \
   -p 8080:8080 \
   -e LOG_LEVEL=info \
   -e TLS_SKIP_VERIFY=true \
-  ghcr.io/rcarmo/rdp-html5:latest
+  ghcr.io/rcarmo/go-rdp:latest
 ```
 
 Or use a `.env` file with docker-compose:
@@ -214,7 +214,7 @@ Or use a `.env` file with docker-compose:
 ```yaml
 services:
   rdp-html5:
-    image: ghcr.io/rcarmo/rdp-html5:latest
+    image: ghcr.io/rcarmo/go-rdp:latest
     ports:
       - "8080:8080"
     environment:

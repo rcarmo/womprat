@@ -15,10 +15,10 @@ A browser-based Remote Desktop Protocol (RDP) client built with Go and WebAssemb
 docker run -d -p 8080:8080 ghcr.io/rcarmo/go-rdp:latest
 
 # Run with TLS validation disabled (for self-signed certs)
-docker run -d -p 8080:8080 -e TLS_SKIP_VERIFY=true ghcr.io/rcarmo/rdp-html5:latest
+docker run -d -p 8080:8080 -e TLS_SKIP_VERIFY=true ghcr.io/rcarmo/go-rdp:latest
 
 # Run with debug logging
-docker run -d -p 8080:8080 -e LOG_LEVEL=debug ghcr.io/rcarmo/rdp-html5:latest
+docker run -d -p 8080:8080 -e LOG_LEVEL=debug ghcr.io/rcarmo/go-rdp:latest
 ```
 
 Then open http://localhost:8080 in your browser.
