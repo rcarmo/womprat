@@ -123,6 +123,7 @@ func (a *App) handleDebugLog(w http.ResponseWriter, r *http.Request) {
 		a.mu.Lock()
 		a.config.DebugLog = body.Enabled
 		a.mu.Unlock()
+		setConsoleVisible(body.Enabled)
 		setupLogging(body.Enabled)
 		if body.Enabled {
 			a.logStartupBannerSafe()

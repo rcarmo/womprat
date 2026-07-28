@@ -393,17 +393,20 @@ func TestSettingsHandlersUseSharedPostMethodGuard(t *testing.T) {
 	}
 }
 
-func TestSettingsAuthKeyButtonsStayOnInputRow(t *testing.T) {
+func TestSettingsAuthKeySaveStaysOnInputRowWithoutRevealControl(t *testing.T) {
 	s := readFileForRegression(t, "frontend/settings.html")
 	for _, want := range []string{
 		".key-row{align-items:center}",
 		".key-row input{margin-bottom:0}",
 		"<div class=\"row key-row\">",
-		"data-action=\"toggle-ts-key\">Show</button>\n      <button class=\"btn-primary\" data-action=\"save-tailscale\"",
+		"<button class=\"btn-primary\" data-action=\"save-tailscale\">Save &amp; Reconnect</button>",
 	} {
 		if !strings.Contains(s, want) {
 			t.Fatalf("settings auth key layout missing %q", want)
 		}
+	}
+	if strings.Contains(s, "toggle-ts-key") {
+		t.Fatal("settings auth key must not have a reveal control")
 	}
 }
 
@@ -477,7 +480,6 @@ func TestSettingsRemainingActionsUseDataAttributes(t *testing.T) {
 func TestSettingsTailscaleAndKeyActionsUseDataAttributes(t *testing.T) {
 	s := readFileForRegression(t, "frontend/settings.html")
 	for _, want := range []string{
-		"data-action=\"toggle-ts-key\"",
 		"data-action=\"save-tailscale\"",
 		"data-action=\"import-key\"",
 		"data-action=\"generate-key\"",

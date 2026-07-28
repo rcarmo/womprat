@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -19,6 +20,24 @@ func TestTailBytesAtLineBoundary(t *testing.T) {
 	}
 	if got := tailBytesAtLineBoundary(data, 0); !bytes.Equal(got, data) {
 		t.Fatalf("zero max should leave data unchanged")
+	}
+}
+
+func TestWindowsConsoleFollowsDebugLogging(t *testing.T) {
+	mainSource := readFileForRegression(t, "main.go")
+	loggingSource := readFileForRegression(t, "logging.go")
+	windowsSource := readFileForRegression(t, "console_windows.go")
+
+	if !strings.Contains(mainSource, "setConsoleVisible(cfg.DebugLog)") {
+		t.Fatal("startup must apply persisted debug logging to console visibility")
+	}
+	if !strings.Contains(loggingSource, "setConsoleVisible(body.Enabled)") {
+		t.Fatal("runtime debug setting must update console visibility")
+	}
+	for _, want := range []string{"GetConsoleWindow", "ShowWindow", "consoleHide", "consoleShow"} {
+		if !strings.Contains(windowsSource, want) {
+			t.Fatalf("Windows console visibility implementation missing %q", want)
+		}
 	}
 }
 

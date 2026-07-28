@@ -119,6 +119,7 @@ func main() {
 	if debugBuild == "1" {
 		cfg.DebugLog = true
 	}
+	setConsoleVisible(cfg.DebugLog)
 	setupLogging(cfg.DebugLog)
 	if debugBuild == "1" {
 		log.Printf("debug build: verbose connection logging enabled")
