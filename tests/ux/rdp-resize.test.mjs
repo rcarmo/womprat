@@ -66,3 +66,18 @@ test('RDP text bridge errors reach message parser',()=>{
  client.socket.onmessage({data:message});
  expect(received).toBe(message);
 });
+
+test('connection preserves per-tab viewport, depth and audio parameters',()=>{
+ const begin=source.indexOf('let params=new URL(this.websocketURL)');
+ const finish=source.indexOf('this.socket.binaryType=',begin);
+ const connect=Function('document','K','WebSocket','$','J','Z',source.slice(begin,finish).replace(/,$/, ';'));
+ let opened,audio=0;
+ const client={websocketURL:'ws://127.0.0.1/api/rdp/ws?width=1100&height=676&colorDepth=32&audio=false&disableNLA=false',canvas:{width:300,height:150},enableAudio(){audio++}};
+ connect.call(client,{getElementById:()=>null},{debug(){}},class {constructor(url){opened=new URL(url)}},'host','user','password');
+ expect([client.canvas.width,client.canvas.height]).toEqual([1100,676]);
+ expect(opened.searchParams.get('width')).toBe('1100');
+ expect(opened.searchParams.get('height')).toBe('676');
+ expect(opened.searchParams.get('colorDepth')).toBe('32');
+ expect(opened.searchParams.get('audio')).toBe('false');
+ expect(audio).toBe(0);
+});
