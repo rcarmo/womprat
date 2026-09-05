@@ -130,8 +130,10 @@ async function testRDP(page) {
     const r = document.querySelector(".rdp-panel")?.__wompratRdp;
     const c = r?.canvas, vr = r?.viewport?.getBoundingClientRect();
     if (!c || !vr) return false;
-    return !r.client?.serverCapabilities?.displayControlReady ||
-      (Math.abs(c.width - Math.floor(vr.width)) <= 1 && Math.abs(c.height - Math.floor(vr.height)) <= 1);
+    const cr = c.getBoundingClientRect();
+    const fitted = Math.abs(cr.width - vr.width) <= 1 && Math.abs(cr.height - vr.height) <= 1;
+    return fitted && (!r.client?.serverCapabilities?.displayControlReady ||
+      (Math.abs(c.width - Math.floor(vr.width)) <= 1 && Math.abs(c.height - Math.floor(vr.height)) <= 1));
   }, undefined, { timeout: 8000 });
   const diag = await page.evaluate((socket) => {
     const root = document.querySelector(".rdp-panel");
