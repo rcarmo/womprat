@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 )
 
@@ -35,7 +36,19 @@ func runtimeDir() string {
 // setupLogging routes the standard logger to a log file when debug logging is
 // enabled. When disabled (default), runtime logs are discarded so release builds
 // stay quiet and write nothing to disk.
+var loggingMu sync.Mutex
+var activeLogFile *os.File
+
 func setupLogging(enabled bool) {
+	loggingMu.Lock()
+	defer loggingMu.Unlock()
+	// Detach the old writer before closing it; log.SetOutput serializes with
+	// in-flight writes. Repeated toggles must not leak file handles.
+	log.SetOutput(io.Discard)
+	if activeLogFile != nil {
+		_ = activeLogFile.Close()
+		activeLogFile = nil
+	}
 	if !enabled {
 		log.SetOutput(io.Discard)
 		return
@@ -48,6 +61,7 @@ func setupLogging(enabled bool) {
 	if err != nil {
 		return
 	}
+	activeLogFile = f
 	log.SetFlags(log.LstdFlags | log.Lmsgprefix)
 	log.SetPrefix("")
 	if stderrUsable() {

@@ -65,3 +65,21 @@ func TestHandleLogsRejectsUnsupportedMethods(t *testing.T) {
 		t.Fatalf("POST logs = %d", rr.Code)
 	}
 }
+
+func TestDisablingLoggingClosesPreviousFile(t *testing.T) {
+	f, err := os.CreateTemp(t.TempDir(), "log")
+	if err != nil {
+		t.Fatal(err)
+	}
+	loggingMu.Lock()
+	previous := activeLogFile
+	activeLogFile = f
+	loggingMu.Unlock()
+	setupLogging(false)
+	if _, err := f.WriteString("must be closed"); err == nil {
+		t.Fatal("log file remains open after disabling")
+	}
+	loggingMu.Lock()
+	activeLogFile = previous
+	loggingMu.Unlock()
+}
