@@ -33,3 +33,15 @@ func TestResourceRequestChecksHRESULT(t *testing.T) {
 		t.Fatal("failed HRESULT accepted")
 	}
 }
+
+func TestPopupSuppressedEvenWhenURIReadFails(t *testing.T) {
+	handled := false
+	args := &ICoreWebView2NewWindowRequestedEventArgs{vtbl: &newWindowRequestedArgsVtbl{}}
+	args.vtbl.PutHandled = NewComProc(func(this, value uintptr) uintptr { handled = value == 1; return 0 })
+	args.vtbl.GetUri = NewComProc(func(this, out uintptr) uintptr { return 0x80004005 })
+	e := &Chromium{NewWindowRequestedCallback: func(string) { t.Error("callback called with failed URI") }}
+	e.NewWindowRequested(nil, args)
+	if !handled {
+		t.Fatal("default popup was not suppressed")
+	}
+}

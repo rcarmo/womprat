@@ -37,7 +37,10 @@ type Chromium struct {
 	permissions      map[CoreWebView2PermissionKind]CoreWebView2PermissionState
 	globalPermission *CoreWebView2PermissionState
 
+	newWindowRequested *ICoreWebView2NewWindowRequestedEventHandler
+
 	// Callbacks
+	NewWindowRequestedCallback   func(string)
 	MessageCallback              func(string)
 	WebResourceRequestedCallback func(request *ICoreWebView2WebResourceRequest, args *ICoreWebView2WebResourceRequestedEventArgs)
 	NavigationCompletedCallback  func(sender *ICoreWebView2, args *ICoreWebView2NavigationCompletedEventArgs)
@@ -64,6 +67,7 @@ func NewChromium() *Chromium {
 	e.webResourceRequested = newICoreWebView2WebResourceRequestedEventHandler(e)
 	e.acceleratorKeyPressed = newICoreWebView2AcceleratorKeyPressedEventHandler(e)
 	e.navigationCompleted = newICoreWebView2NavigationCompletedEventHandler(e)
+	e.newWindowRequested = newICoreWebView2NewWindowRequestedEventHandler(e)
 	e.permissions = make(map[CoreWebView2PermissionKind]CoreWebView2PermissionState)
 
 	return e
@@ -307,6 +311,18 @@ func (e *Chromium) CreateCoreWebView2ControllerCompleted(res uintptr, controller
 		uintptr(unsafe.Pointer(&token)),
 	)
 
+	if e.NewWindowRequestedCallback != nil {
+		hr, _, _ := e.webview.vtbl.AddNewWindowRequested.Call(
+			uintptr(unsafe.Pointer(e.webview)),
+			uintptr(unsafe.Pointer(e.newWindowRequested)),
+			uintptr(unsafe.Pointer(&token)),
+		)
+		if int32(hr) < 0 {
+			log.Printf("Register popup handler failed: HRESULT %#x", hr)
+			atomic.StoreUintptr(&e.inited, 2)
+			return 0
+		}
+	}
 	_ = e.controller.AddAcceleratorKeyPressed(e.acceleratorKeyPressed, &token)
 
 	atomic.StoreUintptr(&e.inited, 1)
@@ -315,6 +331,23 @@ func (e *Chromium) CreateCoreWebView2ControllerCompleted(res uintptr, controller
 		e.Focus()
 	}
 
+	return 0
+}
+
+func (e *Chromium) NewWindowRequested(_ *ICoreWebView2, args *ICoreWebView2NewWindowRequestedEventArgs) uintptr {
+	// Suppress default popup creation even for an invalid or unreadable URI.
+	if err := args.SetHandled(); err != nil {
+		log.Printf("%v", err)
+		return 0
+	}
+	uri, err := args.URI()
+	if err != nil {
+		log.Printf("%v", err)
+		return 0
+	}
+	if e.NewWindowRequestedCallback != nil {
+		e.NewWindowRequestedCallback(uri)
+	}
 	return 0
 }
 

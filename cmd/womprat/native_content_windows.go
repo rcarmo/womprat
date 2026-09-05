@@ -294,6 +294,12 @@ func newNativeContentView(parent uintptr, dataPath, tabID string, shell shellWeb
 	log.Printf("content: %s child window hwnd=0x%x created; building WebView2 environment", tabID, hwnd)
 	cv := &nativeContentView{parent: parent, hwnd: hwnd, tabID: tabID, shell: shell, tsConnected: tsConnected}
 	edge := webview2edge.NewChromium()
+	edge.NewWindowRequestedCallback = func(target string) {
+		payload, _ := json.Marshal(map[string]string{"wompratBrowserAction": "open", "wompratURL": target})
+		if action, targetURL := parseBrowserActionMessage(string(payload)); action == "open" && cv.shell != nil {
+			cv.shell.Eval(fmt.Sprintf("window.womprat_newBrowser(%s)", jsString(targetURL)))
+		}
+	}
 	edge.MessageCallback = func(raw string) {
 		if action := parseHotkeyMessage(raw); action != "" && cv.shell != nil {
 			arg := parseHotkeyArg(raw)
