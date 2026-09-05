@@ -95,6 +95,7 @@ func (a *App) downloadToFile(targetURL, savePath string, st *downloadState) {
 			return dialTSNetPreferIPv4(ctx, ts, addr)
 		},
 	}
+	defer transport.CloseIdleConnections()
 	client := &http.Client{Transport: transport, Timeout: 5 * time.Minute}
 
 	resp, err := client.Get(targetURL)
@@ -113,16 +114,22 @@ func (a *App) downloadToFile(targetURL, savePath string, st *downloadState) {
 	st.Size = resp.ContentLength
 	downloadMu.Unlock()
 
-	f, err := os.Create(savePath)
+	// Never truncate a file created after uniqueDownloadPath checked the path.
+	f, err := os.OpenFile(savePath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
 	if err != nil {
 		setDownloadError(st, err)
 		return
 	}
 	completed := false
 	defer func() {
-		if err := f.Close(); err != nil && completed {
+		if err := f.Close(); err != nil {
 			setDownloadError(st, err)
 			completed = false
+		}
+		if completed {
+			downloadMu.Lock()
+			st.Status = "complete"
+			downloadMu.Unlock()
 		}
 		if !completed {
 			if err := os.Remove(savePath); err != nil && !os.IsNotExist(err) {
@@ -145,9 +152,6 @@ func (a *App) downloadToFile(targetURL, savePath string, st *downloadState) {
 		}
 		if err != nil {
 			if err == io.EOF {
-				downloadMu.Lock()
-				st.Status = "complete"
-				downloadMu.Unlock()
 				completed = true
 			} else {
 				setDownloadError(st, err)
