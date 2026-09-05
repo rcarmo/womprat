@@ -45,3 +45,14 @@ func TestPopupSuppressedEvenWhenURIReadFails(t *testing.T) {
 		t.Fatal("default popup was not suppressed")
 	}
 }
+
+func TestProcessFailureGetterErrorIsReportedAsUnknown(t *testing.T) {
+	args := &ICoreWebView2ProcessFailedEventArgs{vtbl: &processFailedArgsVtbl{}}
+	args.vtbl.GetProcessFailedKind = NewComProc(func(this, out uintptr) uintptr { return 0x80004005 })
+	got := int32(99)
+	e := &Chromium{ProcessFailedCallback: func(kind int32) { got = kind }}
+	e.ProcessFailed(nil, args)
+	if got != -1 {
+		t.Fatalf("failure kind=%d", got)
+	}
+}

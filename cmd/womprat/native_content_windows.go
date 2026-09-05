@@ -294,6 +294,17 @@ func newNativeContentView(parent uintptr, dataPath, tabID string, shell shellWeb
 	log.Printf("content: %s child window hwnd=0x%x created; building WebView2 environment", tabID, hwnd)
 	cv := &nativeContentView{parent: parent, hwnd: hwnd, tabID: tabID, shell: shell, tsConnected: tsConnected}
 	edge := webview2edge.NewChromium()
+	edge.ProcessFailedCallback = func(kind int32) {
+		log.Printf("content: process failed tab=%s kind=%d", cv.tabID, kind)
+		if cv.shell == nil {
+			return
+		}
+		message := "Browser process failed. Close and reopen this tab; restart Womprat if other tabs are affected."
+		if kind == 1 || kind == 2 {
+			message = "Page renderer stopped responding or exited. Reload this tab to recover."
+		}
+		cv.shell.Eval(fmt.Sprintf("window.wompratNavigationDone(%s,%s,false,%d,%s)", jsString(cv.tabID), jsString(""), kind, jsString(message)))
+	}
 	edge.NewWindowRequestedCallback = func(target string) {
 		payload, _ := json.Marshal(map[string]string{"wompratBrowserAction": "open", "wompratURL": target})
 		if action, targetURL := parseBrowserActionMessage(string(payload)); action == "open" && cv.shell != nil {

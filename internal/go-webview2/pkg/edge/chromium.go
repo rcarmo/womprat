@@ -39,7 +39,10 @@ type Chromium struct {
 
 	newWindowRequested *ICoreWebView2NewWindowRequestedEventHandler
 
+	processFailed *ICoreWebView2ProcessFailedEventHandler
+
 	// Callbacks
+	ProcessFailedCallback        func(int32)
 	NewWindowRequestedCallback   func(string)
 	MessageCallback              func(string)
 	WebResourceRequestedCallback func(request *ICoreWebView2WebResourceRequest, args *ICoreWebView2WebResourceRequestedEventArgs)
@@ -68,6 +71,7 @@ func NewChromium() *Chromium {
 	e.acceleratorKeyPressed = newICoreWebView2AcceleratorKeyPressedEventHandler(e)
 	e.navigationCompleted = newICoreWebView2NavigationCompletedEventHandler(e)
 	e.newWindowRequested = newICoreWebView2NewWindowRequestedEventHandler(e)
+	e.processFailed = newICoreWebView2ProcessFailedEventHandler(e)
 	e.permissions = make(map[CoreWebView2PermissionKind]CoreWebView2PermissionState)
 
 	return e
@@ -311,6 +315,14 @@ func (e *Chromium) CreateCoreWebView2ControllerCompleted(res uintptr, controller
 		uintptr(unsafe.Pointer(&token)),
 	)
 
+	if e.ProcessFailedCallback != nil {
+		hr, _, _ := e.webview.vtbl.AddProcessFailed.Call(uintptr(unsafe.Pointer(e.webview)), uintptr(unsafe.Pointer(e.processFailed)), uintptr(unsafe.Pointer(&token)))
+		if int32(hr) < 0 {
+			log.Printf("Register process failure handler failed: HRESULT %#x", hr)
+			atomic.StoreUintptr(&e.inited, 2)
+			return 0
+		}
+	}
 	if e.NewWindowRequestedCallback != nil {
 		hr, _, _ := e.webview.vtbl.AddNewWindowRequested.Call(
 			uintptr(unsafe.Pointer(e.webview)),
@@ -331,6 +343,13 @@ func (e *Chromium) CreateCoreWebView2ControllerCompleted(res uintptr, controller
 		e.Focus()
 	}
 
+	return 0
+}
+
+func (e *Chromium) ProcessFailed(_ *ICoreWebView2, args *ICoreWebView2ProcessFailedEventArgs) uintptr {
+	if e.ProcessFailedCallback != nil {
+		e.ProcessFailedCallback(args.Kind())
+	}
 	return 0
 }
 
