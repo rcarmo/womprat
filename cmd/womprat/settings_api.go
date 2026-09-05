@@ -87,6 +87,8 @@ func resourceNameFromPath(path, prefix string) (string, error) {
 }
 
 func (a *App) handleSetUnlockMethod(w http.ResponseWriter, r *http.Request) {
+	a.configSaveMu.Lock()
+	defer a.configSaveMu.Unlock()
 	if !requirePOST(w, r) {
 		return
 	}
@@ -115,6 +117,8 @@ func (a *App) handleSetUnlockMethod(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleSetMasterPassword(w http.ResponseWriter, r *http.Request) {
+	a.configSaveMu.Lock()
+	defer a.configSaveMu.Unlock()
 	if !requirePOST(w, r) {
 		return
 	}
@@ -294,6 +298,8 @@ func (a *App) handleGenerateSSHKey(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleHosts(w http.ResponseWriter, r *http.Request) {
+	a.configSaveMu.Lock()
+	defer a.configSaveMu.Unlock()
 	switch r.Method {
 	case http.MethodGet, http.MethodHead:
 		a.mu.Lock()
@@ -371,6 +377,8 @@ func (a *App) handleHosts(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleAppearance(w http.ResponseWriter, r *http.Request) {
+	a.configSaveMu.Lock()
+	defer a.configSaveMu.Unlock()
 	if !requirePOST(w, r) {
 		return
 	}
@@ -480,6 +488,8 @@ func fingerprintFromPEM(pemData string) string {
 }
 
 func (a *App) handleExitNode(w http.ResponseWriter, r *http.Request) {
+	a.configSaveMu.Lock()
+	defer a.configSaveMu.Unlock()
 	switch r.Method {
 	case http.MethodGet, http.MethodHead:
 		a.mu.Lock()
@@ -562,6 +572,8 @@ func (a *App) applyExitNodePreference(ctx context.Context, exitNode string) erro
 }
 
 func (a *App) handleSaveTabs(w http.ResponseWriter, r *http.Request) {
+	a.configSaveMu.Lock()
+	defer a.configSaveMu.Unlock()
 	if !requirePOST(w, r) {
 		return
 	}

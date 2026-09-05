@@ -144,6 +144,8 @@ func (a *App) handleClearAll(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleSavePasswordsToggle(w http.ResponseWriter, r *http.Request) {
+	a.configSaveMu.Lock()
+	defer a.configSaveMu.Unlock()
 	if !requirePOST(w, r) {
 		return
 	}

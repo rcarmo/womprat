@@ -113,6 +113,8 @@ func tailBytesAtLineBoundary(data []byte, maxBytes int) []byte {
 }
 
 func (a *App) handleDebugLog(w http.ResponseWriter, r *http.Request) {
+	a.configSaveMu.Lock()
+	defer a.configSaveMu.Unlock()
 	switch r.Method {
 	case http.MethodGet, http.MethodHead:
 		a.mu.Lock()

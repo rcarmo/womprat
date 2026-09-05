@@ -94,6 +94,7 @@ type browserContentManager interface {
 }
 
 type App struct {
+	configSaveMu sync.Mutex // acquire before mu for snapshot/save/commit
 	mu           sync.Mutex
 	config       *AppConfig
 	tsServer     *tsnet.Server
@@ -336,6 +337,8 @@ func (a *App) updateActiveBrowserTitle(title, url, favicon string) {
 }
 
 func (a *App) persistOpenTabs() {
+	a.configSaveMu.Lock()
+	defer a.configSaveMu.Unlock()
 	a.mu.Lock()
 	saved := make([]SavedTab, 0, len(a.tabs))
 	for _, t := range a.tabs {
@@ -344,12 +347,16 @@ func (a *App) persistOpenTabs() {
 		}
 		saved = append(saved, SavedTab{Type: t.Type, Title: t.Title, Host: t.Host, User: t.User, Port: t.Port, URL: t.URL, Favicon: t.Favicon})
 	}
-	a.config.OpenTabs = saved
-	cfg := a.config
+	cfg := cloneConfig(a.config)
+	cfg.OpenTabs = saved
 	a.mu.Unlock()
 	if err := SaveConfig(cfg); err != nil {
 		log.Printf("persist open tabs failed: %v", err)
+		return
 	}
+	a.mu.Lock()
+	a.config.OpenTabs = saved
+	a.mu.Unlock()
 }
 
 func (a *App) switchTab(tabID string) {
@@ -1239,6 +1246,8 @@ func (a *App) handleSSHResize(w http.ResponseWriter, r *http.Request) {
 
 func (a *App) hostKeyCallback(host string) ssh.HostKeyCallback {
 	return func(_ string, _ net.Addr, key ssh.PublicKey) error {
+		a.configSaveMu.Lock()
+		defer a.configSaveMu.Unlock()
 		keyData := string(ssh.MarshalAuthorizedKey(key))
 		fingerprint := ssh.FingerprintSHA256(key)
 
