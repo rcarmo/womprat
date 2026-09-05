@@ -336,7 +336,31 @@ func SaveConfig(cfg *AppConfig) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, encrypted, 0600)
+	return writeEncryptedFile(path, encrypted)
+}
+
+// Write a complete private file before replacing the previous saved state.
+// Keeping the temporary file in the destination directory avoids cross-device
+// renames; failed writes leave the last successful config/credential intact.
+func writeEncryptedFile(path string, data []byte) error {
+	f, err := os.CreateTemp(filepath.Dir(path), ".womprat-save-*")
+	if err != nil {
+		return err
+	}
+	tmp := f.Name()
+	defer os.Remove(tmp)
+	if _, err = f.Write(data); err != nil {
+		f.Close()
+		return err
+	}
+	if err = f.Sync(); err != nil {
+		f.Close()
+		return err
+	}
+	if err = f.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmp, path)
 }
 
 // Credential store operations (Windows Credential Manager)
@@ -361,7 +385,7 @@ func SaveCredential(name, value string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 		return err
 	}
-	return os.WriteFile(path, encrypted, 0600)
+	return writeEncryptedFile(path, encrypted)
 }
 
 // GetCredential retrieves and decrypts a stored secret
