@@ -7,7 +7,7 @@
 # - provide a stable hook for local dependency/module patches
 
 APP       := womprat
-VERSION   ?= 0.3.1
+VERSION   ?= 0.3.2
 COMMIT    ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo dev)
 GO        ?= go
 BUN       ?= bun
