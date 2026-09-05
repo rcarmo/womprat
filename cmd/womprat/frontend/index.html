@@ -1114,7 +1114,7 @@ window.closeTab = function(id, e) {
   }
   if (closing?.type === 'rdp') {
     const root = panel?.querySelector?.('.rdp-panel');
-    try { root?.__wompratRdp?.disconnect?.(); } catch (err) { console.warn('rdp disconnect failed', err); }
+    try { root?.__wompratRdp?.dispose?.(); } catch (err) { console.warn('rdp disconnect failed', err); }
   }
   panel?.remove();
 

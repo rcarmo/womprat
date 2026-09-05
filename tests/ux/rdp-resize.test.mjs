@@ -34,3 +34,23 @@ test('visible viewport sends its exact dimensions',async()=>{
  await Bun.sleep(200);
  expect(sent).toEqual([[900,600]]);
 });
+
+test('disposing RDP stops observer, timer and pointer cache',async()=>{
+ const begin=source.indexOf('dispose(){this.disposed=true;');
+ const finish=source.indexOf('reconnect(){',begin);
+ const dispose=Function(`return ({${source.slice(begin,finish)}}).dispose`)();
+ let disconnected=0,removed=0,observerStopped=0;
+ const wrapper={disconnect(){disconnected++},pointer:{remove(){removed++}},resizeObserver:{disconnect(){observerStopped++}}};
+ dispose.call(wrapper);
+ expect(wrapper.disposed).toBe(true);
+ expect([disconnected,removed,observerStopped]).toEqual([1,1,1]);
+});
+
+test('startup does not construct a viewer after its panel is removed',async()=>{
+ const begin=source.indexOf('async function n2(');
+ const finish=source.indexOf('function h2(',begin);
+ let constructed=0;
+ const start=Function('F1','H1','E',`${source.slice(begin,finish)};return n2`)(async()=>true,class {constructor(){constructed++}},()=>{});
+ await start({isConnected:false},'rdp://test');
+ expect(constructed).toBe(0);
+});
