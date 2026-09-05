@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version string to embed (defaults to tag name or 0.1.0)'
+        description: 'Version string to embed (defaults to tag name or Makefile version)'
         required: false
         type: string
 
@@ -15,8 +15,22 @@ permissions:
   contents: write
 
 jobs:
+  windows-tests:
+    name: Execute Windows COM regression tests
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.x'
+          cache: false
+      - name: Test local WebView2 bindings
+        working-directory: internal/go-webview2
+        run: go test -v ./pkg/edge
+
   build-release:
     name: Build and publish Windows binaries
+    needs: windows-tests
     runs-on: ubuntu-latest
 
     steps:
@@ -50,16 +64,22 @@ jobs:
       - name: Compute release metadata
         id: meta
         shell: bash
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
         run: |
           if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
             version="${GITHUB_REF_NAME#v}"
             release_name="${GITHUB_REF_NAME}"
             prerelease=false
           else
-            version="${{ inputs.version }}"
-            if [[ -z "$version" ]]; then version="0.1.0"; fi
+            version="$INPUT_VERSION"
+            if [[ -z "$version" ]]; then version="$(awk '/^VERSION[[:space:]]/ {print $3; exit}' Makefile)"; fi
             release_name="manual-${GITHUB_RUN_NUMBER}"
             prerelease=true
+          fi
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([+-][A-Za-z0-9.-]+)?$ ]]; then
+            echo 'Invalid release version' >&2
+            exit 1
           fi
           commit="$(git rev-parse --short HEAD)"
           echo "version=$version" >> "$GITHUB_OUTPUT"
@@ -71,10 +91,16 @@ jobs:
         run: make verify
 
       - name: Build Windows ARM64
-        run: make windows-arm64 VERSION='${{ steps.meta.outputs.version }}' COMMIT='${{ steps.meta.outputs.commit }}'
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+          COMMIT: ${{ steps.meta.outputs.commit }}
+        run: make windows-arm64 VERSION="$VERSION" COMMIT="$COMMIT"
 
       - name: Build Windows Intel x64
-        run: make windows-intel VERSION='${{ steps.meta.outputs.version }}' COMMIT='${{ steps.meta.outputs.commit }}'
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+          COMMIT: ${{ steps.meta.outputs.commit }}
+        run: make windows-intel VERSION="$VERSION" COMMIT="$COMMIT"
 
       - name: Package artifacts
         shell: bash
