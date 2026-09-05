@@ -14,7 +14,7 @@ type ICoreWebView2NavigationCompletedEventArgs struct {
 }
 
 func (i *ICoreWebView2NavigationCompletedEventArgs) AddRef() uintptr {
-	r, _, _ := i.vtbl.AddRef.Call()
+	r, _, _ := i.vtbl.AddRef.Call(uintptr(unsafe.Pointer(i)))
 	return r
 }
 
@@ -23,15 +23,13 @@ func (i *ICoreWebView2NavigationCompletedEventArgs) AddRef() uintptr {
 // refused, proxy rejection, etc.) and GetWebErrorStatus describes the cause.
 func (i *ICoreWebView2NavigationCompletedEventArgs) IsSuccess() bool {
 	var isSuccess int32
-	// The COM call returns S_OK (0) on success; r1 is the HRESULT. Treat any
-	// failure to read the flag conservatively as "success" so a missing flag
-	// never turns a working navigation into a spurious error banner.
+	// A failed getter must not claim that navigation succeeded.
 	r, _, _ := i.vtbl.GetIsSuccess.Call(
 		uintptr(unsafe.Pointer(i)),
 		uintptr(unsafe.Pointer(&isSuccess)),
 	)
-	if r != 0 {
-		return true
+	if int32(r) < 0 {
+		return false
 	}
 	return isSuccess != 0
 }

@@ -4,8 +4,8 @@
 package edge
 
 import (
-	"unsafe"
 	"github.com/jchv/go-webview2/internal/w32"
+	"unsafe"
 )
 
 func (e *Chromium) Resize() {

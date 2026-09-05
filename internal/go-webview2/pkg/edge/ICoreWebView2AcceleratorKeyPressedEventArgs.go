@@ -21,7 +21,7 @@ type ICoreWebView2AcceleratorKeyPressedEventArgs struct {
 }
 
 func (i *ICoreWebView2AcceleratorKeyPressedEventArgs) AddRef() uintptr {
-	r, _, _ := i.vtbl.AddRef.Call()
+	r, _, _ := i.vtbl.AddRef.Call(uintptr(unsafe.Pointer(i)))
 	return r
 }
 

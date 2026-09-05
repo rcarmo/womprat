@@ -1,9 +1,8 @@
 package edge
 
 import (
+	"fmt"
 	"unsafe"
-
-	"golang.org/x/sys/windows"
 )
 
 type _ICoreWebView2WebResourceRequestedEventArgsVtbl struct {
@@ -20,32 +19,29 @@ type ICoreWebView2WebResourceRequestedEventArgs struct {
 }
 
 func (i *ICoreWebView2WebResourceRequestedEventArgs) AddRef() uintptr {
-	r, _, _ := i.vtbl.AddRef.Call()
+	r, _, _ := i.vtbl.AddRef.Call(uintptr(unsafe.Pointer(i)))
 	return r
 }
 
 func (i *ICoreWebView2WebResourceRequestedEventArgs) PutResponse(response *ICoreWebView2WebResourceResponse) error {
-	var err error
-
-	_, _, err = i.vtbl.PutResponse.Call(
+	hr, _, _ := i.vtbl.PutResponse.Call(
 		uintptr(unsafe.Pointer(i)),
 		uintptr(unsafe.Pointer(response)),
 	)
-	if err != windows.ERROR_SUCCESS {
-		return err
+	if int32(hr) < 0 {
+		return fmt.Errorf("PutResponse failed: HRESULT %#x", hr)
 	}
 	return nil
 }
 
 func (i *ICoreWebView2WebResourceRequestedEventArgs) GetRequest() (*ICoreWebView2WebResourceRequest, error) {
-	var err error
 	var request *ICoreWebView2WebResourceRequest
-	_, _, err = i.vtbl.GetRequest.Call(
+	hr, _, _ := i.vtbl.GetRequest.Call(
 		uintptr(unsafe.Pointer(i)),
 		uintptr(unsafe.Pointer(&request)),
 	)
-	if err != windows.ERROR_SUCCESS {
-		return nil, err
+	if int32(hr) < 0 || request == nil {
+		return nil, fmt.Errorf("GetRequest failed: HRESULT %#x", hr)
 	}
 	return request, nil
 }

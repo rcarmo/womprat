@@ -40,7 +40,7 @@ type ICoreWebView2Controller2 struct {
 }
 
 func (i *ICoreWebView2Controller2) AddRef() uintptr {
-	r, _, _ := i.vtbl.AddRef.Call()
+	r, _, _ := i.vtbl.AddRef.Call(uintptr(unsafe.Pointer(i)))
 	return r
 }
 

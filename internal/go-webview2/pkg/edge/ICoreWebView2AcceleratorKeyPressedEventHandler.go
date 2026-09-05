@@ -1,5 +1,7 @@
 package edge
 
+import "unsafe"
+
 type _ICoreWebView2AcceleratorKeyPressedEventHandlerVtbl struct {
 	_IUnknownVtbl
 	Invoke ComProc
@@ -11,7 +13,7 @@ type ICoreWebView2AcceleratorKeyPressedEventHandler struct {
 }
 
 func (i *ICoreWebView2AcceleratorKeyPressedEventHandler) AddRef() uintptr {
-	r, _, _ := i.vtbl.AddRef.Call()
+	r, _, _ := i.vtbl.AddRef.Call(uintptr(unsafe.Pointer(i)))
 	return r
 }
 func _ICoreWebView2AcceleratorKeyPressedEventHandlerIUnknownQueryInterface(this *ICoreWebView2AcceleratorKeyPressedEventHandler, refiid, object uintptr) uintptr {

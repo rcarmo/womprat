@@ -22,7 +22,7 @@ type ICoreWebView2WebResourceRequest struct {
 }
 
 func (i *ICoreWebView2WebResourceRequest) AddRef() uintptr {
-	r, _, _ := i.vtbl.AddRef.Call()
+	r, _, _ := i.vtbl.AddRef.Call(uintptr(unsafe.Pointer(i)))
 	return r
 }
 
