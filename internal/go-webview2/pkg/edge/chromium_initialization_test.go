@@ -23,3 +23,9 @@ func TestInitializationRejectsFailedHRESULT(t *testing.T) {
 		}
 	}
 }
+
+func TestEvalRejectsEmbeddedNULWithoutTerminatingProcess(t *testing.T) {
+	e := &Chromium{}
+	e.Eval("invalid\x00script")
+	e.Eval("valid script with no initialized webview")
+}

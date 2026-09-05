@@ -207,7 +207,11 @@ func (e *Chromium) Init(script string) {
 func (e *Chromium) Eval(script string) {
 	_script, err := windows.UTF16PtrFromString(script)
 	if err != nil {
-		log.Fatal(err)
+		log.Printf("Invalid script: %v", err)
+		return
+	}
+	if e.webview == nil {
+		return
 	}
 
 	_, _, _ = e.webview.vtbl.ExecuteScript.Call(
@@ -316,10 +320,14 @@ func (e *Chromium) CreateCoreWebView2ControllerCompleted(res uintptr, controller
 
 func (e *Chromium) MessageReceived(sender *ICoreWebView2, args *iCoreWebView2WebMessageReceivedEventArgs) uintptr {
 	var message *uint16
-	_, _, _ = args.vtbl.TryGetWebMessageAsString.Call(
+	hr, _, _ := args.vtbl.TryGetWebMessageAsString.Call(
 		uintptr(unsafe.Pointer(args)),
 		uintptr(unsafe.Pointer(&message)),
 	)
+	if int32(hr) < 0 || message == nil {
+		return 0
+	}
+	defer windows.CoTaskMemFree(unsafe.Pointer(message))
 	if e.MessageCallback != nil {
 		e.MessageCallback(w32.Utf16PtrToString(message))
 	}
@@ -327,7 +335,6 @@ func (e *Chromium) MessageReceived(sender *ICoreWebView2, args *iCoreWebView2Web
 		uintptr(unsafe.Pointer(sender)),
 		uintptr(unsafe.Pointer(message)),
 	)
-	windows.CoTaskMemFree(unsafe.Pointer(message))
 	return 0
 }
 
@@ -365,7 +372,8 @@ func (e *Chromium) PermissionRequested(_ *ICoreWebView2, args *iCoreWebView2Perm
 func (e *Chromium) WebResourceRequested(sender *ICoreWebView2, args *ICoreWebView2WebResourceRequestedEventArgs) uintptr {
 	req, err := args.GetRequest()
 	if err != nil {
-		log.Fatal(err)
+		log.Printf("Get web resource request failed: %v", err)
+		return 0
 	}
 	if e.WebResourceRequestedCallback != nil {
 		e.WebResourceRequestedCallback(req, args)
