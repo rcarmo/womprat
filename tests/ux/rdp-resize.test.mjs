@@ -54,3 +54,15 @@ test('startup does not construct a viewer after its panel is removed',async()=>{
  await start({isConnected:false},'rdp://test');
  expect(constructed).toBe(0);
 });
+
+test('RDP text bridge errors reach message parser',()=>{
+ const begin=source.indexOf('this.socket.onmessage=(z)=>');
+ const finish=source.indexOf(',this.socket.onerror=',begin);
+ const install=Function(source.slice(begin,finish));
+ let received;
+ const client={socket:{},handleMessage(data){received=new TextDecoder().decode(data)}};
+ install.call(client);
+ const message=JSON.stringify({type:'error',message:'authentication failed'});
+ client.socket.onmessage({data:message});
+ expect(received).toBe(message);
+});
