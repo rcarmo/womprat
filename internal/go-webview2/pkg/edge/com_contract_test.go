@@ -56,3 +56,16 @@ func TestProcessFailureGetterErrorIsReportedAsUnknown(t *testing.T) {
 		t.Fatalf("failure kind=%d", got)
 	}
 }
+
+func TestUnreadablePermissionKindCannotUseGlobalGrant(t *testing.T) {
+	args := &iCoreWebView2PermissionRequestedEventArgs{vtbl: &iCoreWebView2PermissionRequestedEventArgsVtbl{}}
+	args.vtbl.GetPermissionKind = NewComProc(func(this, out uintptr) uintptr { return 0x80004005 })
+	var state uintptr
+	args.vtbl.PutState = NewComProc(func(this, value uintptr) uintptr { state = value; return 0 })
+	grant := CoreWebView2PermissionStateAllow
+	e := &Chromium{globalPermission: &grant}
+	e.PermissionRequested(nil, args)
+	if state != uintptr(CoreWebView2PermissionStateDeny) {
+		t.Fatalf("state=%d", state)
+	}
+}

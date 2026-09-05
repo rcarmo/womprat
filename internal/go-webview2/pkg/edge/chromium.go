@@ -400,12 +400,15 @@ func (e *Chromium) SetGlobalPermission(state CoreWebView2PermissionState) {
 
 func (e *Chromium) PermissionRequested(_ *ICoreWebView2, args *iCoreWebView2PermissionRequestedEventArgs) uintptr {
 	var kind CoreWebView2PermissionKind
-	_, _, _ = args.vtbl.GetPermissionKind.Call(
+	hr, _, _ := args.vtbl.GetPermissionKind.Call(
 		uintptr(unsafe.Pointer(args)),
 		uintptr(unsafe.Pointer(&kind)),
 	)
 	var result CoreWebView2PermissionState
-	if e.globalPermission != nil {
+	if int32(hr) < 0 {
+		// Never apply a permission grant to an unreadable permission kind.
+		result = CoreWebView2PermissionStateDeny
+	} else if e.globalPermission != nil {
 		result = *e.globalPermission
 	} else {
 		var ok bool
