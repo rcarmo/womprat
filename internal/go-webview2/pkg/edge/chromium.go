@@ -103,7 +103,7 @@ func (e *Chromium) Embed(hwnd uintptr) bool {
 			0,
 			0,
 		)
-		if r == 0 {
+		if r == 0 || int32(r) == -1 {
 			break
 		}
 		_, _, _ = w32.User32TranslateMessage.Call(uintptr(unsafe.Pointer(&msg)))
@@ -238,7 +238,7 @@ func (e *Chromium) Release() uintptr {
 }
 
 func (e *Chromium) EnvironmentCompleted(res uintptr, env *ICoreWebView2Environment) uintptr {
-	if int64(res) < 0 || env == nil {
+	if int32(res) < 0 || env == nil {
 		log.Printf("Creating environment failed with %08x", res)
 		atomic.StoreUintptr(&e.inited, 2)
 		return 0
@@ -247,16 +247,20 @@ func (e *Chromium) EnvironmentCompleted(res uintptr, env *ICoreWebView2Environme
 	_, _, _ = env.vtbl.AddRef.Call(uintptr(unsafe.Pointer(env)))
 	e.environment = env
 
-	_, _, _ = env.vtbl.CreateCoreWebView2Controller.Call(
+	hr, _, _ := env.vtbl.CreateCoreWebView2Controller.Call(
 		uintptr(unsafe.Pointer(env)),
 		e.hwnd,
 		uintptr(unsafe.Pointer(e.controllerCompleted)),
 	)
+	if int32(hr) < 0 {
+		log.Printf("Starting controller creation failed with %08x", hr)
+		atomic.StoreUintptr(&e.inited, 2)
+	}
 	return 0
 }
 
 func (e *Chromium) CreateCoreWebView2ControllerCompleted(res uintptr, controller *ICoreWebView2Controller) uintptr {
-	if int64(res) < 0 || controller == nil {
+	if int32(res) < 0 || controller == nil {
 		log.Printf("Creating controller failed with %08x", res)
 		atomic.StoreUintptr(&e.inited, 2)
 		return 0
@@ -266,10 +270,15 @@ func (e *Chromium) CreateCoreWebView2ControllerCompleted(res uintptr, controller
 	e.controller = controller
 
 	var token _EventRegistrationToken
-	_, _, _ = controller.vtbl.GetCoreWebView2.Call(
+	hr, _, _ := controller.vtbl.GetCoreWebView2.Call(
 		uintptr(unsafe.Pointer(controller)),
 		uintptr(unsafe.Pointer(&e.webview)),
 	)
+	if int32(hr) < 0 || e.webview == nil {
+		log.Printf("Getting controller WebView failed with %08x", hr)
+		atomic.StoreUintptr(&e.inited, 2)
+		return 0
+	}
 	_, _, _ = e.webview.vtbl.AddRef.Call(
 		uintptr(unsafe.Pointer(e.webview)),
 	)
