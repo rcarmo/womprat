@@ -175,9 +175,21 @@ func main() {
 }
 
 func serveLocalHTTP(listener net.Listener, handler http.Handler) {
-	if err := http.Serve(listener, handler); err != nil && !errors.Is(err, http.ErrServerClosed) {
+	if err := http.Serve(listener, localHostGuard(listener.Addr().String(), handler)); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Printf("local HTTP server stopped: %v", err)
 	}
+}
+
+// The shell embeds its session token. Loopback binding alone does not prevent
+// DNS rebinding: reject foreign Host headers before serving any shell or API.
+func localHostGuard(address string, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Host != address {
+			http.Error(w, "Invalid local host", http.StatusForbidden)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func jsString(v interface{}) string {
