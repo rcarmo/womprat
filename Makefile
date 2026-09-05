@@ -107,7 +107,11 @@ compile-windows: ## Compile-only check for Windows arm64 and amd64
 	GOOS=windows GOARCH=arm64 $(GO) build $(GOFLAGS) -o /dev/null ./$(CMD_DIR)
 	GOOS=windows GOARCH=amd64 $(GO) build $(GOFLAGS) -o /dev/null ./$(CMD_DIR)
 
-verify: frontend-check test vet compile-windows ## Run all non-interactive checks
+.PHONY: frontend-test
+frontend-test: ## Run server-independent frontend behavioural regression tests
+	$(BUN) test tests/ux/rdp-resize.test.mjs
+
+verify: frontend-check frontend-test test vet compile-windows ## Run all non-interactive checks
 
 # Icons/resources ------------------------------------------------------------
 
