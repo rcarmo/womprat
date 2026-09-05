@@ -118,6 +118,7 @@ button,a,.tab,.recent-item,.option{
 .vnc-password{margin-left:auto;width:128px}.vnc-clipboard{min-width:160px;max-width:360px;width:28vw}.vnc-send,.vnc-copy,.vnc-paste,.vnc-reconnect,.vnc-scale,.rdp-connect,.rdp-scale{height:24px;min-width:52px;padding:0 10px;font-size:12px;font-weight:600}.rdp-user,.rdp-password{width:100%;height:30px}.rdp-depth{width:74px}.rdp-toggle{display:inline-flex;align-items:center;gap:4px;height:24px;color:var(--text-secondary);white-space:nowrap}.rdp-toggle input{accent-color:var(--accent)}
 .vnc-viewport,.rdp-viewport{position:relative;z-index:1;min-height:0;min-width:0;display:grid;place-items:center;overflow:hidden;contain:layout paint;background:radial-gradient(circle at 50% 30%,rgba(255,255,255,.06),transparent 42%),#050609}.rdp-viewport{display:none}.rdp-panel[data-connecting] .rdp-viewport,.rdp-panel[data-connected] .rdp-viewport{display:grid}
 .vnc-viewport canvas,.rdp-viewport canvas{display:block;box-sizing:border-box;max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;image-rendering:auto;background:#000;border:0!important;border-radius:0!important;box-shadow:none!important;outline:0!important}
+.rdp-viewport canvas{object-fit:fill}
 .vnc-viewport canvas:focus,.rdp-viewport canvas:focus{border:0!important;box-shadow:none!important;outline:0!important}
 @keyframes vncPulse{0%,100%{opacity:.55}50%{opacity:1}}
 

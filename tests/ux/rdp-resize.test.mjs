@@ -81,3 +81,8 @@ test('connection preserves per-tab viewport, depth and audio parameters',()=>{
  expect(opened.searchParams.get('audio')).toBe('false');
  expect(audio).toBe(0);
 });
+
+test('RDP bitmap fills its CSS box to match independent pointer axes',()=>{
+ const html=readFileSync(new URL('../../cmd/womprat/frontend/index.html',import.meta.url),'utf8');
+ expect(html).toContain('.rdp-viewport canvas{object-fit:fill}');
+});
