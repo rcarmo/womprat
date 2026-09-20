@@ -99,28 +99,31 @@ type browserContentManager interface {
 }
 
 type App struct {
-	configSaveMu   sync.Mutex // acquire before mu for snapshot/save/commit
-	tsStartMu      sync.Mutex // serialize tsnet startup and replacement
-	tsRetryMu      sync.Mutex
-	tsRetrying     bool
-	tsRetryStop    chan struct{}
-	mu             sync.Mutex
-	config         *AppConfig
-	tsServer       *tsnet.Server
-	tsLastError    string
-	exitNodeActive bool
-	tabs           []Tab
-	activeTab      string
-	sshConns       map[string]*ssh.Client
-	pendingAuth    map[string]*pendingSSH
-	sessionToken   string
-	locked         bool
-	webview        shellWebView
-	contentViews   browserContentManager
-	dispatch       func(func())
-	serverPort     int
-	lastCloseAt    time.Time
-	lastCloseTab   string
+	configSaveMu    sync.Mutex // acquire before mu for snapshot/save/commit
+	tsStartMu       sync.Mutex // serialize tsnet startup and replacement
+	tsRetryMu       sync.Mutex
+	tsRetrying      bool
+	tsRetryStop     chan struct{}
+	tsRetryDone     chan struct{}
+	tsRetryInterval time.Duration
+	tsRetryStart    func() error
+	mu              sync.Mutex
+	config          *AppConfig
+	tsServer        *tsnet.Server
+	tsLastError     string
+	exitNodeActive  bool
+	tabs            []Tab
+	activeTab       string
+	sshConns        map[string]*ssh.Client
+	pendingAuth     map[string]*pendingSSH
+	sessionToken    string
+	locked          bool
+	webview         shellWebView
+	contentViews    browserContentManager
+	dispatch        func(func())
+	serverPort      int
+	lastCloseAt     time.Time
+	lastCloseTab    string
 }
 
 func main() {
@@ -847,7 +850,17 @@ func (a *App) scheduleTailscaleRetry() {
 		return
 	}
 	stop := make(chan struct{})
+	done := make(chan struct{})
+	interval := a.tsRetryInterval
+	if interval <= 0 {
+		interval = tailscaleRetryInterval
+	}
+	start := a.tsRetryStart
+	if start == nil {
+		start = a.startTailscale
+	}
 	a.tsRetryStop = stop
+	a.tsRetryDone = done
 	a.tsRetrying = true
 	a.tsRetryMu.Unlock()
 
@@ -856,13 +869,15 @@ func (a *App) scheduleTailscaleRetry() {
 			a.tsRetryMu.Lock()
 			a.tsRetrying = false
 			a.tsRetryStop = nil
+			a.tsRetryDone = nil
+			close(done)
 			a.tsRetryMu.Unlock()
 		}()
 		for attempt := 1; ; attempt++ {
 			if a.ts() != nil {
 				return
 			}
-			if err := a.startTailscale(); err == nil {
+			if err := start(); err == nil {
 				log.Printf("Tailscale retry connected on attempt %d", attempt)
 				return
 			} else if errors.Is(err, errNoTailscaleAuthKey) {
@@ -870,11 +885,16 @@ func (a *App) scheduleTailscaleRetry() {
 			} else {
 				log.Printf("Tailscale retry %d failed: %v", attempt, err)
 			}
-			timer := time.NewTimer(tailscaleRetryInterval)
+			timer := time.NewTimer(interval)
 			select {
 			case <-timer.C:
 			case <-stop:
-				timer.Stop()
+				if !timer.Stop() {
+					select {
+					case <-timer.C:
+					default:
+					}
+				}
 				return
 			}
 		}
@@ -894,10 +914,14 @@ func (a *App) setTailscaleError(err error) {
 func (a *App) stopTailscaleRetry() {
 	a.tsRetryMu.Lock()
 	stop := a.tsRetryStop
-	a.tsRetryStop = nil
-	a.tsRetryMu.Unlock()
+	done := a.tsRetryDone
 	if stop != nil {
 		close(stop)
+		a.tsRetryStop = nil
+	}
+	a.tsRetryMu.Unlock()
+	if done != nil {
+		<-done
 	}
 }
 
