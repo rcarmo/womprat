@@ -16,6 +16,7 @@ test('tab drop before/after and append preserve stable ID order', () => {
   globalThis.validTabID = id => typeof id === 'string' && /^[a-z]+$/.test(id);
   globalThis.renderTabs = () => {};
   globalThis.saveOpenTabs = () => {};
+  globalThis.queueNativeTabMutation = operation => Promise.resolve().then(operation);
   globalThis.window = { womprat_reorderTab() {} };
   expect(tabHelpers.tabDropBeforeID('a', 'b', true)).toBe('c');
   tabHelpers.reorderTab('a', '');
@@ -40,14 +41,16 @@ test('blank-tab navigation registers native state before navigating', async () =
   expect(events).toEqual(['register','navigate:example.com']);
 });
 
-test('native tab registrations preserve call order', async () => {
-  const begin = source.indexOf('let nativeTabRegistrationQueue = Promise.resolve();');
+test('native tab registrations and mutations preserve call order', async () => {
+  const begin = source.indexOf('let nativeTabMutationQueue = Promise.resolve();');
   const end = source.indexOf('function loadURLHistory()', begin);
   const events = [];
-  const register = Function('window',`${source.slice(begin,end)}; return registerLocalTab`)(
-    { womprat_registerLocalTab: async payload => { const tab=JSON.parse(payload); await Bun.sleep(tab.delay); events.push(tab.id); } });
-  await Promise.all([register({id:'first',delay:10}), register({id:'second',delay:0})]);
-  expect(events).toEqual(['first','second']);
+  const helpers = Function('window',`${source.slice(begin,end)}; return {registerLocalTab,queueNativeTabMutation}`)(
+    { womprat_registerLocalTab: async payload => { const tab=JSON.parse(payload); await Bun.sleep(tab.delay); events.push(`register:${tab.id}`); } });
+  const registration=helpers.registerLocalTab({id:'blank',delay:10});
+  const close=helpers.queueNativeTabMutation(async()=>events.push('close:blank'),'close failed');
+  await Promise.all([registration,close]);
+  expect(events).toEqual(['register:blank','close:blank']);
 });
 
 test('tab persistence coalesces concurrent saves to newest snapshot', async () => {

@@ -589,14 +589,17 @@ function validTabID(id) {
   const value = String(id || '').trim();
   return !!value && value.length <= 128 && !/[\s\/\\?#]/.test(value);
 }
-let nativeTabRegistrationQueue = Promise.resolve();
+let nativeTabMutationQueue = Promise.resolve();
+function queueNativeTabMutation(operation, failureMessage) {
+  nativeTabMutationQueue = nativeTabMutationQueue
+    .then(operation)
+    .catch(err => console.warn(failureMessage, err));
+  return nativeTabMutationQueue;
+}
 function registerLocalTab(tab) {
   if (!window.womprat_registerLocalTab) return Promise.resolve();
   const payload = JSON.stringify(tab);
-  nativeTabRegistrationQueue = nativeTabRegistrationQueue
-    .then(() => window.womprat_registerLocalTab(payload))
-    .catch(err => console.warn('native tab registration failed', err));
-  return nativeTabRegistrationQueue;
+  return queueNativeTabMutation(() => window.womprat_registerLocalTab(payload), 'native tab registration failed');
 }
 function loadURLHistory() {
   try {
@@ -1198,9 +1201,9 @@ window.closeTab = function(id, e) {
   panel?.remove();
 
   if (closing?.type === 'settings') {
-    if (window.womprat_forgetTab) window.womprat_forgetTab(id);
+    if (window.womprat_forgetTab) queueNativeTabMutation(() => window.womprat_forgetTab(id), 'native tab forget failed');
   } else if (window.womprat_closeTab) {
-    window.womprat_closeTab(id);
+    queueNativeTabMutation(() => window.womprat_closeTab(id), 'native tab close failed');
   }
 
   saveOpenTabs();
@@ -1357,7 +1360,7 @@ function reorderTab(fromId, beforeId) {
   saveOpenTabs();
   // Pass the destination tab id (not an index) so Go reorders against its own
   // authoritative array with identical "insert before id" semantics.
-  if (window.womprat_reorderTab) window.womprat_reorderTab(fromId, beforeId);
+  if (window.womprat_reorderTab) queueNativeTabMutation(() => window.womprat_reorderTab(fromId, beforeId), 'native tab reorder failed');
 }
 
 function updateRemoteTabTitle(tabId, title) {
