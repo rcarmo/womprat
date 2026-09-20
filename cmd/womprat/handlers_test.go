@@ -278,12 +278,19 @@ func TestHostsAppearanceAndSaveTabsHandlers(t *testing.T) {
 	if rr.Code != 200 || !strings.Contains(rr.Body.String(), "smith") {
 		t.Fatalf("get hosts = %d %s", rr.Code, rr.Body.String())
 	}
+	if err := SaveCredential("ssh-key/shared", "private-key"); err != nil {
+		t.Fatal(err)
+	}
+	app.config.Hosts["smith"] = HostConfig{KeyName: "shared", HostKey: "ssh-ed25519 pinned"}
 	rr = performJSON(app.handleHosts, http.MethodDelete, "/api/settings/hosts/smith", nil)
 	if rr.Code != http.StatusOK {
 		t.Fatalf("delete host = %d %s", rr.Code, rr.Body.String())
 	}
 	if _, ok := app.config.Hosts["smith"]; ok {
 		t.Fatal("deleted host remains in config")
+	}
+	if got, err := GetCredential("ssh-key/shared"); err != nil || got != "private-key" {
+		t.Fatalf("host deletion removed shared SSH credential: got=%q err=%v", got, err)
 	}
 	rr = performJSON(app.handleHosts, http.MethodDelete, "/api/settings/hosts/bad/extra", nil)
 	if rr.Code != http.StatusBadRequest {
