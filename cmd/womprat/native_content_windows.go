@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
 	"net/url"
 	"os"
 	"strings"
@@ -82,14 +83,15 @@ func chromePx(hwnd uintptr) int32 {
 type winRect struct{ Left, Top, Right, Bottom int32 }
 
 type nativeContentManager struct {
-	mu            sync.Mutex
-	parent        uintptr
-	shellHWND     uintptr
-	dataPath      string
-	shell         shellWebView
-	tsConnected   func() bool
-	browserActive string
-	views         map[string]*nativeContentView
+	mu              sync.Mutex
+	parent          uintptr
+	shellHWND       uintptr
+	dataPath        string
+	shell           shellWebView
+	tsConnected     func() bool
+	prepareDownload func(string, []*http.Cookie) (string, error)
+	browserActive   string
+	views           map[string]*nativeContentView
 }
 
 func newNativeContentManager(parent uintptr, shellHWND uintptr, dataPath string, shell shellWebView) (*nativeContentManager, error) {
@@ -115,7 +117,7 @@ func (m *nativeContentManager) Ensure(tabID string) browserContentView {
 	// this same UI thread. Holding the lock across the pump self-deadlocks. We
 	// re-acquire only to publish the finished view.
 	log.Printf("content: Ensure %s -> creating new view (parent=0x%x dataPath=%q)", tabID, m.parent, m.dataPath)
-	v, err := newNativeContentView(m.parent, m.dataPath, tabID, m.shell, m.tsConnected)
+	v, err := newNativeContentView(m.parent, m.dataPath, tabID, m.shell, m.tsConnected, m.prepareDownload)
 	if err != nil {
 		log.Printf("content WebView for %s unavailable: %v", tabID, err)
 		if m.shell != nil {
@@ -282,7 +284,7 @@ type nativeContentView struct {
 	edge        *webview2edge.Chromium
 }
 
-func newNativeContentView(parent uintptr, dataPath, tabID string, shell shellWebView, tsConnected func() bool) (*nativeContentView, error) {
+func newNativeContentView(parent uintptr, dataPath, tabID string, shell shellWebView, tsConnected func() bool, prepareDownload func(string, []*http.Cookie) (string, error)) (*nativeContentView, error) {
 	if err := registerChildClass(); err != nil {
 		return nil, err
 	}
@@ -323,7 +325,7 @@ func newNativeContentView(parent uintptr, dataPath, tabID string, shell shellWeb
 			case "open":
 				cv.shell.Eval(fmt.Sprintf("window.womprat_newBrowser(%s)", jsString(targetURL)))
 			case "download":
-				cv.shell.Eval(fmt.Sprintf("window.triggerDownload(%s)", jsString(targetURL)))
+				cv.prepareManagedDownload(targetURL, prepareDownload)
 			}
 			return
 		}
@@ -580,6 +582,30 @@ func (v *nativeContentView) resize() {
 	nativeSetWindowPos(v.hwnd, hwndTop, 0, chrome, width, height, swpNoActivate|swpNoZOrder, "content view resize")
 	if v.edge != nil {
 		v.edge.Resize()
+	}
+}
+
+func (v *nativeContentView) prepareManagedDownload(targetURL string, prepare func(string, []*http.Cookie) (string, error)) {
+	if v.edge == nil || v.shell == nil || prepare == nil {
+		return
+	}
+	if !sameHTTPOrigin(v.url, targetURL) {
+		v.shell.Eval(fmt.Sprintf("window.triggerDownload(%s)", jsString(targetURL)))
+		return
+	}
+	if err := v.edge.GetCookies(targetURL, func(cookies []*http.Cookie, err error) {
+		if err != nil {
+			v.shell.Eval(fmt.Sprintf("window.wompratDownloadError(%s)", jsString("Could not read browser cookies: "+err.Error())))
+			return
+		}
+		ticket, err := prepare(targetURL, cookies)
+		if err != nil {
+			v.shell.Eval(fmt.Sprintf("window.wompratDownloadError(%s)", jsString("Could not prepare download: "+err.Error())))
+			return
+		}
+		v.shell.Eval(fmt.Sprintf("window.triggerDownload(%s,%s)", jsString(targetURL), jsString(ticket)))
+	}); err != nil {
+		v.shell.Eval(fmt.Sprintf("window.wompratDownloadError(%s)", jsString("Could not read browser cookies: "+err.Error())))
 	}
 }
 

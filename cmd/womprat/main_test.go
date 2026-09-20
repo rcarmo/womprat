@@ -26,11 +26,12 @@ func newTestApp(t *testing.T) *App {
 	t.Helper()
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	return &App{
-		config:       defaultConfig(),
-		sshConns:     map[string]*ssh.Client{},
-		pendingAuth:  map[string]*pendingSSH{},
-		sessionToken: "test-token",
-		webview:      &fakeWebView{},
+		config:          defaultConfig(),
+		sshConns:        map[string]*ssh.Client{},
+		pendingAuth:     map[string]*pendingSSH{},
+		downloadTickets: map[string]downloadTicket{},
+		sessionToken:    "test-token",
+		webview:         &fakeWebView{},
 	}
 }
 

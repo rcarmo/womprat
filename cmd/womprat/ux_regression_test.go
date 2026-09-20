@@ -1202,7 +1202,9 @@ func TestBrowserUXAuditFixesArePresent(t *testing.T) {
 		"window.open = function(url, target, features)",
 		"func parseBrowserActionMessage(raw string) (string, string)",
 		"window.womprat_newBrowser(%s)",
-		"window.triggerDownload(%s)",
+		"v.prepareManagedDownload(targetURL, prepareDownload)",
+		"if !sameHTTPOrigin(v.url, targetURL) {",
+		"window.triggerDownload(%s,%s)",
 	} {
 		if !strings.Contains(native, want) {
 			t.Fatalf("popup/download bridge missing %q", want)
@@ -1925,7 +1927,9 @@ func TestFrontendValidatesDownloadURLs(t *testing.T) {
 		"if (u.protocol !== 'http:' && u.protocol !== 'https:') return '';",
 		"Invalid download URL",
 		"let start;",
-		"start = await fetch('/api/download?url=' + encodeURIComponent(url));",
+		"const query = new URLSearchParams({url});",
+		"if (ticket) query.set('ticket', ticket);",
+		"start = await fetch('/api/download?' + query.toString());",
 		"if (!start.ok)",
 	} {
 		if !strings.Contains(s, want) {

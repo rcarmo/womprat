@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sync"
 	"sync/atomic"
 	"unsafe"
 
@@ -48,6 +49,9 @@ type Chromium struct {
 	WebResourceRequestedCallback func(request *ICoreWebView2WebResourceRequest, args *ICoreWebView2WebResourceRequestedEventArgs)
 	NavigationCompletedCallback  func(sender *ICoreWebView2, args *ICoreWebView2NavigationCompletedEventArgs)
 	AcceleratorKeyCallback       func(uint) bool
+
+	cookieMu       sync.Mutex
+	cookieRequests map[*ICoreWebView2GetCookiesCompletedHandler]*cookieRequest
 }
 
 func NewChromium() *Chromium {
@@ -73,6 +77,7 @@ func NewChromium() *Chromium {
 	e.newWindowRequested = newICoreWebView2NewWindowRequestedEventHandler(e)
 	e.processFailed = newICoreWebView2ProcessFailedEventHandler(e)
 	e.permissions = make(map[CoreWebView2PermissionKind]CoreWebView2PermissionState)
+	e.cookieRequests = make(map[*ICoreWebView2GetCookiesCompletedHandler]*cookieRequest)
 
 	return e
 }

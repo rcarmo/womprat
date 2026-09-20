@@ -99,33 +99,35 @@ type browserContentManager interface {
 }
 
 type App struct {
-	configSaveMu    sync.Mutex // acquire before mu for snapshot/save/commit
-	tsStartMu       sync.Mutex // serialize tsnet startup and replacement
-	tsRetryMu       sync.Mutex
-	tsRetrying      bool
-	tsRetryCancel   context.CancelFunc
-	tsRetryDone     chan struct{}
-	tsRetryInterval time.Duration
-	tsRetryStart    func(context.Context) error
-	exitNodeApply   func(context.Context, string) error
-	exitNodeState   func(context.Context) (bool, error)
-	mu              sync.Mutex
-	config          *AppConfig
-	tsServer        *tsnet.Server
-	tsLastError     string
-	exitNodeActive  bool
-	tabs            []Tab
-	activeTab       string
-	sshConns        map[string]*ssh.Client
-	pendingAuth     map[string]*pendingSSH
-	sessionToken    string
-	locked          bool
-	webview         shellWebView
-	contentViews    browserContentManager
-	dispatch        func(func())
-	serverPort      int
-	lastCloseAt     time.Time
-	lastCloseTab    string
+	configSaveMu     sync.Mutex // acquire before mu for snapshot/save/commit
+	tsStartMu        sync.Mutex // serialize tsnet startup and replacement
+	tsRetryMu        sync.Mutex
+	tsRetrying       bool
+	tsRetryCancel    context.CancelFunc
+	tsRetryDone      chan struct{}
+	tsRetryInterval  time.Duration
+	tsRetryStart     func(context.Context) error
+	exitNodeApply    func(context.Context, string) error
+	exitNodeState    func(context.Context) (bool, error)
+	mu               sync.Mutex
+	config           *AppConfig
+	tsServer         *tsnet.Server
+	tsLastError      string
+	exitNodeActive   bool
+	tabs             []Tab
+	activeTab        string
+	sshConns         map[string]*ssh.Client
+	pendingAuth      map[string]*pendingSSH
+	sessionToken     string
+	locked           bool
+	webview          shellWebView
+	contentViews     browserContentManager
+	downloadTicketMu sync.Mutex
+	downloadTickets  map[string]downloadTicket
+	dispatch         func(func())
+	serverPort       int
+	lastCloseAt      time.Time
+	lastCloseTab     string
 }
 
 func main() {
@@ -149,11 +151,12 @@ func main() {
 		log.Fatalf("session token generation failed: %v", err)
 	}
 	app := &App{
-		config:       cfg,
-		sshConns:     make(map[string]*ssh.Client),
-		pendingAuth:  make(map[string]*pendingSSH),
-		sessionToken: token,
-		locked:       shouldStartLocked(cfg),
+		config:          cfg,
+		sshConns:        make(map[string]*ssh.Client),
+		pendingAuth:     make(map[string]*pendingSSH),
+		downloadTickets: make(map[string]downloadTicket),
+		sessionToken:    token,
+		locked:          shouldStartLocked(cfg),
 	}
 	// Configured and active are distinct: the route becomes active only after
 	// the current tsnet session accepts the exit-node preference.

@@ -2004,7 +2004,15 @@ function downloadDisplayName(url) {
     return decodeURLComponent(u.pathname.split('/').pop() || '') || 'download';
   } catch (err) { console.debug('download display name unavailable', err); return ''; }
 }
-window.triggerDownload = async function(url) {
+window.wompratDownloadError = function(message) {
+  const bar = document.getElementById('download-bar');
+  bar.classList.add('active');
+  document.getElementById('dl-filename').textContent = 'download';
+  document.getElementById('dl-progress').style.width = '0%';
+  document.getElementById('dl-status').textContent = String(message || 'Could not prepare download');
+  setTimeout(() => bar.classList.remove('active'), 5000);
+};
+window.triggerDownload = async function(url, ticket = '') {
   const bar = document.getElementById('download-bar');
   const fname = document.getElementById('dl-filename');
   const prog = document.getElementById('dl-progress');
@@ -2025,7 +2033,9 @@ window.triggerDownload = async function(url) {
   
   let start;
   try {
-    start = await fetch('/api/download?url=' + encodeURIComponent(url));
+    const query = new URLSearchParams({url});
+    if (ticket) query.set('ticket', ticket);
+    start = await fetch('/api/download?' + query.toString());
   } catch (err) {
     status.textContent = 'Error: ' + err.message;
     setTimeout(() => bar.classList.remove('active'), 5000);

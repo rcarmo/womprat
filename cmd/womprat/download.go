@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/http/cookiejar"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -31,8 +32,9 @@ type downloadState struct {
 }
 
 var (
-	currentDownload *downloadState
-	downloadMu      sync.Mutex
+	currentDownload  *downloadState
+	downloadStarting bool
+	downloadMu       sync.Mutex
 )
 
 // handleDownload initiates a file download using the same routing policy as the browser.
@@ -52,6 +54,29 @@ func (a *App) handleDownload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	downloadMu.Lock()
+	if downloadStarting || (currentDownload != nil && currentDownload.Status == "downloading") {
+		downloadMu.Unlock()
+		httpError(w, http.StatusConflict, "A download is already in progress", "Wait for it to finish before starting another download.")
+		return
+	}
+	downloadStarting = true
+	downloadMu.Unlock()
+	reserved := true
+	defer func() {
+		if reserved {
+			downloadMu.Lock()
+			downloadStarting = false
+			downloadMu.Unlock()
+		}
+	}()
+
+	cookies, err := a.consumeDownloadTicket(r.URL.Query().Get("ticket"), parsed.String())
+	if err != nil {
+		httpError(w, http.StatusForbidden, "Invalid download ticket", err.Error())
+		return
+	}
+
 	downloadsDir := getDownloadsDir()
 	if err := os.MkdirAll(downloadsDir, 0755); err != nil {
 		httpError(w, 500, "Download directory unavailable", err.Error())
@@ -67,15 +92,12 @@ func (a *App) handleDownload(w http.ResponseWriter, r *http.Request) {
 		Path:     savePath,
 	}
 	downloadMu.Lock()
-	if currentDownload != nil && currentDownload.Status == "downloading" {
-		downloadMu.Unlock()
-		httpError(w, http.StatusConflict, "A download is already in progress", "Wait for it to finish before starting another download.")
-		return
-	}
 	currentDownload = st
+	downloadStarting = false
+	reserved = false
 	downloadMu.Unlock()
 
-	go a.downloadToFile(parsed.String(), savePath, st)
+	go a.downloadToFile(parsed.String(), savePath, st, cookies)
 
 	writeJSON(w, http.StatusOK, map[string]string{
 		"status":   "started",
@@ -83,7 +105,7 @@ func (a *App) handleDownload(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (a *App) downloadToFile(targetURL, savePath string, st *downloadState) {
+func (a *App) downloadToFile(targetURL, savePath string, st *downloadState, cookies ...[]*http.Cookie) {
 	transport := &http.Transport{
 		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 			a.mu.Lock()
@@ -96,9 +118,22 @@ func (a *App) downloadToFile(targetURL, savePath string, st *downloadState) {
 		},
 	}
 	defer transport.CloseIdleConnections()
-	client := &http.Client{Transport: transport, Timeout: 5 * time.Minute}
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		setDownloadError(st, err)
+		return
+	}
+	client := &http.Client{Transport: transport, Timeout: 5 * time.Minute, Jar: jar}
 
-	resp, err := client.Get(targetURL)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, targetURL, nil)
+	if err != nil {
+		setDownloadError(st, err)
+		return
+	}
+	if len(cookies) > 0 {
+		jar.SetCookies(req.URL, cookiesForDownloadURL(req.URL, cookies[0]))
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		setDownloadError(st, err)
 		return
@@ -159,6 +194,22 @@ func (a *App) downloadToFile(targetURL, savePath string, st *downloadState) {
 			return
 		}
 	}
+}
+
+func cookiesForDownloadURL(target *url.URL, cookies []*http.Cookie) []*http.Cookie {
+	now := time.Now()
+	out := make([]*http.Cookie, 0, len(cookies))
+	for _, cookie := range cookies {
+		if cookie == nil || (cookie.Secure && target.Scheme != "https") || (!cookie.Expires.IsZero() && !cookie.Expires.After(now)) {
+			continue
+		}
+		copy := *cookie
+		// WebView2 has already matched Domain for target. Keep the private jar
+		// host-only so redirect handling cannot widen that decision to subdomains.
+		copy.Domain = ""
+		out = append(out, &copy)
+	}
+	return out
 }
 
 func setDownloadError(st *downloadState, err error) {

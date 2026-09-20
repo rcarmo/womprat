@@ -221,6 +221,7 @@ func runGUI(app *App, shellURL string) {
 		log.Printf("content WebView manager unavailable: %v", err)
 	} else {
 		contentViews.tsConnected = app.tailscaleConnected
+		contentViews.prepareDownload = app.createDownloadTicket
 		app.contentViews = contentViews
 		activeHost = contentViews
 		contentViews.HideAll()
