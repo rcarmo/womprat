@@ -60,6 +60,30 @@ func TestShutdownStopsRetryWorker(t *testing.T) {
 	}
 }
 
+func TestConfiguredExitNodeFailureIsExposedAndCleared(t *testing.T) {
+	app := newTestApp(t)
+	app.exitNodeApply = func(context.Context, string) error { return errors.New("route unavailable") }
+	if err := app.applyConfiguredExitNode(context.Background(), "exit-a"); err == nil {
+		t.Fatal("exit-node failure accepted")
+	}
+	app.mu.Lock()
+	active, lastError := app.exitNodeActive, app.tsLastError
+	app.mu.Unlock()
+	if active || !strings.Contains(lastError, "route unavailable") {
+		t.Fatalf("failure state: active=%v error=%q", active, lastError)
+	}
+	app.exitNodeApply = func(context.Context, string) error { return nil }
+	if err := app.applyConfiguredExitNode(context.Background(), "exit-a"); err != nil {
+		t.Fatal(err)
+	}
+	app.mu.Lock()
+	active, lastError = app.exitNodeActive, app.tsLastError
+	app.mu.Unlock()
+	if !active || lastError != "" {
+		t.Fatalf("success state: active=%v error=%q", active, lastError)
+	}
+}
+
 func TestTailscaleReplacementClosesOldServerBeforeStart(t *testing.T) {
 	// The concrete tsnet server cannot be replaced with a fake, so assert the
 	// ordering contract directly and exercise retry scheduling separately.

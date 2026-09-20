@@ -851,22 +851,39 @@ func (a *App) startTailscaleContext(parent context.Context) error {
 	a.mu.Lock()
 	exitNode := a.config.ExitNode
 	a.mu.Unlock()
-	if exitNode != "" {
-		applyCtx, cancel := context.WithTimeout(parent, 15*time.Second)
-		err := a.applyExitNodePreference(applyCtx, exitNode)
-		cancel()
-		if err != nil {
-			log.Printf("tsnet: FAILED to apply configured exit node %q: %v (public sites will be unreachable)", exitNode, err)
-		} else {
-			a.mu.Lock()
-			a.exitNodeActive = true
-			a.mu.Unlock()
-			log.Printf("tsnet: applied configured exit node %q", exitNode)
-		}
-	} else {
-		log.Printf("tsnet: no exit node configured — only tailnet hosts are reachable, public internet is not")
+	if err := a.applyConfiguredExitNode(parent, exitNode); err != nil {
+		log.Printf("tsnet: FAILED to apply configured exit node %q: %v (public sites will be unreachable)", exitNode, err)
 	}
 	a.logTSNetRouting()
+	return nil
+}
+
+func (a *App) applyConfiguredExitNode(parent context.Context, exitNode string) error {
+	if exitNode == "" {
+		a.mu.Lock()
+		a.exitNodeActive = false
+		a.tsLastError = ""
+		a.mu.Unlock()
+		log.Printf("tsnet: no exit node configured — only tailnet hosts are reachable, public internet is not")
+		return nil
+	}
+	apply := a.exitNodeApply
+	if apply == nil {
+		apply = a.applyExitNodePreference
+	}
+	ctx, cancel := context.WithTimeout(parent, 15*time.Second)
+	err := apply(ctx, exitNode)
+	cancel()
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if err != nil {
+		a.exitNodeActive = false
+		a.tsLastError = fmt.Sprintf("exit node %q: %v", exitNode, err)
+		return err
+	}
+	a.exitNodeActive = true
+	a.tsLastError = ""
+	log.Printf("tsnet: applied configured exit node %q", exitNode)
 	return nil
 }
 
