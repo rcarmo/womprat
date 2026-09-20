@@ -42,8 +42,7 @@ func TestServeFrontend(t *testing.T) {
 func TestDisconnectedTailscaleHandlers(t *testing.T) {
 	app := newTestApp(t)
 	app.config.ExitNode = "exit"
-	useExitNode = true
-	t.Cleanup(func() { useExitNode = false })
+	app.exitNodeActive = true
 	rr := performJSON(app.handleTSStatus, "GET", "/api/tailscale/status", nil)
 	if rr.Code != 200 || !strings.Contains(rr.Body.String(), "disconnected") {
 		t.Fatalf("ts status = %d %s", rr.Code, rr.Body.String())
@@ -56,8 +55,26 @@ func TestDisconnectedTailscaleHandlers(t *testing.T) {
 	if rr.Code != 200 || !strings.Contains(rr.Body.String(), "disconnected") {
 		t.Fatalf("disconnect = %d %s", rr.Code, rr.Body.String())
 	}
-	if useExitNode || app.config.ExitNode != "exit" {
-		t.Fatalf("disconnect should clear active route only: useExitNode=%v exitNode=%q", useExitNode, app.config.ExitNode)
+	if app.exitNodeActive || app.config.ExitNode != "exit" {
+		t.Fatalf("disconnect should clear active route only: exitNodeActive=%v exitNode=%q", app.exitNodeActive, app.config.ExitNode)
+	}
+}
+
+func TestExitNodeConfiguredAndActiveAreIndependent(t *testing.T) {
+	first := newTestApp(t)
+	second := newTestApp(t)
+	first.config.ExitNode = "exit-a"
+	second.config.ExitNode = "exit-b"
+	first.exitNodeActive = true
+	second.exitNodeActive = false
+	first.mu.Lock()
+	firstState := first.exitNodeActive
+	first.mu.Unlock()
+	second.mu.Lock()
+	secondState := second.exitNodeActive
+	second.mu.Unlock()
+	if !firstState || secondState {
+		t.Fatalf("exit-node state leaked between app instances: first=%v second=%v", firstState, secondState)
 	}
 }
 

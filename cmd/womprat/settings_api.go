@@ -205,7 +205,7 @@ func (a *App) handleTailscaleDisconnect(w http.ResponseWriter, r *http.Request) 
 	a.mu.Lock()
 	ts := a.tsServer
 	a.tsServer = nil
-	useExitNode = false
+	a.exitNodeActive = false
 	a.mu.Unlock()
 	if ts != nil {
 		ts.Close()
@@ -542,7 +542,7 @@ func (a *App) handleExitNode(w http.ResponseWriter, r *http.Request) {
 		}
 		a.mu.Lock()
 		a.config.ExitNode = body.ExitNode
-		useExitNode = body.ExitNode != ""
+		a.exitNodeActive = body.ExitNode != ""
 		a.mu.Unlock()
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "exitNode": body.ExitNode})
 	default:

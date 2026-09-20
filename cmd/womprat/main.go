@@ -29,8 +29,6 @@ import (
 //go:embed frontend/*
 var frontendFS embed.FS
 
-var useExitNode = false
-
 const (
 	appName                = "womprat"
 	blankBrowserURL        = "about:blank"
@@ -101,27 +99,28 @@ type browserContentManager interface {
 }
 
 type App struct {
-	configSaveMu sync.Mutex // acquire before mu for snapshot/save/commit
-	tsStartMu    sync.Mutex // serialize tsnet startup and replacement
-	tsRetryMu    sync.Mutex
-	tsRetrying   bool
-	tsRetryStop  chan struct{}
-	mu           sync.Mutex
-	config       *AppConfig
-	tsServer     *tsnet.Server
-	tsLastError  string
-	tabs         []Tab
-	activeTab    string
-	sshConns     map[string]*ssh.Client
-	pendingAuth  map[string]*pendingSSH
-	sessionToken string
-	locked       bool
-	webview      shellWebView
-	contentViews browserContentManager
-	dispatch     func(func())
-	serverPort   int
-	lastCloseAt  time.Time
-	lastCloseTab string
+	configSaveMu   sync.Mutex // acquire before mu for snapshot/save/commit
+	tsStartMu      sync.Mutex // serialize tsnet startup and replacement
+	tsRetryMu      sync.Mutex
+	tsRetrying     bool
+	tsRetryStop    chan struct{}
+	mu             sync.Mutex
+	config         *AppConfig
+	tsServer       *tsnet.Server
+	tsLastError    string
+	exitNodeActive bool
+	tabs           []Tab
+	activeTab      string
+	sshConns       map[string]*ssh.Client
+	pendingAuth    map[string]*pendingSSH
+	sessionToken   string
+	locked         bool
+	webview        shellWebView
+	contentViews   browserContentManager
+	dispatch       func(func())
+	serverPort     int
+	lastCloseAt    time.Time
+	lastCloseTab   string
 }
 
 func main() {
@@ -151,7 +150,9 @@ func main() {
 		sessionToken: token,
 		locked:       shouldStartLocked(cfg),
 	}
-	useExitNode = cfg.ExitNode != ""
+	// Configured and active are distinct: the route becomes active only after
+	// the current tsnet session accepts the exit-node preference.
+	app.exitNodeActive = false
 	if cfg.ExitNode != "" {
 		log.Printf("config: exit node = %q (public internet routed via exit node)", cfg.ExitNode)
 	} else {
@@ -806,6 +807,7 @@ func (a *App) startTailscale() error {
 	old := a.tsServer
 	a.tsServer = ts
 	a.tsLastError = ""
+	a.exitNodeActive = false
 	a.mu.Unlock()
 	if old != nil {
 		old.Close()
@@ -826,6 +828,9 @@ func (a *App) startTailscale() error {
 		if err != nil {
 			log.Printf("tsnet: FAILED to apply configured exit node %q: %v (public sites will be unreachable)", exitNode, err)
 		} else {
+			a.mu.Lock()
+			a.exitNodeActive = true
+			a.mu.Unlock()
 			log.Printf("tsnet: applied configured exit node %q", exitNode)
 		}
 	} else {

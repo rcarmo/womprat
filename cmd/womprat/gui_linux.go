@@ -61,7 +61,7 @@ func runGUI(app *App, shellURL string) {
 	w.Bind("womprat_getNetworkState", func() string {
 		app.mu.Lock()
 		defer app.mu.Unlock()
-		return jsString(map[string]interface{}{"exitNode": app.config.ExitNode, "exitActive": useExitNode})
+		return jsString(map[string]interface{}{"exitNode": app.config.ExitNode, "exitActive": app.exitNodeActive})
 	})
 	w.Bind("womprat_newTerminal", func(host, user string, port int) { app.newTerminalTab(host, user, port) })
 	w.Bind("womprat_newVNC", func(target string) { app.newVNCTab(target) })

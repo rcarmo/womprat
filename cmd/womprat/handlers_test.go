@@ -169,7 +169,7 @@ func TestUnlockMethodAndSaveTabsDoNotChangeMemoryOnPersistFailure(t *testing.T) 
 func TestExitNodeDoesNotChangeMemoryOnPersistFailure(t *testing.T) {
 	app := newTestApp(t)
 	app.config.ExitNode = "old-exit"
-	useExitNode = true
+	app.exitNodeActive = true
 	blocked := filepath.Join(t.TempDir(), "blocked")
 	if err := os.WriteFile(blocked, []byte("x"), 0600); err != nil {
 		t.Fatal(err)
@@ -179,8 +179,8 @@ func TestExitNodeDoesNotChangeMemoryOnPersistFailure(t *testing.T) {
 	if rr.Code != http.StatusInternalServerError {
 		t.Fatalf("exit-node persist failure = %d %s", rr.Code, rr.Body.String())
 	}
-	if app.config.ExitNode != "old-exit" || !useExitNode {
-		t.Fatalf("exit-node changed despite persist failure: cfg=%+v useExitNode=%v", app.config, useExitNode)
+	if app.config.ExitNode != "old-exit" || !app.exitNodeActive {
+		t.Fatalf("exit-node changed despite persist failure: cfg=%+v exitNodeActive=%v", app.config, app.exitNodeActive)
 	}
 }
 

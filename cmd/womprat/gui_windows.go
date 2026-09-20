@@ -235,7 +235,7 @@ func runGUI(app *App, shellURL string) {
 	w.Bind("womprat_getNetworkState", func() string {
 		app.mu.Lock()
 		defer app.mu.Unlock()
-		return jsString(map[string]interface{}{"exitNode": app.config.ExitNode, "exitActive": useExitNode, "tsConnected": app.tsServer != nil})
+		return jsString(map[string]interface{}{"exitNode": app.config.ExitNode, "exitActive": app.exitNodeActive, "tsConnected": app.tsServer != nil})
 	})
 	w.Bind("womprat_navigate", func(url string) { app.navigateBrowser(url) })
 	w.Bind("womprat_switchTab", func(tabID string) { app.switchTab(tabID) })
