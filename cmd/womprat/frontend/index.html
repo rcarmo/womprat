@@ -812,6 +812,7 @@ async function hydrateShellAfterAuth() {
   if (shellHydrated) return;
   shellHydrated = true;
   await loadTerminalAppearance();
+  await loadRecentTabs();
   await hydrateNativeTabs();
 }
 async function checkAuth() {
@@ -879,6 +880,7 @@ window.saveKey = async function() {
     const data = await res.clone().json().catch(async () => ({error: await res.text()}));
     if (data.status === 'connected') {
       document.getElementById('setup').classList.add('hidden');
+      await hydrateShellAfterAuth();
     } else {
       status.textContent = data.error || 'Failed to connect';
     }
@@ -2080,7 +2082,6 @@ try { matchMedia('(resolution: 1dppx)').addEventListener('change', () => womprat
 wompratReportChrome();
 setTimeout(wompratReportChrome, 300);
 checkAuth();
-loadRecentTabs();
 setInterval(() => updateNetworkIndicator(false), 1500);
 </script>
 

@@ -69,8 +69,8 @@ test('post-auth hydration loads appearance before tabs exactly once', async () =
   const begin = source.indexOf('let shellHydrated = false;');
   const end = source.indexOf('async function checkAuth()', begin);
   const events = [];
-  const hydrate = Function('loadTerminalAppearance','hydrateNativeTabs',`${source.slice(begin,end)}; return hydrateShellAfterAuth`)(
-    async () => events.push('appearance'), async () => events.push('tabs'));
+  const hydrate = Function('loadTerminalAppearance','loadRecentTabs','hydrateNativeTabs',`${source.slice(begin,end)}; return hydrateShellAfterAuth`)(
+    async () => events.push('appearance'), async () => events.push('recent'), async () => events.push('tabs'));
   await Promise.all([hydrate(), hydrate()]);
-  expect(events).toEqual(['appearance','tabs']);
+  expect(events).toEqual(['appearance','recent','tabs']);
 });

@@ -1657,6 +1657,7 @@ func TestTerminalAppearanceAndTabDropAreWired(t *testing.T) {
 		"fontFamily: TERMINAL_FONT_FAMILIES[terminalAppearance.terminalFont]",
 		"async function hydrateShellAfterAuth()",
 		"await loadTerminalAppearance();",
+		"await loadRecentTabs();",
 		"await hydrateNativeTabs();",
 		"function tabDropBeforeID(fromId, targetId, afterTarget)",
 		"remaining[targetIndex + 1]?.id || ''",
