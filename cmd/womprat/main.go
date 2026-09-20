@@ -797,6 +797,18 @@ func (a *App) startTailscaleContext(parent context.Context) error {
 		return errNoTailscaleAuthKey
 	}
 
+	// A tsnet state directory may only have one live server. Detach and close
+	// the old instance before starting its replacement; otherwise auth-key
+	// replacement can retry forever on the state lock.
+	a.mu.Lock()
+	old := a.tsServer
+	a.tsServer = nil
+	a.exitNodeActive = false
+	a.mu.Unlock()
+	if old != nil {
+		_ = old.Close()
+	}
+
 	ts := &tsnet.Server{
 		Hostname:  appName,
 		AuthKey:   authKey,
@@ -812,14 +824,9 @@ func (a *App) startTailscaleContext(parent context.Context) error {
 	}
 
 	a.mu.Lock()
-	old := a.tsServer
 	a.tsServer = ts
 	a.tsLastError = ""
-	a.exitNodeActive = false
 	a.mu.Unlock()
-	if old != nil {
-		old.Close()
-	}
 
 	// Apply the configured exit node to the freshly started tsnet and log the
 	// effective routing. tsnet persists prefs in its state dir, but applying

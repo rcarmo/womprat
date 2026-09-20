@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -37,6 +38,17 @@ func TestTailscaleRetryStopsOnMissingAuthKey(t *testing.T) {
 	waitRetryStopped(t, app)
 	if calls.Load() != 1 {
 		t.Fatalf("retry calls = %d, want 1", calls.Load())
+	}
+}
+
+func TestTailscaleReplacementClosesOldServerBeforeStart(t *testing.T) {
+	// The concrete tsnet server cannot be replaced with a fake, so assert the
+	// ordering contract directly and exercise retry scheduling separately.
+	s := readFileForRegression(t, "main.go")
+	closeAt := strings.Index(s, "_ = old.Close()")
+	newAt := strings.Index(s, "ts := &tsnet.Server{")
+	if closeAt < 0 || newAt < 0 || closeAt > newAt {
+		t.Fatalf("old server must close before replacement starts: close=%d new=%d", closeAt, newAt)
 	}
 }
 
