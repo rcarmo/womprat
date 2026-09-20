@@ -39,6 +39,19 @@ test('Ctrl+C sends ETX when the terminal has no selection', () => {
   expect(inputs).toEqual([['\x03', true]]);
 });
 
+test('terminal close removes its window listener and timer', () => {
+  const closeBegin=source.indexOf('window.closeTab = function(id, e)');
+  const closeEnd=source.indexOf('function clampInt(',closeBegin);
+  const closeBody=source.slice(closeBegin,closeEnd);
+  expect(closeBody).toContain("window.removeEventListener('resize', terminalSession.resizeHandler)");
+  expect(closeBody).toContain('clearTimeout(terminalSession.scrollbarFadeTimer)');
+  const openBegin=source.indexOf('const resizeHandler = () =>');
+  const openEnd=source.indexOf('// Fade the scrollbar',openBegin);
+  const openBody=source.slice(openBegin,openEnd);
+  expect(openBody).toContain("window.addEventListener('resize', resizeHandler)");
+  expect(openBody).toContain('resizeHandler, scrollbarFadeTimer: null');
+});
+
 test('clipboard write rejection is contained', async () => {
   const warnings = [];
   const originalWarn = console.warn;

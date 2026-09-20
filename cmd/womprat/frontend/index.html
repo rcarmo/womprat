@@ -981,8 +981,10 @@ window.openTerminal = async function(host, name, user, port, options = {}) {
     });
   term.open(container);
   fit.fit();
-  terminalSessions.set(tabId, { term, fit, fontSize: terminalAppearance.fontSize, ws: null });
-  window.addEventListener('resize', () => { if (state.activeTab === tabId) fit.fit(); });
+  const resizeHandler = () => { if (state.activeTab === tabId) fit.fit(); };
+  const terminalSession = { term, fit, fontSize: terminalAppearance.fontSize, ws: null, resizeHandler, scrollbarFadeTimer: null };
+  terminalSessions.set(tabId, terminalSession);
+  window.addEventListener('resize', resizeHandler);
   // Fade the scrollbar on idle: reveal on scroll/output (and hover via CSS),
   // hide after a short idle delay.
   let scrollbarFadeTimer = null;
@@ -990,6 +992,7 @@ window.openTerminal = async function(host, name, user, port, options = {}) {
     panel.classList.add('scrolling');
     clearTimeout(scrollbarFadeTimer);
     scrollbarFadeTimer = setTimeout(() => panel.classList.remove('scrolling'), 1200);
+    terminalSession.scrollbarFadeTimer = scrollbarFadeTimer;
   };
   term.onScroll(revealScrollbar);
   const termViewport = container.querySelector('.xterm-viewport');
@@ -1188,6 +1191,8 @@ window.closeTab = function(id, e) {
   const terminalSession = terminalSessions.get(id);
   if (terminalSession) {
     try { terminalSession.ws?.close?.(); } catch (err) { console.warn('terminal websocket close failed', err); }
+    try { if (terminalSession.resizeHandler) window.removeEventListener('resize', terminalSession.resizeHandler); } catch (err) { console.warn('terminal resize listener remove failed', err); }
+    try { if (terminalSession.scrollbarFadeTimer) clearTimeout(terminalSession.scrollbarFadeTimer); } catch (err) { console.warn('terminal timer cleanup failed', err); }
     try { terminalSession.term?.dispose?.(); } catch (err) { console.warn('terminal dispose failed', err); }
     terminalSessions.delete(id);
   }
