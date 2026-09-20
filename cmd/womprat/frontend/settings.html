@@ -561,12 +561,14 @@ async function checkTailscale() {
     const res = await fetch('/api/tailscale/status');
     const data = await res.json();
     if (data.status === 'connected') {
-      el.className = 'status ok'; el.textContent = 'Connected';
-      if (error) error.textContent = '';
+      el.className = data.retrying ? 'status warn' : 'status ok';
+      el.textContent = data.retrying ? 'Connected · retrying replacement' : 'Connected';
+      if (error) error.textContent = data.error || '';
       document.getElementById('ts-hostname').textContent = data.hostname || '—';
       document.getElementById('ts-ip').textContent = (data.ip||[]).join(', ') || '—';
       const peers = await fetchJSON('/api/tailscale/peers', []);
       document.getElementById('ts-peers').textContent = peers.filter(p=>p.online).length + ' / ' + peers.length;
+      if (data.retrying) tailscaleStatusTimer = setTimeout(checkTailscale, 2000);
     } else {
       el.className = data.retrying ? 'status warn' : 'status err'; el.textContent = data.retrying ? 'Reconnecting…' : 'Disconnected';
       if (error) error.textContent = data.error || '';

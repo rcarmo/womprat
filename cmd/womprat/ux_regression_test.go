@@ -230,7 +230,7 @@ func TestTailscaleStartupUsesBoundedContext(t *testing.T) {
 		"30 * time.Second",
 		"tailscaleRetryInterval",
 		"15 * time.Second",
-		"context.WithTimeout(context.Background(), tailscaleUpTimeout)",
+		"context.WithTimeout(parent, tailscaleUpTimeout)",
 		"ts.Up(upCtx)",
 		"defer cancelUp()",
 		"scheduleTailscaleRetry()",

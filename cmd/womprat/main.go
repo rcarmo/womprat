@@ -103,10 +103,10 @@ type App struct {
 	tsStartMu       sync.Mutex // serialize tsnet startup and replacement
 	tsRetryMu       sync.Mutex
 	tsRetrying      bool
-	tsRetryStop     chan struct{}
+	tsRetryCancel   context.CancelFunc
 	tsRetryDone     chan struct{}
 	tsRetryInterval time.Duration
-	tsRetryStart    func() error
+	tsRetryStart    func(context.Context) error
 	exitNodeApply   func(context.Context, string) error
 	mu              sync.Mutex
 	config          *AppConfig
@@ -784,6 +784,10 @@ func (a *App) goHome() {
 }
 
 func (a *App) startTailscale() error {
+	return a.startTailscaleContext(context.Background())
+}
+
+func (a *App) startTailscaleContext(parent context.Context) error {
 	a.tsStartMu.Lock()
 	defer a.tsStartMu.Unlock()
 
@@ -799,7 +803,7 @@ func (a *App) startTailscale() error {
 		Dir:       tsnetStateDir(),
 		Ephemeral: false,
 	}
-	upCtx, cancelUp := context.WithTimeout(context.Background(), tailscaleUpTimeout)
+	upCtx, cancelUp := context.WithTimeout(parent, tailscaleUpTimeout)
 	defer cancelUp()
 	if _, err := ts.Up(upCtx); err != nil {
 		ts.Close()
@@ -826,7 +830,7 @@ func (a *App) startTailscale() error {
 	exitNode := a.config.ExitNode
 	a.mu.Unlock()
 	if exitNode != "" {
-		applyCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		applyCtx, cancel := context.WithTimeout(parent, 15*time.Second)
 		err := a.applyExitNodePreference(applyCtx, exitNode)
 		cancel()
 		if err != nil {
@@ -850,7 +854,7 @@ func (a *App) scheduleTailscaleRetry() {
 		a.tsRetryMu.Unlock()
 		return
 	}
-	stop := make(chan struct{})
+	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	interval := a.tsRetryInterval
 	if interval <= 0 {
@@ -858,9 +862,9 @@ func (a *App) scheduleTailscaleRetry() {
 	}
 	start := a.tsRetryStart
 	if start == nil {
-		start = a.startTailscale
+		start = a.startTailscaleContext
 	}
-	a.tsRetryStop = stop
+	a.tsRetryCancel = cancel
 	a.tsRetryDone = done
 	a.tsRetrying = true
 	a.tsRetryMu.Unlock()
@@ -869,7 +873,7 @@ func (a *App) scheduleTailscaleRetry() {
 		defer func() {
 			a.tsRetryMu.Lock()
 			a.tsRetrying = false
-			a.tsRetryStop = nil
+			a.tsRetryCancel = nil
 			a.tsRetryDone = nil
 			close(done)
 			a.tsRetryMu.Unlock()
@@ -877,7 +881,7 @@ func (a *App) scheduleTailscaleRetry() {
 		for attempt := 1; ; attempt++ {
 			// A failed key replacement can leave the previous server alive. The
 			// retry still has to attempt the requested replacement.
-			if err := start(); err == nil {
+			if err := start(ctx); err == nil {
 				log.Printf("Tailscale retry connected on attempt %d", attempt)
 				return
 			} else if errors.Is(err, errNoTailscaleAuthKey) {
@@ -888,7 +892,7 @@ func (a *App) scheduleTailscaleRetry() {
 			timer := time.NewTimer(interval)
 			select {
 			case <-timer.C:
-			case <-stop:
+			case <-ctx.Done():
 				if !timer.Stop() {
 					select {
 					case <-timer.C:
@@ -913,11 +917,11 @@ func (a *App) setTailscaleError(err error) {
 
 func (a *App) stopTailscaleRetry() {
 	a.tsRetryMu.Lock()
-	stop := a.tsRetryStop
+	cancel := a.tsRetryCancel
 	done := a.tsRetryDone
-	if stop != nil {
-		close(stop)
-		a.tsRetryStop = nil
+	if cancel != nil {
+		cancel()
+		a.tsRetryCancel = nil
 	}
 	a.tsRetryMu.Unlock()
 	if done != nil {
@@ -1149,10 +1153,10 @@ func (a *App) handleTSStatus(w http.ResponseWriter, r *http.Request) {
 	ts := a.tsServer
 	lastError := a.tsLastError
 	a.mu.Unlock()
+	a.tsRetryMu.Lock()
+	retrying := a.tsRetrying
+	a.tsRetryMu.Unlock()
 	if ts == nil {
-		a.tsRetryMu.Lock()
-		retrying := a.tsRetrying
-		a.tsRetryMu.Unlock()
 		writeJSON(w, http.StatusOK, map[string]interface{}{"status": "disconnected", "error": lastError, "retrying": retrying})
 		return
 	}
@@ -1170,6 +1174,8 @@ func (a *App) handleTSStatus(w http.ResponseWriter, r *http.Request) {
 		"status":   "connected",
 		"hostname": status.Self.HostName,
 		"ip":       status.TailscaleIPs,
+		"error":    lastError,
+		"retrying": retrying,
 	})
 }
 

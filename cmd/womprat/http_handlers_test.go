@@ -78,6 +78,18 @@ func TestExitNodeConfiguredAndActiveAreIndependent(t *testing.T) {
 	}
 }
 
+func TestConnectedTailscaleStatusRetainsRetryMetadata(t *testing.T) {
+	// The endpoint requires a real LocalClient for connected status, so retain
+	// the response-contract requirement in a focused source regression while
+	// retry worker behaviour is covered with executable tests.
+	s := readFileForRegression(t, "main.go")
+	for _, want := range []string{`"error":    lastError`, `"retrying": retrying`} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("connected Tailscale status missing %q", want)
+		}
+	}
+}
+
 func TestDisconnectedTailscaleStatusReportsRetry(t *testing.T) {
 	app := newTestApp(t)
 	app.tsLastError = "temporary DNS failure"

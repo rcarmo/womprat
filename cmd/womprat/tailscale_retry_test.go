@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"sync/atomic"
 	"testing"
@@ -28,7 +29,7 @@ func TestTailscaleRetryStopsOnMissingAuthKey(t *testing.T) {
 	app := newTestApp(t)
 	var calls atomic.Int32
 	app.tsRetryInterval = time.Millisecond
-	app.tsRetryStart = func() error {
+	app.tsRetryStart = func(context.Context) error {
 		calls.Add(1)
 		return errNoTailscaleAuthKey
 	}
@@ -43,7 +44,7 @@ func TestTailscaleRetryRunsWhenOldServerStillExists(t *testing.T) {
 	app := newTestApp(t)
 	app.tsServer = &tsnet.Server{}
 	var calls atomic.Int32
-	app.tsRetryStart = func() error {
+	app.tsRetryStart = func(context.Context) error {
 		calls.Add(1)
 		return nil
 	}
@@ -58,7 +59,7 @@ func TestTailscaleRetryRetriesTransientFailureThenStopsOnSuccess(t *testing.T) {
 	app := newTestApp(t)
 	var calls atomic.Int32
 	app.tsRetryInterval = time.Millisecond
-	app.tsRetryStart = func() error {
+	app.tsRetryStart = func(context.Context) error {
 		if calls.Add(1) < 3 {
 			return errors.New("temporary failure")
 		}
@@ -71,13 +72,30 @@ func TestTailscaleRetryRetriesTransientFailureThenStopsOnSuccess(t *testing.T) {
 	}
 }
 
+func TestTailscaleRetryStopCancelsInFlightStart(t *testing.T) {
+	app := newTestApp(t)
+	entered := make(chan struct{})
+	app.tsRetryStart = func(ctx context.Context) error {
+		close(entered)
+		<-ctx.Done()
+		return ctx.Err()
+	}
+	app.scheduleTailscaleRetry()
+	<-entered
+	start := time.Now()
+	app.stopTailscaleRetry()
+	if elapsed := time.Since(start); elapsed > 100*time.Millisecond {
+		t.Fatalf("stop took %s", elapsed)
+	}
+}
+
 func TestTailscaleRetryScheduleIsIdempotentAndStopWaits(t *testing.T) {
 	app := newTestApp(t)
 	entered := make(chan struct{})
 	release := make(chan struct{})
 	var calls atomic.Int32
 	app.tsRetryInterval = time.Hour
-	app.tsRetryStart = func() error {
+	app.tsRetryStart = func(context.Context) error {
 		if calls.Add(1) == 1 {
 			close(entered)
 		}
@@ -93,9 +111,9 @@ func TestTailscaleRetryScheduleIsIdempotentAndStopWaits(t *testing.T) {
 		t.Fatalf("duplicate retry workers started: calls=%d", calls.Load())
 	}
 	app.tsRetryMu.Lock()
-	running, stop, done := app.tsRetrying, app.tsRetryStop, app.tsRetryDone
+	running, cancel, done := app.tsRetrying, app.tsRetryCancel, app.tsRetryDone
 	app.tsRetryMu.Unlock()
-	if running || stop != nil || done != nil {
-		t.Fatalf("retry state not cleaned: running=%v stop=%v done=%v", running, stop != nil, done != nil)
+	if running || cancel != nil || done != nil {
+		t.Fatalf("retry state not cleaned: running=%v cancel=%v done=%v", running, cancel != nil, done != nil)
 	}
 }
