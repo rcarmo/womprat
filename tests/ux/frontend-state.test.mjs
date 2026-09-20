@@ -94,6 +94,16 @@ test('terminal appearance updates existing sessions with normalized values', () 
   expect(session.term.options.fontFamily).toContain('FiraCode');
 });
 
+test('restored exit-node routing remains visible without a configured name',()=>{
+  const begin=source.indexOf('async function updateNetworkIndicator()');
+  const end=source.indexOf('applyStaticIcons();',begin);
+  const pill={textContent:'',title:'',classList:{add(){},remove(){}}};
+  const update=Function('window','document',`${source.slice(begin,end)};return updateNetworkIndicator`)(
+    {womprat_getNetworkState:async()=>JSON.stringify({exitActive:true,exitNode:''})},
+    {getElementById:()=>pill});
+  return update().then(()=>{expect(pill.textContent).toBe('Exit node');expect(pill.title).toContain('restored by Tailscale')});
+});
+
 test('post-auth hydration loads appearance before tabs exactly once', async () => {
   const begin = source.indexOf('let shellHydrated = false;');
   const end = source.indexOf('async function checkAuth()', begin);

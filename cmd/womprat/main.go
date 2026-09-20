@@ -108,6 +108,7 @@ type App struct {
 	tsRetryInterval time.Duration
 	tsRetryStart    func(context.Context) error
 	exitNodeApply   func(context.Context, string) error
+	exitNodeState   func(context.Context) (bool, error)
 	mu              sync.Mutex
 	config          *AppConfig
 	tsServer        *tsnet.Server
@@ -843,19 +844,57 @@ func (a *App) startTailscaleContext(parent context.Context) error {
 	a.tsLastError = ""
 	a.mu.Unlock()
 
-	// Apply the configured exit node to the freshly started tsnet and log the
-	// effective routing. tsnet persists prefs in its state dir, but applying
-	// explicitly each run makes routing deterministic (rather than depending on
-	// whatever tailscaled.state happened to carry) and surfaces, in the log,
-	// exactly what public-internet routing is in effect.
+	// An explicit Womprat setting replaces the persisted tsnet route. With no
+	// configured replacement, preserve whatever exit-node route tsnet restored
+	// from its own state and report its effective status.
 	a.mu.Lock()
 	exitNode := a.config.ExitNode
 	a.mu.Unlock()
-	if err := a.applyConfiguredExitNode(parent, exitNode); err != nil {
-		log.Printf("tsnet: FAILED to apply configured exit node %q: %v (public sites will be unreachable)", exitNode, err)
+	if exitNode != "" {
+		if err := a.applyConfiguredExitNode(parent, exitNode); err != nil {
+			log.Printf("tsnet: FAILED to apply configured exit node %q: %v (public sites will be unreachable)", exitNode, err)
+		}
+	} else if err := a.refreshExitNodeActive(parent); err != nil {
+		log.Printf("tsnet: routing prefs unavailable: %v", err)
 	}
 	a.logTSNetRouting()
 	return nil
+}
+
+func (a *App) refreshExitNodeActive(parent context.Context) error {
+	read := a.exitNodeState
+	if read == nil {
+		read = a.readExitNodeActive
+	}
+	ctx, cancel := context.WithTimeout(parent, 5*time.Second)
+	active, err := read(ctx)
+	cancel()
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if err != nil {
+		a.exitNodeActive = false
+		a.tsLastError = fmt.Sprintf("routing preferences: %v", err)
+		return err
+	}
+	a.exitNodeActive = active
+	a.tsLastError = ""
+	return nil
+}
+
+func (a *App) readExitNodeActive(ctx context.Context) (bool, error) {
+	ts := a.ts()
+	if ts == nil {
+		return false, fmt.Errorf("tailscale not connected")
+	}
+	lc, err := ts.LocalClient()
+	if err != nil {
+		return false, err
+	}
+	prefs, err := lc.GetPrefs(ctx)
+	if err != nil {
+		return false, err
+	}
+	return prefs.RouteAll && (prefs.ExitNodeID != "" || prefs.ExitNodeIP.IsValid()), nil
 }
 
 func (a *App) applyConfiguredExitNode(parent context.Context, exitNode string) error {

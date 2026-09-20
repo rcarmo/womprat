@@ -769,9 +769,9 @@ async function updateNetworkIndicator() {
   if (!pill) return;
   try {
     const ns = window.womprat_getNetworkState ? JSON.parse(await window.womprat_getNetworkState()) : {};
-    if (ns.exitActive && ns.exitNode) {
-      pill.textContent = ns.exitNode;
-      pill.title = `Traffic is routed via exit node ${ns.exitNode}`;
+    if (ns.exitActive) {
+      pill.textContent = ns.exitNode || 'Exit node';
+      pill.title = ns.exitNode ? `Traffic is routed via exit node ${ns.exitNode}` : 'Traffic is routed via the exit node restored by Tailscale';
       pill.classList.add('active');
     } else {
       pill.textContent = '';
