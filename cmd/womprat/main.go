@@ -859,14 +859,6 @@ func (a *App) startTailscaleContext(parent context.Context) error {
 }
 
 func (a *App) applyConfiguredExitNode(parent context.Context, exitNode string) error {
-	if exitNode == "" {
-		a.mu.Lock()
-		a.exitNodeActive = false
-		a.tsLastError = ""
-		a.mu.Unlock()
-		log.Printf("tsnet: no exit node configured — only tailnet hosts are reachable, public internet is not")
-		return nil
-	}
 	apply := a.exitNodeApply
 	if apply == nil {
 		apply = a.applyExitNodePreference
@@ -881,9 +873,13 @@ func (a *App) applyConfiguredExitNode(parent context.Context, exitNode string) e
 		a.tsLastError = fmt.Sprintf("exit node %q: %v", exitNode, err)
 		return err
 	}
-	a.exitNodeActive = true
+	a.exitNodeActive = exitNode != ""
 	a.tsLastError = ""
-	log.Printf("tsnet: applied configured exit node %q", exitNode)
+	if exitNode == "" {
+		log.Printf("tsnet: cleared exit-node routing — only tailnet hosts are reachable, public internet is not")
+	} else {
+		log.Printf("tsnet: applied configured exit node %q", exitNode)
+	}
 	return nil
 }
 

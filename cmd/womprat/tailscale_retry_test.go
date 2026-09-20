@@ -60,6 +60,29 @@ func TestShutdownStopsRetryWorker(t *testing.T) {
 	}
 }
 
+func TestEmptyConfiguredExitNodeExplicitlyClearsRouting(t *testing.T) {
+	app := newTestApp(t)
+	var applied []string
+	app.exitNodeApply = func(_ context.Context, exitNode string) error {
+		applied = append(applied, exitNode)
+		return nil
+	}
+	app.exitNodeActive = true
+	app.tsLastError = "old error"
+	if err := app.applyConfiguredExitNode(context.Background(), ""); err != nil {
+		t.Fatal(err)
+	}
+	if len(applied) != 1 || applied[0] != "" {
+		t.Fatalf("exit-node clear was not applied: %q", applied)
+	}
+	app.mu.Lock()
+	active, lastError := app.exitNodeActive, app.tsLastError
+	app.mu.Unlock()
+	if active || lastError != "" {
+		t.Fatalf("clear state: active=%v error=%q", active, lastError)
+	}
+}
+
 func TestConfiguredExitNodeFailureIsExposedAndCleared(t *testing.T) {
 	app := newTestApp(t)
 	app.exitNodeApply = func(context.Context, string) error { return errors.New("route unavailable") }
