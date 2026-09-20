@@ -109,7 +109,7 @@ compile-windows: ## Compile-only check for Windows arm64 and amd64
 
 .PHONY: frontend-test
 frontend-test: ## Run server-independent frontend behavioural regression tests
-	$(BUN) test tests/ux/rdp-resize.test.mjs
+	$(BUN) test tests/ux/rdp-resize.test.mjs tests/ux/terminal-controls.test.mjs
 
 verify: frontend-check frontend-test test vet compile-windows ## Run all non-interactive checks
 

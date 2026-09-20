@@ -351,6 +351,17 @@ function normalizeTerminalFontSize(size) {
   const value = Math.round(Number(size));
   return value >= 10 && value <= 32 ? value : DEFAULT_TERMINAL_FONT_SIZE;
 }
+function handleTerminalCtrlC(term, clipboard = navigator.clipboard) {
+  if (term.hasSelection?.()) {
+    const selection = term.getSelection();
+    if (selection && clipboard?.writeText) {
+      Promise.resolve(clipboard.writeText(selection)).catch(err => console.warn('terminal clipboard copy failed', err));
+    }
+    return false;
+  }
+  term.input('\x03', true);
+  return false;
+}
 function applyTerminalAppearance(appearance = {}) {
   terminalAppearance = {
     fontSize: normalizeTerminalFontSize(appearance.fontSize),
@@ -926,8 +937,7 @@ window.openTerminal = async function(host, name, user, port, options = {}) {
         ev.preventDefault?.();
         ev.stopPropagation?.();
         ev.stopImmediatePropagation?.();
-        term.input('\x03', true);
-        return false;
+        return handleTerminalCtrlC(term);
       }
       if (ev.ctrlKey && ev.shiftKey && !ev.altKey && key === 'w') {
         ev.preventDefault?.();

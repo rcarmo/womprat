@@ -967,10 +967,10 @@ func TestCustomSchemesUseSingleFrontendDispatcher(t *testing.T) {
 		"function decodeURLComponent(value)",
 		"if (user === null || !validCustomHost(host)",
 		"const defaults = { ssh: 22, vnc: 5900, rdp: 3389 }",
-		"function openCustomViewerFallback(target)",
-		"function callNativeCustomViewer(target, text)",
-		"openCustomViewerFallback(target);\n  return true;",
-		"if (target.scheme === 'vnc' || target.scheme === 'rdp') return callNativeCustomViewer(target, text);",
+		"function openCustomViewerFallback(target, options = {})",
+		"function callNativeCustomViewer(target, text, options = {})",
+		"openCustomViewerFallback(target, options);\n  return true;",
+		"if (target.scheme === 'vnc' || target.scheme === 'rdp') return callNativeCustomViewer(target, text, { id: replaceTabId });",
 		"if (openSpecialURL(url)) return;",
 		"const navUrl = normalizeBrowserURL(url);",
 	} {
@@ -1595,14 +1595,17 @@ func TestTerminalDoesNotSwallowUnimplementedSearchShortcut(t *testing.T) {
 	}
 }
 
-func TestTerminalCtrlCSendsInterrupt(t *testing.T) {
+func TestTerminalCtrlCCopiesSelectionOrSendsInterrupt(t *testing.T) {
 	s := readFileForRegression(t, "frontend/index.html")
 	for _, want := range []string{
 		"ev.type === 'keydown' && ev.ctrlKey && !ev.shiftKey && !ev.altKey && !ev.metaKey && key === 'c'",
+		"function handleTerminalCtrlC(term, clipboard = navigator.clipboard)",
+		"if (term.hasSelection?.())",
+		"clipboard.writeText(selection)",
 		"term.input('\\x03', true);",
 	} {
 		if !strings.Contains(s, want) {
-			t.Fatalf("terminal Ctrl+C interrupt handling missing %q", want)
+			t.Fatalf("terminal Ctrl+C copy/interrupt handling missing %q", want)
 		}
 	}
 }
@@ -1840,7 +1843,7 @@ func TestSSHPromptPasswordInputIsBounded(t *testing.T) {
 
 func TestTerminalTitleTruncationIsUnicodeSafe(t *testing.T) {
 	s := readFileForRegression(t, "frontend/index.html")
-	want := "t.title = Array.from(sanitizeBrowserTitle(title)).slice(0, 48).join('');"
+	want := "const clean = Array.from(sanitizeBrowserTitle(title)).slice(0, 48).join('');"
 	if !strings.Contains(s, want) {
 		t.Fatalf("terminal title truncation must be Unicode-safe; missing %q", want)
 	}
@@ -1962,7 +1965,7 @@ func TestFrontendValidatesTabIDsBeforeDOMUse(t *testing.T) {
 		"const tabId = validTabID(options.id) ? options.id : newLocalTabID('term');",
 		"if (!t || t.id === 'settings') return null;",
 		"if (t.id != null && t.id !== '' && !validTabID(t.id)) return null;",
-		"if (!validTabID(fromId) || !validTabID(beforeId) || fromId === beforeId) return;",
+		"if (!validTabID(fromId) || (beforeId && !validTabID(beforeId)) || fromId === beforeId) return;",
 		"validTabID(t.id)",
 	} {
 		if !strings.Contains(s, want) {
