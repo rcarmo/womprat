@@ -804,6 +804,13 @@ function purgeLegacyExternalIframes() {
 purgeLegacyExternalIframes();
 
 // Check auth status
+let shellHydrated = false;
+async function hydrateShellAfterAuth() {
+  if (shellHydrated) return;
+  shellHydrated = true;
+  await loadTerminalAppearance();
+  await hydrateNativeTabs();
+}
 async function checkAuth() {
   const status = document.getElementById('setup-status');
   try {
@@ -816,6 +823,7 @@ async function checkAuth() {
     }
     if (data.hasKey) {
       document.getElementById('setup').classList.add('hidden');
+      await hydrateShellAfterAuth();
       return;
     }
     document.getElementById('setup').classList.remove('hidden');
@@ -849,6 +857,7 @@ window.unlockApp = async function() {
       return;
     }
     document.getElementById('setup').classList.add('hidden');
+    await hydrateShellAfterAuth();
   } catch (err) {
     status.textContent = `Unlock failed: ${err.message}`;
   }
@@ -2047,7 +2056,6 @@ wompratReportChrome();
 setTimeout(wompratReportChrome, 300);
 checkAuth();
 loadRecentTabs();
-loadTerminalAppearance().then(hydrateNativeTabs);
 setInterval(() => updateNetworkIndicator(false), 1500);
 </script>
 
