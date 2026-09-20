@@ -56,6 +56,42 @@ function startRFBStub() {
   });
 }
 
+function startVNCAuthStub() {
+  return new Promise((resolve) => {
+    const srv = net.createServer((sock) => {
+      let stage = "version", pending = Buffer.alloc(0);
+      const name = Buffer.from("authvnc");
+      const serverInit = () => {
+        const hdr = Buffer.alloc(24);
+        hdr.writeUInt16BE(4, 0); hdr.writeUInt16BE(4, 2);
+        hdr[4]=32; hdr[5]=24; hdr[7]=1;
+        hdr.writeUInt16BE(255,8); hdr.writeUInt16BE(255,10); hdr.writeUInt16BE(255,12);
+        hdr[14]=16; hdr[15]=8; hdr.writeUInt32BE(name.length,20);
+        sock.write(Buffer.concat([hdr,name]));
+      };
+      sock.write("RFB 003.008\n");
+      sock.on("data", chunk => {
+        pending = Buffer.concat([pending, chunk]);
+        for (;;) {
+          if (stage === "version" && pending.length >= 12) {
+            pending = pending.subarray(12); sock.write(Buffer.from([1,2])); stage="security";
+          } else if (stage === "security" && pending.length >= 1) {
+            const selected=pending[0]; pending=pending.subarray(1);
+            if (selected !== 2) return sock.destroy();
+            sock.write(Buffer.from([...Array(16).keys()])); stage="response";
+          } else if (stage === "response" && pending.length >= 16) {
+            pending=pending.subarray(16); sock.write(Buffer.from([0,0,0,0])); stage="init";
+          } else if (stage === "init" && pending.length >= 1) {
+            pending=pending.subarray(1); serverInit(); stage="ready";
+          } else break;
+        }
+      });
+      sock.on("error",()=>{});
+    });
+    srv.listen(0,"127.0.0.1",()=>resolve(srv));
+  });
+}
+
 function startDownloadStub() {
   return new Promise((resolve) => {
     const srv = http.createServer((req, res) => {
@@ -95,6 +131,8 @@ const rfb = await startRFBStub();
 const rfbPort = rfb.address().port;
 const downloadStub = await startDownloadStub();
 const downloadPort = downloadStub.address().port;
+const authVnc = await startVNCAuthStub();
+const authVncPort = authVnc.address().port;
 const testHome = mkdtempSync(join(tmpdir(), "womprat-browser-audit-"));
 const { proc, url, token } = await startWomprat(testHome);
 
@@ -140,6 +178,17 @@ try {
   vncStatus = await page.evaluate(() => (document.querySelector("[data-vnc-status]")||{}).textContent || "");
   check("vnc connects (status)", vncConnected, vncStatus);
 
+  // Password-authenticated VNC: first connection prompts, reconnect completes.
+  await page.evaluate(() => window.newBlankTab());
+  await page.fill("#url-input", `vnc://127.0.0.1:${authVncPort}`);
+  await page.press("#url-input", "Enter");
+  await page.waitForSelector('.vnc-panel[data-vnc-auth-required] .vnc-dialog', {timeout:5000});
+  check("vnc password dialog appears", await page.locator('.vnc-panel[data-vnc-auth-required] .vnc-dialog').isVisible());
+  await page.fill('.vnc-panel[data-vnc-auth-required] [data-vnc-password]', 'secret');
+  await page.click('.vnc-panel[data-vnc-auth-required] [data-vnc-connect]');
+  const authConnected = await page.waitForFunction(() => document.querySelector('.panel.active .vnc-panel[data-connected] [data-vnc-status]')?.textContent?.includes('authvnc'), {timeout:8000}).then(()=>true).catch(()=>false);
+  check("vnc password reconnect authenticates", authConnected);
+
   // 3) RDP URL routes to an RDP panel (no full server; expect graceful status).
   await page.evaluate(() => { window.newBlankTab && window.newBlankTab(); });
   await page.fill("#url-input", "rdp://me@127.0.0.1:3389");
@@ -177,6 +226,7 @@ try {
   proc.kill("SIGTERM");
   rfb.close();
   downloadStub.close();
+  authVnc.close();
   rmSync(testHome, { recursive: true, force: true });
 }
 
