@@ -177,6 +177,7 @@ try {
   }, { timeout: 8000 }).then(() => true).catch(() => false);
   vncStatus = await page.evaluate(() => (document.querySelector("[data-vnc-status]")||{}).textContent || "");
   check("vnc connects (status)", vncConnected, vncStatus);
+  check("vnc replaces blank tab", await page.evaluate(() => !Array.from(document.querySelectorAll('.tab-title')).some(el => el.textContent === 'New tab')));
 
   // Password-authenticated VNC: first connection prompts, reconnect completes.
   await page.evaluate(() => window.newBlankTab());
@@ -206,6 +207,18 @@ try {
   await page.press("#url-input", "Enter");
   const termPanel = await page.waitForSelector(".term-panel, .term-container", { timeout: 5000 }).then(() => true).catch(() => false);
   check("ssh terminal panel created", termPanel);
+  check("custom schemes leave no blank placeholders", await page.evaluate(() => !Array.from(document.querySelectorAll('.tab-title')).some(el => el.textContent === 'New tab')));
+
+  // Updating title metadata must retain the tab element (and therefore avoid
+  // tearing down drag/focus state or flickering the whole strip).
+  const titleUpdateStable = await page.evaluate(() => {
+    const tab = document.querySelector('#tab-list .tab');
+    if (!tab) return false;
+    const id = tab.dataset.tabId;
+    window.wompratSetTabMeta(id, 'Updated title 🐀', '');
+    return document.querySelector(`#tab-list .tab[data-tab-id="${CSS.escape(id)}"]`) === tab && tab.querySelector('.tab-title')?.textContent === 'Updated title 🐀';
+  });
+  check("tab metadata updates in place", titleUpdateStable);
 
   // Standard tab lifecycle over the real tabs created above: reorder by stable
   // id through drag-and-drop, then close that exact tab.
