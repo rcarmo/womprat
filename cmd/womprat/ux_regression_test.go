@@ -1579,6 +1579,7 @@ func TestShellLogsNativeAndCleanupFailures(t *testing.T) {
 		"'native tab registration failed'",
 		"'native tab close failed'",
 		"'native tab reorder failed'",
+		"'native active-tab clear failed'",
 		"console.warn('save open tabs failed'",
 		"console.warn('rdp disconnect failed'",
 	} {

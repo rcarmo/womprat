@@ -68,6 +68,16 @@ test('tab persistence coalesces concurrent saves to newest snapshot', async () =
   expect(snapshots).toEqual([[{id:'a'}],[{id:'c'}]]);
 });
 
+test('terminal registration precedes native activation', () => {
+  const start=source.indexOf('window.openTerminal = async function');
+  const end=source.indexOf('const existingSession = terminalSessions.get',start);
+  const body=source.slice(start,end);
+  const register=body.indexOf('await registerLocalTab(tab)');
+  const activate=body.indexOf('activateTab(tabId');
+  expect(register).toBeGreaterThan(-1);
+  expect(activate).toBeGreaterThan(register);
+});
+
 test('post-auth hydration loads appearance before tabs exactly once', async () => {
   const begin = source.indexOf('let shellHydrated = false;');
   const end = source.indexOf('async function checkAuth()', begin);

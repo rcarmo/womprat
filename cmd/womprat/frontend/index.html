@@ -896,7 +896,7 @@ window.newBlankTab = function() {
   const tab = { id: newLocalTabID('browser'), type: 'browser', title: 'New tab', url: 'about:blank' };
   state.tabs.push(tab);
   clearNavStatus();
-  if (window.womprat_clearActiveTab) window.womprat_clearActiveTab();
+  if (window.womprat_clearActiveTab) queueNativeTabMutation(() => window.womprat_clearActiveTab(), 'native active-tab clear failed');
   activateTab(tab.id, { skipNative: true });
   saveOpenTabs();
   refreshURLHistoryDatalist();
@@ -916,8 +916,10 @@ window.openTerminal = async function(host, name, user, port, options = {}) {
   if (existingIndex >= 0) state.tabs[existingIndex] = tab;
   else state.tabs.push(tab);
   renderTabs();
+  // Locally restored/recent terminals have no native record yet. Register it
+  // before switchTab attempts to activate the corresponding content state.
+  if (!options.skipRegister) await registerLocalTab(tab);
   activateTab(tabId, { skipNative: !!options.skipNative });
-  if (!options.skipRegister) registerLocalTab(tab);
   saveOpenTabs(); updateHomeVisibility();
 
   const existingSession = terminalSessions.get(tabId);
