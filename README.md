@@ -41,9 +41,9 @@ Womprat binds its shell, API and SOCKS listener to loopback. Application traffic
 
 Release builds fail closed. If `tsnet` is unavailable, Womprat does not fall back to the host's normal network. `WOMPRAT_DIRECT=1` works only in binaries built with `-X main.debugBuild=1` and exists for local integration tests.
 
-Public internet access requires a configured and active Tailscale exit node. Tailnet hosts, MagicDNS names, `.ts.net` names, IP addresses and names made available through a service such as [`mdnsbridge`](https://github.com/rcarmo/mdnsbridge) are resolved through `tsnet`.
+Public internet access requires an active Tailscale exit node. Womprat applies an exit node selected in Settings; when no replacement is selected, it preserves an exit-node route restored from tsnet state. Tailnet hosts, MagicDNS names, `.ts.net` names, IP addresses and names made available through a service such as [`mdnsbridge`](https://github.com/rcarmo/mdnsbridge) are resolved through `tsnet`.
 
-Transient Tailscale startup failures are retried every 15 seconds. Settings reports the last error and distinguishes a configured exit node from one that is active in the current session. An explicit reconnect or disconnect cancels the existing retry worker before changing the connection.
+Transient Tailscale startup failures are retried every 15 seconds. Settings reports the last error and distinguishes the selected exit-node preference from the route active in the current session. An explicit reconnect or disconnect cancels the existing retry worker before changing the connection.
 
 ## Tabs and shortcuts
 
