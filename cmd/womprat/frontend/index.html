@@ -1715,7 +1715,7 @@ function installBrowserHotkeys() {
   }, true);
 }
 let lastURLBarNavigation = { url: '', at: 0 };
-window.navigateFromBar = function() {
+window.navigateFromBar = async function() {
   const input = document.getElementById('url-input');
   const url = input?.value.trim() || '';
   if (!url) return;
@@ -1732,7 +1732,13 @@ window.navigateFromBar = function() {
   // (The Go navigate handler also routes ssh/vnc/rdp correctly.)
   const active = activeTabObj();
   if (active && active.type === 'browser' && window.womprat_navigate && !openSpecialURLPreview(url)) {
-    try { window.womprat_navigate(url); return; } catch (err) { console.warn('in-place navigate failed', err); }
+    try {
+      // A blank tab is created in shell state first. Ensure its native record
+      // exists before navigateBrowser looks up the active tab.
+      if (isBlankBrowserTab(active)) await registerLocalTab(active);
+      await window.womprat_navigate(url);
+      return;
+    } catch (err) { console.warn('in-place navigate failed', err); }
   }
   openBrowser(url);
 };

@@ -1137,7 +1137,8 @@ func TestURLBarNavigatesInPlaceAndSyncsLiveURL(t *testing.T) {
 	for _, want := range []string{
 		"const active = activeTabObj();",
 		"active.type === 'browser' && window.womprat_navigate",
-		"window.womprat_navigate(url); return;",
+		"await window.womprat_navigate(url);",
+		"if (isBlankBrowserTab(active)) await registerLocalTab(active);",
 		"function openSpecialURLPreview(url)",
 	} {
 		if !strings.Contains(s, want) {
@@ -1742,7 +1743,7 @@ func TestShellControlsUseCentralHandlers(t *testing.T) {
 		"document.getElementById('setup-action')?.addEventListener('click', saveKey)",
 		"document.getElementById('url-go')?.addEventListener('click', () => window.navigateFromBar());",
 		"document.getElementById('url-input')?.addEventListener('keydown', (event) => {",
-		"window.navigateFromBar = function()",
+		"window.navigateFromBar = async function()",
 		"installShellControlHandlers();",
 	} {
 		if !strings.Contains(s, want) {

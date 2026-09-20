@@ -26,6 +26,20 @@ test('tab drop before/after and append preserve stable ID order', () => {
   expect(state.tabs.map(t => t.id)).toEqual(['a','b','c']);
 });
 
+test('blank-tab navigation registers native state before navigating', async () => {
+  const begin = source.indexOf('window.navigateFromBar = async function()');
+  const end = source.indexOf('// openSpecialURLPreview', begin);
+  const events = [];
+  const input = { value: 'example.com' };
+  const active = { id:'blank', type:'browser', url:'about:blank' };
+  const fn = Function('window','document','performance','clearNavStatus','activeTabObj','openSpecialURLPreview','isBlankBrowserTab','registerLocalTab','openBrowser',`let lastURLBarNavigation={url:'',at:0};${source.slice(begin,end)}; return window.navigateFromBar`)(
+    { womprat_navigate: async url => events.push(`navigate:${url}`) },
+    { getElementById: () => input }, { now: () => 1000 }, () => {}, () => active, () => false,
+    () => true, async () => events.push('register'), () => events.push('open'));
+  await fn();
+  expect(events).toEqual(['register','navigate:example.com']);
+});
+
 test('post-auth hydration loads appearance before tabs exactly once', async () => {
   const begin = source.indexOf('let shellHydrated = false;');
   const end = source.indexOf('async function checkAuth()', begin);
