@@ -589,11 +589,14 @@ function validTabID(id) {
   const value = String(id || '').trim();
   return !!value && value.length <= 128 && !/[\s\/\\?#]/.test(value);
 }
-async function registerLocalTab(tab) {
-  if (window.womprat_registerLocalTab) {
-    try { await window.womprat_registerLocalTab(JSON.stringify(tab)); }
-    catch (err) { console.warn('native tab registration failed', err); }
-  }
+let nativeTabRegistrationQueue = Promise.resolve();
+function registerLocalTab(tab) {
+  if (!window.womprat_registerLocalTab) return Promise.resolve();
+  const payload = JSON.stringify(tab);
+  nativeTabRegistrationQueue = nativeTabRegistrationQueue
+    .then(() => window.womprat_registerLocalTab(payload))
+    .catch(err => console.warn('native tab registration failed', err));
+  return nativeTabRegistrationQueue;
 }
 function loadURLHistory() {
   try {
@@ -1944,12 +1947,28 @@ function sanitizeTabForSave(t) {
   }
   return null;
 }
+let pendingTabSnapshot = null;
+let tabSaveInFlight = null;
+async function flushOpenTabs() {
+  while (pendingTabSnapshot) {
+    const tabs = pendingTabSnapshot;
+    pendingTabSnapshot = null;
+    try {
+      const res = await fetch('/api/settings/save-tabs', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({tabs})
+      });
+      if (!res.ok) throw new Error(await res.text());
+    } catch (err) {
+      console.warn('save open tabs failed', err);
+    }
+  }
+  tabSaveInFlight = null;
+}
 function saveOpenTabs() {
-  const tabs = dedupeRecentTabs(state.tabs).slice(0, 100);
-  fetch('/api/settings/save-tabs', {
-    method: 'POST', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({tabs})
-  }).catch(err => console.warn('save open tabs failed', err));
+  pendingTabSnapshot = dedupeRecentTabs(state.tabs).slice(0, 100);
+  if (!tabSaveInFlight) tabSaveInFlight = flushOpenTabs();
+  return tabSaveInFlight;
 }
 
 // Show/hide home panel

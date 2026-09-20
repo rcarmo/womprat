@@ -40,6 +40,31 @@ test('blank-tab navigation registers native state before navigating', async () =
   expect(events).toEqual(['register','navigate:example.com']);
 });
 
+test('native tab registrations preserve call order', async () => {
+  const begin = source.indexOf('let nativeTabRegistrationQueue = Promise.resolve();');
+  const end = source.indexOf('function loadURLHistory()', begin);
+  const events = [];
+  const register = Function('window',`${source.slice(begin,end)}; return registerLocalTab`)(
+    { womprat_registerLocalTab: async payload => { const tab=JSON.parse(payload); await Bun.sleep(tab.delay); events.push(tab.id); } });
+  await Promise.all([register({id:'first',delay:10}), register({id:'second',delay:0})]);
+  expect(events).toEqual(['first','second']);
+});
+
+test('tab persistence coalesces concurrent saves to newest snapshot', async () => {
+  const begin = source.indexOf('let pendingTabSnapshot = null;');
+  const end = source.indexOf('// Show/hide home panel', begin);
+  const snapshots=[];
+  globalThis.state={tabs:[{id:'a'}]};
+  globalThis.dedupeRecentTabs=tabs=>tabs.map(t=>({...t}));
+  globalThis.fetch=async (_url,options)=>{snapshots.push(JSON.parse(options.body).tabs);await Bun.sleep(5);return {ok:true}};
+  const save = Function(`${source.slice(begin,end)}; return saveOpenTabs`)();
+  const first=save();
+  state.tabs=[{id:'b'}]; save();
+  state.tabs=[{id:'c'}]; save();
+  await first;
+  expect(snapshots).toEqual([[{id:'a'}],[{id:'c'}]]);
+});
+
 test('post-auth hydration loads appearance before tabs exactly once', async () => {
   const begin = source.indexOf('let shellHydrated = false;');
   const end = source.indexOf('async function checkAuth()', begin);

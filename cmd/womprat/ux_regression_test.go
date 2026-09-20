@@ -1878,7 +1878,7 @@ func TestRecentTabsAreDedupedByCanonicalTarget(t *testing.T) {
 		"function dedupeRecentTabs(tabs)",
 		"if (!clean || !key || seen.has(key)) continue;",
 		"const tabs = dedupeRecentTabs(cfg.openTabs || []);",
-		"const tabs = dedupeRecentTabs(state.tabs).slice(0, 100);",
+		"pendingTabSnapshot = dedupeRecentTabs(state.tabs).slice(0, 100);",
 		"if (tab.type === 'vnc' || tab.type === 'rdp') return `${tab.type}:${String(tab.url || '').toLowerCase()}`;",
 	} {
 		if !strings.Contains(s, want) {
@@ -2004,7 +2004,7 @@ func TestFrontendPersistsOnlySanitizedURLState(t *testing.T) {
 		"function normalizeHistoryURL(url)",
 		"return parsed.map(normalizeHistoryURL).filter(Boolean).slice(0, 100);",
 		"function sanitizeTabForSave(t)",
-		"const tabs = dedupeRecentTabs(state.tabs).slice(0, 100);",
+		"pendingTabSnapshot = dedupeRecentTabs(state.tabs).slice(0, 100);",
 		"const clean = sanitizeTabForSave(t);",
 		"return clean ? { ...clean, id: String(t.id) } : null;",
 	} {
