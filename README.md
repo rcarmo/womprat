@@ -102,7 +102,7 @@ Download links handled by the shell use the managed downloader. It:
 * removes incomplete files;
 * runs one managed download at a time.
 
-Managed downloads do not share WebView2 cookies. Downloads that require a browser-authenticated session may therefore fail.
+A managed download initiated by a native browser tab inherits the WebView2 cookies selected for a same-origin target, including `HttpOnly` cookies. Cookie values stay in Go memory behind a random, one-use ticket that expires after 30 seconds; they are not exposed to page or shell JavaScript, URLs, logs, status responses or files. Redirects retain cookies only on the original host. Cross-origin links and downloads started directly through the local API remain cookie-free.
 
 Settings can clear cache, one cookie domain, all cookies, saved browser passwords or all browsing data. Domain deletion matches the exact host and its subdomains; it does not use a broad suffix match.
 
@@ -182,7 +182,7 @@ Womprat is an application client, not a machine-wide VPN. It does not advertise 
 Current limits include:
 
 * Windows is the supported desktop runtime; Linux targets exist for development and automated tests;
-* managed downloads do not inherit browser cookies;
+* browser cookies are inherited only for same-origin downloads initiated by a native browser tab; cross-origin and direct API downloads are cookie-free;
 * popup POST bodies and opener relationships are not retained;
 * VNC supports `None` and classic password authentication, not every RFB security extension;
 * RDP H.264 graphics are not implemented;
