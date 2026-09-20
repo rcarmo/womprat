@@ -875,9 +875,8 @@ func (a *App) scheduleTailscaleRetry() {
 			a.tsRetryMu.Unlock()
 		}()
 		for attempt := 1; ; attempt++ {
-			if a.ts() != nil {
-				return
-			}
+			// A failed key replacement can leave the previous server alive. The
+			// retry still has to attempt the requested replacement.
 			if err := start(); err == nil {
 				log.Printf("Tailscale retry connected on attempt %d", attempt)
 				return

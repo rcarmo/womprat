@@ -5,6 +5,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"tailscale.com/tsnet"
 )
 
 func waitRetryStopped(t *testing.T, app *App) {
@@ -34,6 +36,21 @@ func TestTailscaleRetryStopsOnMissingAuthKey(t *testing.T) {
 	waitRetryStopped(t, app)
 	if calls.Load() != 1 {
 		t.Fatalf("retry calls = %d, want 1", calls.Load())
+	}
+}
+
+func TestTailscaleRetryRunsWhenOldServerStillExists(t *testing.T) {
+	app := newTestApp(t)
+	app.tsServer = &tsnet.Server{}
+	var calls atomic.Int32
+	app.tsRetryStart = func() error {
+		calls.Add(1)
+		return nil
+	}
+	app.scheduleTailscaleRetry()
+	waitRetryStopped(t, app)
+	if calls.Load() != 1 {
+		t.Fatalf("replacement retry skipped because old server exists: calls=%d", calls.Load())
 	}
 }
 
