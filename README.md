@@ -2,204 +2,264 @@
 
 ![womprat icon](docs/icon-256.png)
 
-`womprat` is a portable Windows (ARM64 and Intel) SSH terminal, browser, VNC viewer, and RDP viewer for your tailnet. It embeds Tailscale with `tsnet`, opens SSH sessions in tabbed terminals, provides native WebView2 browser tabs, and bridges VNC/RDP sessions through the same Tailscale connection, so you can reach machines, remote desktops, and web UIs on your tailnet from anywhere without installing the full Tailscale client.
+`womprat` is a single-binary Windows client for SSH terminals, web applications, VNC desktops and RDP desktops on a Tailscale network. It runs its own `tsnet` node, so it does not install a machine-wide VPN service or change the host network stack.
 
-This is meant to be dead simple: copy one executable, launch it, unlock your saved configuration, and get to the things that normally require a VPN client, a browser, an SSH client, and a pile of local setup.
+Windows ARM64 is the primary target. Windows AMD64 is also built and released.
 
 ![womprat browser and SSH tabs](docs/screenshot.webp)
 
-## Why
+## Purpose
 
-I kept finding myself in places I couldn't install the full Tailscale client but needed it to access my own stuff. And sometimes you want access to a handful of machines without adding another persistent system service, changing the host network stack, or asking Windows to remember one more thing at boot.
+I built Womprat for Windows machines where I cannot install the full Tailscale client but still need access to SSH hosts, Proxmox, internal web applications and remote desktops.
 
-And then I got a corporate, locked-down Windows ARM laptop to test and realized that I really wanted to get at my Proxmox cluster from outside the house.
+The tailnet identity belongs to the application. Closing Womprat closes its Tailscale node; other applications on the machine do not gain tailnet access.
 
-`womprat` takes the opposite approach to setting up a VPN or a Tailscale client: the tailnet identity belongs to the app, not the machine. When it is running, it can reach your tailnet. When it is closed, there is no VPN client left behind.
+Womprat stores its state under `%APPDATA%\womprat`. The executable can be copied between machines, but its encrypted state is tied to the Windows user account. USB-only operation is not implemented.
 
-That makes it useful for portable operations work, especially when SSH and internal web UIs are the only things you need.
+## Requirements
 
-> **Note:** Right now, configuration is encrypted but stored in %APPDATA%. Future passes will tackle running this straight off a USB stick, once the UX is a bit more stable.
+A Windows release needs:
 
-Oh, and the name was, weirdly, the first Star Wars/Death Star trench-related thing that came to me. It was late.
+* Windows on ARM64 or AMD64;
+* the Microsoft Edge WebView2 runtime, which is present on current Windows 10 and Windows 11 installations;
+* a Tailscale auth key that can register the embedded node;
+* credentials for each SSH, VNC or RDP service you open.
 
-## How networking works
+Womprat does not require the system Tailscale client.
 
-The app starts an embedded Tailscale node through `tailscale.com/tsnet` and uses it for application traffic:
+## Traffic paths
 
-* SSH connections are dialled through `tsnet`.
-* Native browser tabs use a loopback SOCKS5 endpoint whose upstream connections are dialled through `tsnet`.
-* Managed HTTP(S) downloads use the same routing policy and are saved under the current user's `Downloads` directory. Only one managed download runs at a time.
-* VNC and RDP WebSocket bridges dial their target hosts through `tsnet` and stream framebuffer/input data to the local shell.
-* The SOCKS5 endpoint resolves and dials through `tsnet`, including public names, MagicDNS names, `.ts.net` names, `.local` aliases (if you use [`mdnsbridge`](https://github.com/rcarmo/mdnsbridge)), LAN names, and raw IPs.
-* If exit-node routing is configured, `tsnet` lets you reach the open internet (also very handy if you end up on a restricted network).
+Womprat binds its shell, API and SOCKS listener to loopback. Application traffic follows these paths:
 
-Release builds fail closed: if the embedded Tailscale node is unavailable, SSH, browser, download, VNC, and RDP traffic is not silently sent over the host's normal network. The `WOMPRAT_DIRECT=1` bypass exists only in binaries explicitly built with `-X main.debugBuild=1` for local integration tests.
+| Feature | Route |
+| --- | --- |
+| SSH | Go SSH client -> `tsnet` -> target |
+| Browser | WebView2 -> loopback SOCKS5 -> `tsnet` -> target |
+| Managed download | Go HTTP client -> `tsnet` -> target |
+| VNC | local WebSocket bridge -> `tsnet` TCP connection -> target |
+| RDP | local WebSocket bridge -> `tsnet` TCP connection -> target |
 
-Transient control-plane or DNS failures during startup are retried in the background. Diagnostics report the last connection error while retrying. The public-internet SOCKS probe is skipped when no exit node is configured, because that is the expected tailnet-only mode rather than a connectivity failure.
+Release builds fail closed. If `tsnet` is unavailable, Womprat does not fall back to the host's normal network. `WOMPRAT_DIRECT=1` works only in binaries built with `-X main.debugBuild=1` and exists for local integration tests.
 
-## What is in the binary
+Public internet access requires a configured and active Tailscale exit node. Tailnet hosts, MagicDNS names, `.ts.net` names, IP addresses and names made available through a service such as [`mdnsbridge`](https://github.com/rcarmo/mdnsbridge) are resolved through `tsnet`.
 
-The executable contains the app shell, settings UI, tab manager, SSH terminal plumbing, SOCKS bridge, VNC/RDP viewers, embedded Tailscale client, and system WebView2 integration code. It does not bundle a browser engine -- it uses the Microsoft Edge WebView2 runtime already present on current Windows systems.
+Transient Tailscale startup failures are retried every 15 seconds. Settings reports the last error and distinguishes a configured exit node from one that is active in the current session. An explicit reconnect or disconnect cancels the existing retry worker before changing the connection.
 
-The main pieces are:
+## Tabs and shortcuts
 
-* `tsnet` for joining and routing over the tailnet.
-* WebView2 for the native Windows browser window.
-* `xterm.js` for SSH terminal tabs.
-* Go's SSH stack for terminal sessions.
-* A WASM-backed VNC framebuffer pipeline with Raw/Hextile/CopyRect/ZRLE/RRE/CoRRE support.
-* A local `go-rdp` replacement for RDP connection, licensing, capabilities, and bitmap/surface update handling.
-* Windows DPAPI for encrypting local configuration and credentials.
-* A local HTTP API for the app shell, settings, tab state, terminal WebSockets, VNC WebSockets, and RDP WebSockets.
+The tab strip contains native browser views and shell-rendered terminal, VNC, RDP and Settings panels. A new tab is an address-bar placeholder; navigating it replaces that placeholder rather than leaving an empty tab behind. Dragging a tab before or after another tab preserves the same order in shell and persisted state.
 
-## Browser tabs
+Browser shortcuts:
 
-HTTP and HTTPS URLs open in native WebView2 child views, with the shell keeping tab titles, favicons, address-bar state, navigation history, zoom, ordering, and optional launch-time restoration in sync. The usual browser shortcuts work (`Ctrl+L`, `Ctrl+T`, `Ctrl+W`, `Ctrl+Tab`, `Ctrl+1` through `Ctrl+9`, `Ctrl+R`/`F5`, `Alt+Left`/`Alt+Right`, and `Ctrl++`/`Ctrl+-`/`Ctrl+0`). Terminal tabs use the corresponding `Ctrl+Shift` variants where a plain `Ctrl` chord belongs to the remote shell. In particular, `Ctrl+C` sends the terminal interrupt character; copying and pasting remain available from the terminal's right-click menu.
+| Shortcut | Action |
+| --- | --- |
+| `Ctrl+L` or `Alt+D` | Focus the address bar |
+| `Ctrl+T` | New blank tab |
+| `Ctrl+W` | Close active browser or remote-display tab |
+| `Ctrl+Tab`, `Ctrl+PageDown` | Next tab |
+| `Ctrl+Shift+Tab`, `Ctrl+PageUp` | Previous tab |
+| `Ctrl+1` … `Ctrl+9` | Select tab |
+| `Ctrl+R` or `F5` | Reload browser tab |
+| `Alt+Left`, `Alt+Right` | Browser history |
+| `Ctrl++`, `Ctrl+-`, `Ctrl+0` | Content zoom |
 
-Links opened with `target=_blank` and common `window.open()` calls become Womprat tabs. Download links are handed to the managed downloader, which preserves the `tsnet` route, sanitises filenames, avoids overwriting an existing file, removes incomplete files, and reports progress in the shell.
+Terminal tabs reserve ordinary control chords for the remote shell. Shell-level tab actions use the corresponding `Ctrl+Shift` chord. `Ctrl+C` copies the current terminal selection; when there is no selection it sends ETX to interrupt the remote process. The shell WebView keeps its context menu enabled for terminal copy and paste.
 
-WebView2 keeps its browsing profile under the Womprat configuration directory. Settings can clear cache, individual cookie domains, all cookies, saved passwords, or all browsing data. Cookie deletion matches exact hosts and real subdomains rather than arbitrary suffixes.
+Open tabs can be restored on launch. Blank tabs and Settings are not persisted. Protected shell state, recent tabs and terminal appearance load after the master-password gate has been unlocked.
 
-## Remote display tabs
+## SSH terminals
 
-VNC and RDP targets can be opened from the URL bar with normal custom URLs:
+Open an SSH tab from the address bar:
+
+```text
+ssh://user@host:22
+```
+
+SSH tabs use xterm.js and support configurable font size and these font choices:
+
+* bundled FiraCode Nerd Font Mono;
+* Cascadia Mono, if installed;
+* Consolas, if installed;
+* NSimSun/SimSun, if installed.
+
+Font changes apply to existing terminal sessions and cause them to refit. Womprat tries the key assigned to a host first, then other stored keys. If key authentication fails, it prompts for a password.
+
+SSH host keys use trust on first use. The first key is pinned in the host profile; a later mismatch is rejected. Removing a host removes its local URL, SSH association and pinned host key. It does not delete the named private key, because other hosts may share that credential, and it does not remove a device from the Tailscale control plane.
+
+## Browser tabs and downloads
+
+HTTP and HTTPS URLs open in native WebView2 child views. Womprat synchronises the live URL, title, favicon, history availability, zoom, tab order and restore state with the shell.
+
+Links using `target=_blank`, common `window.open()` calls and native WebView2 popup requests open as Womprat tabs. Popup redirection creates a new URL navigation. It does not preserve a popup POST body or opener-window JavaScript relationship.
+
+Download links handled by the shell use the managed downloader. It:
+
+* accepts HTTP and HTTPS URLs;
+* routes connections through `tsnet`;
+* writes to the current user's `Downloads` directory;
+* sanitises Windows filenames and chooses a new name instead of overwriting;
+* creates files exclusively to avoid path races;
+* removes incomplete files;
+* runs one managed download at a time.
+
+Managed downloads do not share WebView2 cookies. Downloads that require a browser-authenticated session may therefore fail.
+
+Settings can clear cache, one cookie domain, all cookies, saved browser passwords or all browsing data. Domain deletion matches the exact host and its subdomains; it does not use a broad suffix match.
+
+## VNC
+
+Open a VNC tab with:
 
 ```text
 vnc://host:5900
+```
+
+The client supports RFB `None` and classic VNC password authentication. A password-required server opens an in-tab password dialog. The password is used for that connection and is not persisted. Reconnects use connection generations so callbacks from an old socket cannot reset a newer session.
+
+The decoder supports Raw, Hextile, CopyRect, ZRLE, RRE and CoRRE updates, plus cursor, desktop-size, extended-desktop-size, desktop-name and LastRect pseudo-encodings. Raw is offered first because it has proved more reliable across the test servers used for Womprat.
+
+VNC input includes pointer, wheel, clipboard, keypad keys, F1-F24 and Meta/OS keysyms. Active keys are released on blur, reconnect and disposal to avoid stuck modifiers.
+
+## RDP
+
+Open an RDP tab with:
+
+```text
 rdp://user@host:3389
 ```
 
-Remote display tabs use a canvas-only workspace. The active session name and negotiated dimensions are promoted into the tab title, for example `sandbox:78 · 1024×768` or `rdp://host:3389 · 1280×720`, instead of taking space inside the canvas area.
+Credentials are entered in the tab and are not placed in the URL. The client advertises WASM-backed NSCodec, RemoteFX, RemoteFX-Image and bitmap decoding; the negotiated set depends on the server.
 
-### VNC
+The initial desktop size uses the visible content viewport. If the server supports MS-RDPEDISP Display Control, later window changes request a matching remote desktop size without reconnecting. Otherwise the existing framebuffer is fitted to the viewport. Pointer coordinates independently invert horizontal and vertical CSS scaling.
 
-The VNC client intentionally negotiates Raw first for correctness across real servers that black-screen with some compressed encodings, then advertises faster/fallback encodings:
-
-```text
-Raw → Hextile → CopyRect → ZRLE → RRE → CoRRE → Cursor → ExtendedDesktopSize → DesktopSize → DesktopName → LastRect
-```
-
-VNC input supports pointer, wheel, clipboard, bounded cursor/desktop-name data, keypad keysyms, F1-F24, Meta/OS keysyms for NeXT-like targets, and active-key release on blur/reconnect/dispose to avoid stuck modifiers.
-
-Servers using standard VNC password authentication prompt for their password inside the VNC tab and reconnect without storing it. Authentication modes outside RFB `None` and classic VNC password authentication are reported in the tab status.
-
-### RDP
-
-RDP credentials are entered in a centred dialog. Once Connect is pressed, the dialog hides and the canvas is displayed. Status is shown in an auto-sized bottom-left bar styled like the browser status bar. Fit-to-viewport is the default display mode.
-
-The initial remote desktop size comes from the visible content viewport. If the server negotiates MS-RDPEDISP Display Control, later browser-window changes request a matching remote desktop size without reconnecting or asking for credentials again. Servers without dynamic resize keep their negotiated framebuffer and the canvas fills the viewport locally; pointer coordinates independently invert the horizontal and vertical CSS scales, so mouse input still lands on the corresponding remote pixel.
-
-The default RDP path advertises WASM-backed NSCodec, RemoteFX, RemoteFX-Image, and bitmap decoding. Negotiated support depends on the server. For compatibility with servers that need conservative bitmap updates, use an RDP URL/query path that reaches the WebSocket with `rfx=off`, `rfx=false`, `rfx=0`, or `compat=1`.
+The compatibility query parameters `rfx=off`, `rfx=false`, `rfx=0` and `compat=1` disable the performance codec path for servers that require conservative bitmap updates.
 
 ## Configuration and secrets
 
-User data lives (for now) under:
+Windows state is stored below:
 
 ```text
 %APPDATA%\womprat\
 ```
 
-`config.enc` contains the encrypted application state, including window geometry, open tabs, host metadata, appearance, exit-node choice, and diagnostics preferences. WebView2 maintains its browser profile below the same directory; runtime debug logs, when enabled, are written next to the executable.
+`config.enc` contains window state, open tabs, host profiles, appearance, exit-node choice and diagnostics preferences. Credential files are stored below `creds/`. Windows encrypts both configuration and credential files with user-scoped DPAPI. They are not Windows Credential Manager entries.
 
-Entries added under Settings > Hosts are local Womprat host profiles stored in `config.enc`. They can add a manual target or override a discovered peer's browser URL, but they do not create or modify devices in the Tailscale control plane.
+The WebView2 profile is stored below the same Womprat directory and uses WebView2's profile protection. Debug logs, when enabled, are written next to the executable.
 
-Current unlock modes are intentionally simple:
+Unlock modes:
 
-* DPAPI user-scope unlock for normal per-user use.
-* Master-password unlock for an explicit additional gate.
+* `dpapi` opens state for the current Windows user without another prompt;
+* `master` adds a PBKDF2-SHA256 password check before protected API access and Tailscale startup.
 
-The Tailscale auth-key field is always masked and is only for replacing the key and reconnecting. SSH private keys are kept in Windows Credential Manager, and SSH host keys are pinned on first use rather than accepted blindly every time.
+The master password is an application gate. DPAPI remains the encryption mechanism for stored state.
 
-Debug logging is off by default. Enabling it writes the runtime log, enables WebView developer tooling for newly created views, and shows an attached Windows console when the process has one; disabling it stops file logging and hides that console. Normal Makefile releases use the Windows GUI subsystem and therefore launch without a console in the first place.
+Configuration and credential writes use a private temporary file, flush and close it, then replace the destination. Settings changes, tab persistence and host-key pinning serialise their read/modify/write transactions.
 
-## What it does not do
+## Diagnostics
 
-`womprat` is not trying to replace the full Tailscale client for general-purpose system networking. It will not make every application on the machine see the tailnet, advertise routes, or act as a machine-wide VPN.
+Settings includes checks for:
 
-It also does not provide a generic proxy service--the entire point of this is that this is a single-purpose, self contained app.
+* Tailscale connectivity;
+* the local SOCKS listener;
+* public DNS and connection through SOCKS when an exit node is active.
 
-## Building
+The public probe is marked `Skipped` when no exit node is active. A configured exit node that failed to apply is reported as degraded state rather than as a working public route.
 
-The project Makefile is the supported build entry point:
+Debug logging is disabled by default. Enabling it writes `womprat-log.txt`, enables WebView developer tools for newly created views and shows an attached Windows console when Womprat owns that console. Disabling it closes the log file and hides only a console owned solely by the Womprat process.
+
+## Security boundaries
+
+Womprat's local HTTP server and SOCKS listener bind to loopback. API calls require a random per-process session token. The HTTP server rejects foreign `Host` headers before serving token-bearing HTML or API responses.
+
+The application grants WebView2 clipboard-read permission for the shell. Permission requests whose kind cannot be read are denied. Browser process failures are surfaced in the affected tab with reload or restart guidance.
+
+RDP currently disables certificate verification for the target RDP server. The transport is encrypted when TLS is negotiated, but Womprat does not authenticate the server certificate. Use RDP only across a trusted tailnet and verify the target independently.
+
+## Limits
+
+Womprat is an application client, not a machine-wide VPN. It does not advertise routes or expose the tailnet to other applications.
+
+Current limits include:
+
+* Windows is the supported desktop runtime; Linux targets exist for development and automated tests;
+* managed downloads do not inherit browser cookies;
+* popup POST bodies and opener relationships are not retained;
+* VNC supports `None` and classic password authentication, not every RFB security extension;
+* RDP H.264 graphics are not implemented;
+* RDP server certificates are not verified;
+* configuration remains under `%APPDATA%`; USB-contained state is not implemented.
+
+## Build
+
+The Makefile is the supported entry point:
 
 ```bash
 make doctor
 make setup
 make verify
 make windows-arm64
+make windows-amd64
 ```
 
-For a clean end-to-end build:
+A clean ARM64 release build:
 
 ```bash
 make release
 ```
 
-The default target is documented with:
+An Intel/AMD x64 release build:
 
 ```bash
-make help
+make release-intel
 ```
 
-The Windows builds emit:
+Outputs:
 
 ```text
 dist/womprat-windows-arm64.exe
 dist/womprat-windows-amd64.exe
 ```
 
-Use `make windows-arm64` for ARM64, `make windows-amd64` (or `make windows-intel`) for Intel/AMD x64, and `make sha256` after building one or both to write `dist/SHA256SUMS.txt`.
+Run `make sha256` after building to create `dist/SHA256SUMS.txt`. Both release targets use `-H windowsgui`, so they start without a console window.
 
-Both Windows targets use `-H windowsgui`, so normal releases launch without a console window. Developer builds that retain the console subsystem can use the Debug Logging setting to show or hide their attached console.
+Build dependencies:
 
-## Build dependencies
+* Go 1.25 or later;
+* Bun;
+* `llvm-windres`;
+* Python 3.
 
-You need:
+`make doctor` checks the tools and required icon/manifest inputs. `make help` lists all targets.
 
-* Go, with Windows ARM64 cross-compilation support.
-* Bun, used to sanity-check the embedded HTML/JavaScript entry points.
-* `llvm-windres`, used to generate the Windows ARM64 resource object.
-* Python 3, currently used as a general project scripting dependency.
+## Tests
 
-The `Makefile` checks these with `make doctor` and regenerates Windows `.syso` resource objects from the checked-in icon and manifest.
+`make verify` runs:
+
+* Bun bundle checks for the shell, Settings, VNC and RDP assets;
+* server-independent frontend behavioural tests;
+* host Go tests;
+* Windows ARM64 `go vet`;
+* Windows ARM64 and AMD64 compile checks.
+
+Additional validation used by this repository:
+
+```bash
+go test -race ./...
+make ux-test
+bun run tests/ux/real-remotes.mjs
+```
+
+`tests/ux/ux.mjs` drives the shell in Chromium and covers downloads, tabs, Settings, SSH routing, VNC `None`, VNC password reconnect and RDP panel creation. `tests/ux/real-remotes.mjs` checks non-uniform framebuffer pixels and resized RDP geometry against real servers. See [`tests/ux/README.md`](tests/ux/README.md) for setup and test boundaries.
+
+The release workflow executes the WebView2 COM regression tests on a Windows runner before it builds and publishes ARM64 and AMD64 binaries.
 
 ## Repository layout
 
 ```text
-womprat/
-├── cmd/
-│   └── womprat/              Application entry point (package main)
-│       ├── main.go           WebView2 shell, tab model, browser bindings
-│       ├── gui_windows.go    Native dual-WebView host window (Windows)
-│       ├── socks.go          Tailscale-backed SOCKS5 endpoint
-│       ├── vnc.go            VNC WebSocket-to-TCP bridge through tsnet
-│       ├── rdp.go            RDP WebSocket bridge through tsnet
-│       ├── download.go       Managed HTTP(S) downloads through tsnet
-│       ├── ws_terminal.go    SSH terminal WebSocket bridge
-│       ├── settings_api.go   Settings HTTP API
-│       ├── config.go         Encrypted app configuration model
-│       ├── logging.go        Runtime log and diagnostics controls
-│       ├── console_windows.go Debug-console visibility on Windows
-│       ├── frontend/         HTML, CSS, and JavaScript for the app shell/settings
-│       └── winres/           Windows icon resource inputs
-├── internal/
-│   └── go-webview2/          Vendored WebView2 wrapper (local replace) with patches
-├── third_party/
-│   └── go-rdp/               Local RDP module replacement used by go.mod
-├── tests/
-│   └── ux/                   Playwright shell and real-remote UX smoke tests
-├── docs/
-│   ├── icon.png             Source application icon
-│   └── icon-256.png         README-sized icon
-└── Makefile                 Full setup/check/resource/build pipeline
+cmd/womprat/              application, APIs, protocol bridges and embedded frontend
+internal/go-webview2/     local WebView2 wrapper and COM fixes
+third_party/go-rdp/       local RDP module replacement
+tests/ux/                 Playwright and frontend behavioural tests
+docs/                     icons, screenshot and audit notes
+Makefile                  build, verification and release targets
 ```
-
-## Platform status
-
-Windows ARM64 is the primary target, and Windows AMD64/Intel x64 is a supported Makefile build. Both use the native dual-WebView2 host. Linux builds exist for automated tests and debugging: headless mode serves the shell/API for Playwright, while `make linux-gui` builds the WebKitGTK shell when its development packages are installed. The Darwin target is a compile sanity check rather than a supported desktop application.
-
-## Roadmap
-
-* Make this a fully portable, USB keychain-style app
-* Continue hardening RDP compatibility/performance across real servers
-* Possibly do a Mac version

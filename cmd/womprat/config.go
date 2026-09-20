@@ -1,6 +1,6 @@
 package main
 
-// config.go — self-contained settings management
+// config.go -- self-contained settings management
 // All settings stored in %APPDATA%/womprat/config.enc (DPAPI-encrypted JSON)
 // Secrets stored as encrypted files under the application config directory
 
@@ -65,7 +65,7 @@ type SavedTab struct {
 type HostConfig struct {
 	User               string `json:"user"`
 	Port               int    `json:"port"`
-	KeyName            string `json:"keyName"` // credential name in Windows Credential Manager
+	KeyName            string `json:"keyName"` // encrypted credential-file name
 	Nickname           string `json:"nickname"`
 	URL                string `json:"url"`                // preferred browser URL for this tailnet host
 	HostKey            string `json:"hostKey"`            // authorized_keys-format SSH host key (TOFU)
