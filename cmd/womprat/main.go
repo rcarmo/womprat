@@ -191,6 +191,7 @@ func main() {
 
 	shellURL := fmt.Sprintf("http://127.0.0.1:%d/", app.serverPort)
 	runGUI(app, shellURL)
+	app.shutdown()
 }
 
 func serveLocalHTTP(listener net.Listener, handler http.Handler) {
@@ -783,6 +784,20 @@ func (a *App) goHome() {
 	a.webview.Navigate(shellURL)
 }
 
+func (a *App) shutdown() {
+	a.stopTailscaleRetry()
+	a.tsStartMu.Lock()
+	defer a.tsStartMu.Unlock()
+	a.mu.Lock()
+	ts := a.tsServer
+	a.tsServer = nil
+	a.exitNodeActive = false
+	a.mu.Unlock()
+	if ts != nil {
+		_ = ts.Close()
+	}
+}
+
 func (a *App) startTailscale() error {
 	return a.startTailscaleContext(context.Background())
 }
@@ -1140,6 +1155,7 @@ func (a *App) handleSaveKey(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 400)
 		return
 	}
+	a.stopTailscaleRetry()
 	if err := SaveCredential("tailscale-key", body.Key); err != nil {
 		http.Error(w, err.Error(), 500)
 		return

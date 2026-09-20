@@ -41,6 +41,25 @@ func TestTailscaleRetryStopsOnMissingAuthKey(t *testing.T) {
 	}
 }
 
+func TestShutdownStopsRetryWorker(t *testing.T) {
+	app := newTestApp(t)
+	entered := make(chan struct{})
+	app.tsRetryStart = func(ctx context.Context) error {
+		close(entered)
+		<-ctx.Done()
+		return ctx.Err()
+	}
+	app.scheduleTailscaleRetry()
+	<-entered
+	app.shutdown()
+	app.tsRetryMu.Lock()
+	running := app.tsRetrying
+	app.tsRetryMu.Unlock()
+	if running {
+		t.Fatal("retry worker remains after shutdown")
+	}
+}
+
 func TestTailscaleReplacementClosesOldServerBeforeStart(t *testing.T) {
 	// The concrete tsnet server cannot be replaced with a fake, so assert the
 	// ordering contract directly and exercise retry scheduling separately.

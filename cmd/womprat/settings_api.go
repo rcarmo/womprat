@@ -186,7 +186,8 @@ func (a *App) handleSetTailscaleKey(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	// Restart tailscale with new key
+	// Cancel any previous retry before explicitly replacing the connection.
+	a.stopTailscaleRetry()
 	if err := a.startTailscale(); err != nil {
 		a.scheduleTailscaleRetry()
 		writeJSON(w, http.StatusOK, map[string]interface{}{"status": "saved", "error": err.Error()})
