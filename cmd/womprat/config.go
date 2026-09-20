@@ -2,7 +2,7 @@ package main
 
 // config.go — self-contained settings management
 // All settings stored in %APPDATA%/womprat/config.enc (DPAPI-encrypted JSON)
-// Secrets in Windows Credential Manager
+// Secrets stored as encrypted files under the application config directory
 
 import (
 	"encoding/json"
@@ -17,7 +17,7 @@ import (
 
 const defaultTerminalFont = "fira-code"
 
-// AppConfig holds all non-secret settings (DPAPI-encrypted on disk)
+// AppConfig holds non-secret settings (DPAPI-encrypted on Windows)
 type AppConfig struct {
 	// Unlock method: "master" (password) or "dpapi" (transparent)
 	UnlockMethod string `json:"unlockMethod"`
@@ -383,7 +383,7 @@ func writeEncryptedFile(path string, data []byte) error {
 	return os.Rename(tmp, path)
 }
 
-// Credential store operations (Windows Credential Manager)
+// Encrypted credential-file operations
 const (
 	credPrefix = "womprat/"
 )

@@ -23,7 +23,7 @@ import (
 
 const maxSSHKeyBytes = 64 * 1024
 
-// SSHKeyEntry stored in credential manager
+// SSHKeyEntry describes a stored encrypted SSH key
 type SSHKeyEntry struct {
 	Name        string   `json:"name"`
 	Fingerprint string   `json:"fingerprint"`
