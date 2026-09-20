@@ -274,7 +274,8 @@ func TestDiagnosticsSkipPublicProbeWithoutExitNode(t *testing.T) {
 	diag := readFileForRegression(t, "diagnostics.go")
 	settings := readFileForRegression(t, "frontend/settings.html")
 	for _, want := range []string{
-		"hasExitNode := strings.TrimSpace(a.config.ExitNode) != \"\"",
+		"exitNodeActive := a.exitNodeActive",
+		"configured exit node is not active; public internet is unavailable",
 		"Status: \"skip\"",
 		"no exit node configured; public internet is intentionally unavailable in tailnet-only mode",
 	} {
