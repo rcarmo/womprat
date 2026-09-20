@@ -2914,7 +2914,7 @@ class WompratVncViewer {
   buttons = 0;
   activeKeys = new Set;
   fitToViewport = true;
-  closedByReconnect = false;
+  connectionGeneration = 0;
   resizeObserver = null;
   disposed = false;
   constructor(root, target, password = null) {
@@ -2946,15 +2946,17 @@ class WompratVncViewer {
     const value = input?.value || this.root.getAttribute("data-vnc-password") || "";
     return value ? boundedVncPasswordText(value) : null;
   }
-  async init() {
+  async init(generation = this.connectionGeneration) {
     setStatus(this.root, "Loading VNC decoder…");
     const pipeline = await loadRemoteDisplayWasmDecoder();
+    if (this.disposed || generation !== this.connectionGeneration) return false;
     this.password = this.readPassword();
     this.protocol = new VncRemoteDisplayProtocol({ shared: true, password: this.password, pipeline });
+    return true;
   }
   async reconnect() {
     if (this.disposed) return;
-    this.closedByReconnect = true;
+    const generation = ++this.connectionGeneration;
     delete this.root.dataset.vncAuthRequired;
     delete this.root.dataset.connected;
     this.releaseActiveKeys();
@@ -2962,13 +2964,11 @@ class WompratVncViewer {
     this.ws = null;
     this.framebuffer = null;
     this.buttons = 0;
-    await this.init();
-    this.closedByReconnect = false;
-    this.connect();
+    if (await this.init(generation)) this.connect(generation);
   }
   dispose() {
     this.disposed = true;
-    this.closedByReconnect = true;
+    this.connectionGeneration++;
     this.releaseActiveKeys();
     try { this.ws?.close(1000, "tab closed"); } catch (error) { reportVncNonFatalError("dispose close", error); }
     try { this.resizeObserver?.disconnect?.(); } catch (error) { reportVncNonFatalError("resize observer disconnect", error); }
@@ -2982,7 +2982,7 @@ class WompratVncViewer {
     delete this.root.dataset.vncAuthRequired;
     delete this.root.dataset.connected;
   }
-  connect() {
+  connect(generation = this.connectionGeneration) {
     const url = new URL(`${wsBase()}//${window.location.host}/api/vnc/ws`);
     url.searchParams.set("target", this.target);
     const token = (typeof window !== "undefined" && window.__SESSION_TOKEN) || "";
@@ -2990,18 +2990,21 @@ class WompratVncViewer {
     setBusy(this.root, true);
     delete this.root.dataset.connected;
     setStatus(this.root, `Connecting to ${this.target}…`);
-    this.ws = new WebSocket(url.toString());
-    this.ws.binaryType = "arraybuffer";
-    this.ws.onopen = () => setStatus(this.root, `Negotiating VNC for ${this.target}…`);
-    this.ws.onerror = () => setStatus(this.root, "VNC connection error.");
-    this.ws.onclose = (event) => {
+    const socket = new WebSocket(url.toString());
+    this.ws = socket;
+    socket.binaryType = "arraybuffer";
+    const current = () => !this.disposed && generation === this.connectionGeneration && this.ws === socket;
+    socket.onopen = () => { if (current()) setStatus(this.root, `Negotiating VNC for ${this.target}…`); };
+    socket.onerror = () => { if (current()) setStatus(this.root, "VNC connection error."); };
+    socket.onclose = (event) => {
+      if (!current()) return;
       setBusy(this.root, false);
       this.setSessionControlsEnabled(false);
       delete this.root.dataset.connected;
-      if (!this.closedByReconnect && !this.root.hasAttribute("data-vnc-auth-required"))
+      if (!this.root.hasAttribute("data-vnc-auth-required"))
         setStatus(this.root, event.reason ? `Disconnected: ${event.reason}` : "Disconnected.");
     };
-    this.ws.onmessage = (event) => this.receive(new Uint8Array(event.data));
+    socket.onmessage = (event) => { if (current()) this.receive(new Uint8Array(event.data)); };
   }
   send(bytes) {
     if (this.ws?.readyState === WebSocket.OPEN)
@@ -3267,8 +3270,8 @@ async function startVNC(root, target) {
   root.__wompratVncViewer?.dispose?.();
   const viewer = new WompratVncViewer(root, target, password);
   root.__wompratVncViewer = viewer;
-  await viewer.init();
-  viewer.connect();
+  const generation = ++viewer.connectionGeneration;
+  if (await viewer.init(generation)) viewer.connect(generation);
   return viewer;
 }
 function disposeVNC(root) {
