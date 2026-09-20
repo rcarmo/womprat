@@ -132,6 +132,7 @@ func handleSOCKS5(conn net.Conn, app *App) {
 
 	app.mu.Lock()
 	ts := app.tsServer
+	exitNode := app.config.ExitNode
 	app.mu.Unlock()
 	if ts == nil && !allowDirectDial {
 		// tsnet not connected: report Network unreachable so the browser can guide
@@ -146,8 +147,8 @@ func handleSOCKS5(conn net.Conn, app *App) {
 	// routing policy. If an exit node is configured, tsnet handles it; otherwise
 	// non-tailnet destinations fail closed instead of escaping locally.
 	routing := "tailnet-only (no exit node)"
-	if app.config.ExitNode != "" {
-		routing = fmt.Sprintf("exit node %q", app.config.ExitNode)
+	if exitNode != "" {
+		routing = fmt.Sprintf("exit node %q", exitNode)
 	}
 	log.Printf("SOCKS5 connect %s via tsnet [%s]", addr, routing)
 	dialCtx, cancelDial := context.WithTimeout(context.Background(), socksDialTimeout)
