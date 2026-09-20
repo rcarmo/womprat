@@ -107,6 +107,7 @@ type App struct {
 	tsRetryDone     chan struct{}
 	tsRetryInterval time.Duration
 	tsRetryStart    func() error
+	exitNodeApply   func(context.Context, string) error
 	mu              sync.Mutex
 	config          *AppConfig
 	tsServer        *tsnet.Server

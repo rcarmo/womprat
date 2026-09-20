@@ -528,16 +528,25 @@ func (a *App) handleExitNode(w http.ResponseWriter, r *http.Request) {
 		if !decodeSettingsJSON(w, r, &body) {
 			return
 		}
-		if err := a.applyExitNodePreference(r.Context(), body.ExitNode); err != nil {
-			http.Error(w, err.Error(), 500)
-			return
-		}
 		a.mu.Lock()
 		cfg := cloneConfig(a.config)
+		oldExitNode := a.config.ExitNode
 		a.mu.Unlock()
+		apply := a.exitNodeApply
+		if apply == nil {
+			apply = a.applyExitNodePreference
+		}
+		if err := apply(r.Context(), body.ExitNode); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 		cfg.ExitNode = body.ExitNode
 		if err := SaveConfig(cfg); err != nil {
-			http.Error(w, err.Error(), 500)
+			if rollbackErr := apply(r.Context(), oldExitNode); rollbackErr != nil {
+				http.Error(w, fmt.Sprintf("save failed: %v; route rollback failed: %v", err, rollbackErr), http.StatusInternalServerError)
+				return
+			}
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		a.mu.Lock()

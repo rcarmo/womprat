@@ -2,7 +2,9 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -170,6 +172,11 @@ func TestExitNodeDoesNotChangeMemoryOnPersistFailure(t *testing.T) {
 	app := newTestApp(t)
 	app.config.ExitNode = "old-exit"
 	app.exitNodeActive = true
+	var applied []string
+	app.exitNodeApply = func(_ context.Context, exitNode string) error {
+		applied = append(applied, exitNode)
+		return nil
+	}
 	blocked := filepath.Join(t.TempDir(), "blocked")
 	if err := os.WriteFile(blocked, []byte("x"), 0600); err != nil {
 		t.Fatal(err)
@@ -181,6 +188,31 @@ func TestExitNodeDoesNotChangeMemoryOnPersistFailure(t *testing.T) {
 	}
 	if app.config.ExitNode != "old-exit" || !app.exitNodeActive {
 		t.Fatalf("exit-node changed despite persist failure: cfg=%+v exitNodeActive=%v", app.config, app.exitNodeActive)
+	}
+	if got := strings.Join(applied, ","); got != ",old-exit" {
+		t.Fatalf("route apply/rollback = %q", got)
+	}
+}
+
+func TestExitNodeReportsRollbackFailure(t *testing.T) {
+	app := newTestApp(t)
+	app.config.ExitNode = "old-exit"
+	calls := 0
+	app.exitNodeApply = func(_ context.Context, exitNode string) error {
+		calls++
+		if calls == 2 {
+			return errors.New("rollback unavailable")
+		}
+		return nil
+	}
+	blocked := filepath.Join(t.TempDir(), "blocked")
+	if err := os.WriteFile(blocked, []byte("x"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("XDG_CONFIG_HOME", blocked)
+	rr := performJSON(app.handleExitNode, http.MethodPost, "/api/settings/exit-node", map[string]string{"exitNode": "new-exit"})
+	if rr.Code != http.StatusInternalServerError || !strings.Contains(rr.Body.String(), "route rollback failed") {
+		t.Fatalf("rollback failure = %d %s", rr.Code, rr.Body.String())
 	}
 }
 
