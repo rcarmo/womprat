@@ -78,6 +78,22 @@ test('terminal registration precedes native activation', () => {
   expect(activate).toBeGreaterThan(register);
 });
 
+test('terminal appearance updates existing sessions with normalized values', () => {
+  const begin=source.indexOf('const DEFAULT_TERMINAL_FONT_SIZE');
+  const end=source.indexOf('async function loadTerminalAppearance()',begin);
+  const fitCalls=[];
+  const session={fontSize:0,term:{options:{}},fit:{fit:()=>fitCalls.push(true)}};
+  const apply=Function('terminalSessions','requestAnimationFrame',`${source.slice(begin,end)};return applyTerminalAppearance`)(new Map([['tab',session]]),fn=>fn());
+  apply({fontSize:18,terminalFont:'consolas'});
+  expect(session.fontSize).toBe(18);
+  expect(session.term.options.fontSize).toBe(18);
+  expect(session.term.options.fontFamily).toContain('Consolas');
+  expect(fitCalls.length).toBe(1);
+  apply({fontSize:99,terminalFont:'unknown'});
+  expect(session.fontSize).toBe(14);
+  expect(session.term.options.fontFamily).toContain('FiraCode');
+});
+
 test('post-auth hydration loads appearance before tabs exactly once', async () => {
   const begin = source.indexOf('let shellHydrated = false;');
   const end = source.indexOf('async function checkAuth()', begin);
