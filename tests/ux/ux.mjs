@@ -207,6 +207,14 @@ try {
   await page.press("#url-input", "Enter");
   const termPanel = await page.waitForSelector(".term-panel, .term-container", { timeout: 5000 }).then(() => true).catch(() => false);
   check("ssh terminal panel created", termPanel);
+  const terminalFontReady = await page.waitForFunction(() => {
+    const terminal = document.querySelector('.term-panel.active .xterm');
+    return !!terminal && document.fonts.check('400 14px "FiraCode Nerd Font Mono"') && document.fonts.check('700 14px "FiraCode Nerd Font Mono"');
+  }, {timeout: 5000}).then(() => true).catch(() => false);
+  check("terminal font faces loaded before rendering", terminalFontReady);
+  const recentTerminal = await page.waitForFunction(() =>
+    document.getElementById('recent-list')?.textContent?.includes('127.0.0.1'), {timeout: 5000}).then(() => true).catch(() => false);
+  check("recent tabs refresh after save", recentTerminal);
   check("custom schemes leave no blank placeholders", await page.evaluate(() => !Array.from(document.querySelectorAll('.tab-title')).some(el => el.textContent === 'New tab')));
 
   // Updating title metadata must retain the tab element (and therefore avoid

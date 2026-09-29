@@ -60,6 +60,28 @@ func TestProcessFailureGetterErrorIsReportedAsUnknown(t *testing.T) {
 	}
 }
 
+func TestDocumentTitleChangedForwardsNativeTitle(t *testing.T) {
+	view := &ICoreWebView2{vtbl: &iCoreWebView2Vtbl{}}
+	view.vtbl.GetDocumentTitle, _ = comStringProc("Changed by JavaScript")
+	var got string
+	edge := &Chromium{DocumentTitleChangedCallback: func(title string) { got = title }}
+	edge.DocumentTitleChanged(view)
+	if got != "Changed by JavaScript" {
+		t.Fatalf("title=%q", got)
+	}
+}
+
+func TestDocumentTitleChangedIgnoresFailedGetter(t *testing.T) {
+	view := &ICoreWebView2{vtbl: &iCoreWebView2Vtbl{}}
+	view.vtbl.GetDocumentTitle = NewComProc(func(this, out uintptr) uintptr { return 0x80004005 })
+	called := false
+	edge := &Chromium{DocumentTitleChangedCallback: func(string) { called = true }}
+	edge.DocumentTitleChanged(view)
+	if called {
+		t.Fatal("failed document title getter reached callback")
+	}
+}
+
 func TestCookieListCallbackChecksHRESULTAndReleasesList(t *testing.T) {
 	if _, err := cookieListToHTTP(0x80004005, nil); err == nil {
 		t.Fatal("failed cookie callback accepted")

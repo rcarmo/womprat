@@ -60,12 +60,15 @@ test('tab persistence coalesces concurrent saves to newest snapshot', async () =
   globalThis.state={tabs:[{id:'a'}]};
   globalThis.dedupeRecentTabs=tabs=>tabs.map(t=>({...t}));
   globalThis.fetch=async (_url,options)=>{snapshots.push(JSON.parse(options.body).tabs);await Bun.sleep(5);return {ok:true}};
+  const rendered=[];
+  globalThis.renderRecentTabs=tabs=>rendered.push(tabs.map(t=>t.id));
   const save = Function(`${source.slice(begin,end)}; return saveOpenTabs`)();
   const first=save();
   state.tabs=[{id:'b'}]; save();
   state.tabs=[{id:'c'}]; save();
   await first;
   expect(snapshots).toEqual([[{id:'a'}],[{id:'c'}]]);
+  expect(rendered).toEqual([['c']]);
 });
 
 test('terminal registration precedes native activation', () => {
@@ -78,18 +81,25 @@ test('terminal registration precedes native activation', () => {
   expect(activate).toBeGreaterThan(register);
 });
 
-test('terminal appearance updates existing sessions with normalized values', () => {
+test('terminal appearance waits for font loading before refit', async () => {
   const begin=source.indexOf('const DEFAULT_TERMINAL_FONT_SIZE');
   const end=source.indexOf('async function loadTerminalAppearance()',begin);
   const fitCalls=[];
-  const session={fontSize:0,term:{options:{}},fit:{fit:()=>fitCalls.push(true)}};
-  const apply=Function('terminalSessions','requestAnimationFrame',`${source.slice(begin,end)};return applyTerminalAppearance`)(new Map([['tab',session]]),fn=>fn());
-  apply({fontSize:18,terminalFont:'consolas'});
+  let finishFontLoad;
+  const fontReady=new Promise(resolve=>finishFontLoad=resolve);
+  const session={fontSize:0,term:{options:{},clearTextureAtlas:()=>fitCalls.push('atlas')},fit:{fit:()=>fitCalls.push('fit')}};
+  const apply=Function('terminalSessions','requestAnimationFrame','document',`${source.slice(begin,end)};return applyTerminalAppearance`)(new Map([['tab',session]]),fn=>fn(),{fonts:{load:()=>fontReady}});
+  const first=apply({fontSize:18,terminalFont:'consolas'});
+  expect(session.fontSize).toBe(0);
+  finishFontLoad();
+  await first;
   expect(session.fontSize).toBe(18);
   expect(session.term.options.fontSize).toBe(18);
   expect(session.term.options.fontFamily).toContain('Consolas');
-  expect(fitCalls.length).toBe(1);
-  apply({fontSize:99,terminalFont:'unknown'});
+  expect(session.term.options.fontFamily).toContain('FiraCode Nerd Font Mono');
+  expect(session.term.options.fontFamily.indexOf('FiraCode')).toBeLessThan(session.term.options.fontFamily.indexOf('NSimSun'));
+  expect(fitCalls).toEqual(['atlas','fit']);
+  await apply({fontSize:99,terminalFont:'unknown'});
   expect(session.fontSize).toBe(14);
   expect(session.term.options.fontFamily).toContain('FiraCode');
 });

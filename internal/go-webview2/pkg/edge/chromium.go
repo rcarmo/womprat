@@ -28,6 +28,7 @@ type Chromium struct {
 	webResourceRequested  *iCoreWebView2WebResourceRequestedEventHandler
 	acceleratorKeyPressed *ICoreWebView2AcceleratorKeyPressedEventHandler
 	navigationCompleted   *ICoreWebView2NavigationCompletedEventHandler
+	documentTitleChanged  *ICoreWebView2DocumentTitleChangedEventHandler
 
 	environment *ICoreWebView2Environment
 
@@ -48,6 +49,7 @@ type Chromium struct {
 	MessageCallback              func(string)
 	WebResourceRequestedCallback func(request *ICoreWebView2WebResourceRequest, args *ICoreWebView2WebResourceRequestedEventArgs)
 	NavigationCompletedCallback  func(sender *ICoreWebView2, args *ICoreWebView2NavigationCompletedEventArgs)
+	DocumentTitleChangedCallback func(string)
 	AcceleratorKeyCallback       func(uint) bool
 
 	cookieMu       sync.Mutex
@@ -74,6 +76,7 @@ func NewChromium() *Chromium {
 	e.webResourceRequested = newICoreWebView2WebResourceRequestedEventHandler(e)
 	e.acceleratorKeyPressed = newICoreWebView2AcceleratorKeyPressedEventHandler(e)
 	e.navigationCompleted = newICoreWebView2NavigationCompletedEventHandler(e)
+	e.documentTitleChanged = newICoreWebView2DocumentTitleChangedEventHandler(e)
 	e.newWindowRequested = newICoreWebView2NewWindowRequestedEventHandler(e)
 	e.processFailed = newICoreWebView2ProcessFailedEventHandler(e)
 	e.permissions = make(map[CoreWebView2PermissionKind]CoreWebView2PermissionState)
@@ -319,6 +322,18 @@ func (e *Chromium) CreateCoreWebView2ControllerCompleted(res uintptr, controller
 		uintptr(unsafe.Pointer(e.navigationCompleted)),
 		uintptr(unsafe.Pointer(&token)),
 	)
+	if e.DocumentTitleChangedCallback != nil {
+		hr, _, _ := e.webview.vtbl.AddDocumentTitleChanged.Call(
+			uintptr(unsafe.Pointer(e.webview)),
+			uintptr(unsafe.Pointer(e.documentTitleChanged)),
+			uintptr(unsafe.Pointer(&token)),
+		)
+		if int32(hr) < 0 {
+			log.Printf("Register document title handler failed: HRESULT %#x", hr)
+			atomic.StoreUintptr(&e.inited, 2)
+			return 0
+		}
+	}
 
 	if e.ProcessFailedCallback != nil {
 		hr, _, _ := e.webview.vtbl.AddProcessFailed.Call(uintptr(unsafe.Pointer(e.webview)), uintptr(unsafe.Pointer(e.processFailed)), uintptr(unsafe.Pointer(&token)))
@@ -348,6 +363,19 @@ func (e *Chromium) CreateCoreWebView2ControllerCompleted(res uintptr, controller
 		e.Focus()
 	}
 
+	return 0
+}
+
+func (e *Chromium) DocumentTitleChanged(sender *ICoreWebView2) uintptr {
+	if e.DocumentTitleChangedCallback == nil || sender == nil {
+		return 0
+	}
+	title, err := sender.DocumentTitle()
+	if err != nil {
+		log.Printf("Read document title failed: %v", err)
+		return 0
+	}
+	e.DocumentTitleChangedCallback(title)
 	return 0
 }
 

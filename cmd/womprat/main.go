@@ -742,8 +742,17 @@ func (a *App) registerLocalTab(tabJSON string) {
 		tab.Type, tab.Title, tab.Host, tab.User, tab.Port, tab.URL, tab.Favicon = saved.Type, saved.Title, saved.Host, saved.User, saved.Port, saved.URL, saved.Favicon
 	}
 	a.mu.Lock()
+	isNew := true
+	for _, existing := range a.tabs {
+		if existing.ID == tab.ID {
+			isNew = false
+			break
+		}
+	}
 	a.tabs = upsertTab(a.tabs, tab)
-	a.activeTab = tab.ID
+	if isNew {
+		a.activeTab = tab.ID
+	}
 	a.mu.Unlock()
 	a.persistOpenTabs()
 }

@@ -1884,7 +1884,8 @@ func TestRecentTabsAreDedupedByCanonicalTarget(t *testing.T) {
 		"function recentTabKey(tab)",
 		"function dedupeRecentTabs(tabs)",
 		"if (!clean || !key || seen.has(key)) continue;",
-		"const tabs = dedupeRecentTabs(cfg.openTabs || []);",
+		"renderRecentTabs(dedupeRecentTabs(cfg.openTabs || []));",
+		"if (!pendingTabSnapshot) renderRecentTabs(tabs);",
 		"pendingTabSnapshot = dedupeRecentTabs(state.tabs).slice(0, 100);",
 		"if (tab.type === 'vnc' || tab.type === 'rdp') return `${tab.type}:${String(tab.url || '').toLowerCase()}`;",
 	} {

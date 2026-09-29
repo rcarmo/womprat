@@ -4,11 +4,11 @@ import { readFileSync } from 'node:fs';
 const source = readFileSync(new URL('../../cmd/womprat/frontend/index.html', import.meta.url), 'utf8');
 function extractFunction(name, nextName) {
   const begin = source.indexOf(`function ${name}(`);
-  const end = source.indexOf(`function ${nextName}(`, begin);
+  const end = source.indexOf(`async function ${nextName}(`, begin);
   if (begin < 0 || end < 0) throw new Error(`cannot extract ${name}`);
   return Function(`${source.slice(begin, end)}; return ${name}`)();
 }
-const handleTerminalCtrlC = extractFunction('handleTerminalCtrlC', 'applyTerminalAppearance');
+const handleTerminalCtrlC = extractFunction('handleTerminalCtrlC', 'loadTerminalFont');
 
 test('Ctrl+C copies a terminal selection without sending ETX', async () => {
   const writes = [];

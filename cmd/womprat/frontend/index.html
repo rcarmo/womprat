@@ -331,11 +331,12 @@ const DEFAULT_TERMINAL_FONT_SIZE = 14;
 const DEFAULT_TERMINAL_FONT = 'fira-code';
 const TERMINAL_FONT_FAMILIES = Object.freeze({
   'fira-code': "'FiraCode Nerd Font Mono', 'NSimSun', 'Microsoft YaHei UI', monospace",
-  'cascadia-mono': "'Cascadia Mono', 'NSimSun', 'Microsoft YaHei UI', monospace",
-  'consolas': "Consolas, 'NSimSun', 'Microsoft YaHei UI', monospace",
+  'cascadia-mono': "'Cascadia Mono', 'FiraCode Nerd Font Mono', 'NSimSun', 'Microsoft YaHei UI', monospace",
+  'consolas': "Consolas, 'FiraCode Nerd Font Mono', 'NSimSun', 'Microsoft YaHei UI', monospace",
   'nsimsun': "'NSimSun', 'SimSun', monospace",
 });
 let terminalAppearance = { fontSize: DEFAULT_TERMINAL_FONT_SIZE, terminalFont: DEFAULT_TERMINAL_FONT };
+let terminalAppearanceRevision = 0;
 const MIN_TERMINAL_COLS = 20;
 const MAX_TERMINAL_COLS = 500;
 const MIN_TERMINAL_ROWS = 5;
@@ -362,16 +363,31 @@ function handleTerminalCtrlC(term, clipboard = navigator.clipboard) {
   term.input('\x03', true);
   return false;
 }
-function applyTerminalAppearance(appearance = {}) {
-  terminalAppearance = {
+async function loadTerminalFont(font, size) {
+  if (!document.fonts?.load) return;
+  const family = TERMINAL_FONT_FAMILIES[font];
+  try {
+    await Promise.all([
+      document.fonts.load(`400 ${size}px ${family}`),
+      document.fonts.load(`700 ${size}px ${family}`),
+    ]);
+  } catch (err) { console.warn('terminal font load failed', err); }
+}
+async function applyTerminalAppearance(appearance = {}) {
+  const next = {
     fontSize: normalizeTerminalFontSize(appearance.fontSize),
     terminalFont: normalizeTerminalFont(appearance.terminalFont),
   };
-  const fontFamily = TERMINAL_FONT_FAMILIES[terminalAppearance.terminalFont];
+  const revision = ++terminalAppearanceRevision;
+  await loadTerminalFont(next.terminalFont, next.fontSize);
+  if (revision !== terminalAppearanceRevision) return;
+  terminalAppearance = next;
+  const fontFamily = TERMINAL_FONT_FAMILIES[next.terminalFont];
   terminalSessions.forEach(session => {
-    session.fontSize = terminalAppearance.fontSize;
-    session.term.options.fontSize = terminalAppearance.fontSize;
+    session.fontSize = next.fontSize;
+    session.term.options.fontSize = next.fontSize;
     session.term.options.fontFamily = fontFamily;
+    session.term.clearTextureAtlas?.();
     requestAnimationFrame(() => session.fit?.fit?.());
   });
 }
@@ -379,7 +395,7 @@ async function loadTerminalAppearance() {
   try {
     const res = await fetch('/api/settings/config');
     if (!res.ok) throw new Error(await res.text());
-    applyTerminalAppearance(await res.json());
+    await applyTerminalAppearance(await res.json());
   } catch (err) {
     console.warn('terminal appearance load failed', err);
   }
@@ -934,7 +950,9 @@ window.openTerminal = async function(host, name, user, port, options = {}) {
   const panel = document.getElementById(`panel-${tabId}`);
   const container = panel.querySelector('.term-container');
 
-  // Create terminal immediately with "Connecting..." message
+  // Font metrics must be ready before xterm and its WebGL renderer measure cells.
+  await loadTerminalFont(terminalAppearance.terminalFont, terminalAppearance.fontSize);
+  if (!panel.isConnected || document.getElementById(`panel-${tabId}`) !== panel) return;
   const term = new Terminal({ allowProposedApi: true, cursorBlink: true, fontSize: terminalAppearance.fontSize, bellStyle: 'sound', copyOnSelect: true, rightClickSelectsWord: true, scrollback: 10000, overviewRuler: { width: 2 },
     fontFamily: TERMINAL_FONT_FAMILIES[terminalAppearance.terminalFont],
     fontWeight: '400', fontWeightBold: '700',
@@ -1840,6 +1858,58 @@ function dedupeRecentTabs(tabs) {
   return result;
 }
 
+function renderRecentTabs(tabs) {
+  const list = document.getElementById('recent-list');
+  if (!list) return;
+  refreshURLHistoryDatalist(tabs.map(t => t.type === 'terminal' ? formatSSHURL(t.user || 'root', t.host || t.title, t.port) : (t.url || t.title)));
+  list.textContent = '';
+  if (!tabs.length) {
+    const empty = document.createElement('div');
+    empty.style.cssText = 'color:var(--dim);font-size:.85em';
+    empty.textContent = 'No recent tabs';
+    list.appendChild(empty);
+    return;
+  }
+  tabs.forEach(t => {
+    const detail = t.type === 'terminal'
+      ? `${t.user || 'root'}@${t.host}:${t.port || 22}`
+      : (t.url || '');
+    const item = document.createElement('div');
+    item.className = 'recent-item';
+    item.tabIndex = 0;
+    item.setAttribute('role', 'button');
+    item.addEventListener('click', () => activateRecentTab(t));
+    item.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        activateRecentTab(t);
+      }
+    });
+
+    const iconSpan = document.createElement('span');
+    const favicon = t.type === 'browser' ? sanitizeFaviconURL(t.favicon) : '';
+    if (favicon) {
+      const img = document.createElement('img');
+      img.className = 'tab-favicon';
+      img.src = favicon;
+      img.alt = '';
+      img.referrerPolicy = 'no-referrer';
+      img.addEventListener('error', () => { failedFavicons.add(img.src); img.remove(); });
+      iconSpan.appendChild(img);
+    } else {
+      iconSpan.innerHTML = icon(t.type === 'terminal' ? 'terminal' : 'globe');
+    }
+    const title = document.createElement('span');
+    title.style.fontWeight = '600';
+    title.textContent = t.title || t.host || t.url || 'Untitled';
+    const detailSpan = document.createElement('span');
+    detailSpan.style.cssText = 'color:var(--dim);font-size:.8em;margin-left:auto';
+    detailSpan.textContent = detail;
+    item.append(iconSpan, title, detailSpan);
+    list.appendChild(item);
+  });
+}
+
 async function loadRecentTabs() {
   const list = document.getElementById('recent-list');
   if (!list) return;
@@ -1847,54 +1917,7 @@ async function loadRecentTabs() {
     const res = await fetch('/api/settings/config');
     if (!res.ok) throw new Error(await res.text());
     const cfg = await res.json();
-    const tabs = dedupeRecentTabs(cfg.openTabs || []);
-    refreshURLHistoryDatalist(tabs.map(t => t.type === 'terminal' ? formatSSHURL(t.user || 'root', t.host || t.title, t.port) : (t.url || t.title)));
-    list.textContent = '';
-    if (!tabs.length) {
-      const empty = document.createElement('div');
-      empty.style.cssText = 'color:var(--dim);font-size:.85em';
-      empty.textContent = 'No recent tabs';
-      list.appendChild(empty);
-      return;
-    }
-    tabs.forEach(t => {
-      const detail = t.type === 'terminal'
-        ? `${t.user || 'root'}@${t.host}:${t.port || 22}`
-        : (t.url || '');
-      const item = document.createElement('div');
-      item.className = 'recent-item';
-      item.tabIndex = 0;
-      item.setAttribute('role', 'button');
-      item.addEventListener('click', () => activateRecentTab(t));
-      item.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          activateRecentTab(t);
-        }
-      });
-
-      const iconSpan = document.createElement('span');
-      const favicon = t.type === 'browser' ? sanitizeFaviconURL(t.favicon) : '';
-      if (favicon) {
-        const img = document.createElement('img');
-        img.className = 'tab-favicon';
-        img.src = favicon;
-        img.alt = '';
-        img.referrerPolicy = 'no-referrer';
-        img.addEventListener('error', () => { failedFavicons.add(img.src); img.remove(); });
-        iconSpan.appendChild(img);
-      } else {
-        iconSpan.innerHTML = icon(t.type === 'terminal' ? 'terminal' : 'globe');
-      }
-      const title = document.createElement('span');
-      title.style.fontWeight = '600';
-      title.textContent = t.title || t.host || t.url || 'Untitled';
-      const detailSpan = document.createElement('span');
-      detailSpan.style.cssText = 'color:var(--dim);font-size:.8em;margin-left:auto';
-      detailSpan.textContent = detail;
-      item.append(iconSpan, title, detailSpan);
-      list.appendChild(item);
-    });
+    renderRecentTabs(dedupeRecentTabs(cfg.openTabs || []));
   } catch (err) {
     console.warn('recent tabs load failed', err);
     list.textContent = '';
@@ -1971,6 +1994,9 @@ async function flushOpenTabs() {
         body: JSON.stringify({tabs})
       });
       if (!res.ok) throw new Error(await res.text());
+      // Render only the newest acknowledged snapshot. A queued save may still
+      // supersede this response before it reaches the sidebar.
+      if (!pendingTabSnapshot) renderRecentTabs(tabs);
     } catch (err) {
       console.warn('save open tabs failed', err);
     }

@@ -65,7 +65,7 @@ Browser shortcuts:
 
 Terminal tabs reserve ordinary control chords for the remote shell. Shell-level tab actions use the corresponding `Ctrl+Shift` chord. `Ctrl+C` copies the current terminal selection; when there is no selection it sends ETX to interrupt the remote process. The shell WebView keeps its context menu enabled for terminal copy and paste.
 
-Open tabs can be restored on launch. Blank tabs and Settings are not persisted. Protected shell state, recent tabs and terminal appearance load after the master-password gate has been unlocked.
+Open tabs can be restored on launch. Blank tabs and Settings are not persisted. Protected shell state, recent tabs and terminal appearance load after the master-password gate has been unlocked. Recent Tabs refreshes after each successful tab-state save.
 
 ## SSH terminals
 
@@ -82,7 +82,7 @@ SSH tabs use xterm.js and support configurable font size and these font choices:
 * Consolas, if installed;
 * NSimSun/SimSun, if installed.
 
-Font changes apply to existing terminal sessions and cause them to refit. Womprat tries the key assigned to a host first, then other stored keys. If key authentication fails, it prompts for a password.
+Womprat loads the chosen font before xterm measures cells. Font changes clear the WebGL texture atlas and refit existing sessions; Cascadia and Consolas fall back to bundled FiraCode before CJK fonts if unavailable. Womprat tries the key assigned to a host first, then other stored keys. If key authentication fails, it prompts for a password.
 
 SSH host keys use trust on first use. The first key is pinned in the host profile; a later mismatch is rejected. Removing a host removes its local URL, SSH association and pinned host key. It does not delete the named private key, because other hosts may share that credential, and it does not remove a device from the Tailscale control plane.
 

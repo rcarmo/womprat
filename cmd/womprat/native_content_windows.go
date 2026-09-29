@@ -296,6 +296,11 @@ func newNativeContentView(parent uintptr, dataPath, tabID string, shell shellWeb
 	log.Printf("content: %s child window hwnd=0x%x created; building WebView2 environment", tabID, hwnd)
 	cv := &nativeContentView{parent: parent, hwnd: hwnd, tabID: tabID, shell: shell, tsConnected: tsConnected}
 	edge := webview2edge.NewChromium()
+	edge.DocumentTitleChangedCallback = func(title string) {
+		if clean := sanitizeBrowserTitle(title); clean != "" && cv.shell != nil {
+			cv.shell.Eval(fmt.Sprintf("window.wompratSetTabTitle(%s,%s)", jsString(cv.tabID), jsString(clean)))
+		}
+	}
 	edge.ProcessFailedCallback = func(kind int32) {
 		log.Printf("content: process failed tab=%s kind=%d", cv.tabID, kind)
 		if cv.shell == nil {
@@ -424,8 +429,9 @@ const browserTitleReporterJS = `(function(){
     history.pushState = function(){ var r = _ps.apply(this, arguments); try { send(); } catch(e){ reportBridgeError('pushState metadata', e); } return r; };
     history.replaceState = function(){ var r = _rs.apply(this, arguments); try { send(); } catch(e){ reportBridgeError('replaceState metadata', e); } return r; };
   } catch(e){ reportBridgeError('history patch', e); }
-  try { var t=document.querySelector('title'); if(t){ new MutationObserver(send).observe(t,{childList:true}); } } catch(e){ reportBridgeError('title observer', e); }
-  try { new MutationObserver(function(){ send(); }).observe(document.head||document.documentElement,{subtree:true,childList:true}); } catch(e){ reportBridgeError('head observer', e); }
+  // document.title can replace a text node or mutate its characterData;
+  // watch both, including a <title> element inserted after this bridge starts.
+  try { new MutationObserver(send).observe(document.head||document.documentElement,{subtree:true,childList:true,characterData:true}); } catch(e){ reportBridgeError('title observer', e); }
   function fire(action, arg){ try{ window.chrome.webview.postMessage(JSON.stringify({wompratKey: action, wompratArg: arg||''})); }catch(e){ reportBridgeError('hotkey post', e); } }
   function browserAction(action, url){
     try {

@@ -162,7 +162,8 @@ linux: | $(DIST_DIR) ## Build Linux AMD64 debug server binary (serves shell/API 
 
 ux-test: | $(DIST_DIR) ## Build a debug headless Linux binary and run the Playwright UX test
 	$(GO) build -ldflags="-X main.debugBuild=1" -o $(DIST_DIR)/$(APP)-linux-debug ./$(CMD_DIR)
-	cd tests/ux && PLAYWRIGHT_BROWSERS_PATH=$(HOME)/.cache/ms-playwright $(BUN) run ux.mjs
+	cd tests/ux && WOMPRAT_BIN=$(CURDIR)/$(DIST_DIR)/$(APP)-linux-debug PLAYWRIGHT_BROWSERS_PATH=$(HOME)/.cache/ms-playwright $(BUN) run ux.mjs
+	PLAYWRIGHT_BROWSERS_PATH=$(HOME)/.cache/ms-playwright $(BUN) test tests/ux/title-reporter.test.mjs
 
 linux-debug: linux ## Build Linux binary and launch the Xvfb/xdotool debug harness
 	WOMPRAT_BIN=$(BIN_LINUX) bash scripts/linux-debug.sh

@@ -88,6 +88,19 @@ func TestNavigateAndNewBrowserNormalizeURL(t *testing.T) {
 	}
 }
 
+func TestBackgroundTitleRegistrationDoesNotActivateTab(t *testing.T) {
+	app := newTestApp(t)
+	app.tabs = []Tab{
+		{ID: "background", Type: "browser", Title: "Old", URL: "https://example.com"},
+		{ID: "foreground", Type: "browser", Title: "Visible", URL: "https://other.example"},
+	}
+	app.activeTab = "foreground"
+	app.registerLocalTab(`{"id":"background","type":"browser","title":"Changed by JS","url":"https://example.com"}`)
+	if app.activeTab != "foreground" || app.tabs[0].Title != "Changed by JS" {
+		t.Fatalf("background title registration: active=%q tabs=%+v", app.activeTab, app.tabs)
+	}
+}
+
 func TestBlankBrowserTabIsTrackedWithoutPersisting(t *testing.T) {
 	app := newTestApp(t)
 	t.Setenv("APPDATA", t.TempDir())
