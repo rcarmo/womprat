@@ -178,10 +178,16 @@ try {
   const hasSettings = await page.waitForSelector("#panel-settings iframe, iframe.browser-frame", { timeout: 5000 }).then(() => true).catch(() => false);
   check("settings panel renders", hasSettings);
   const settingsFrame = page.frameLocator('#panel-settings iframe[src="/settings.html"]');
-  await settingsFrame.locator('#diag-smith-run').click();
-  await settingsFrame.locator('#diag-smith-output').getByText('smith.local').waitFor({ timeout: 5000 });
-  const smithEvidence = await settingsFrame.locator('#diag-smith-output').textContent();
-  check('smith.local diagnostic displays real app disconnected state', smithEvidence.includes('Womprat tsnet is not connected') && smithEvidence.includes('"queries": []'));
+  await settingsFrame.locator('#diag-dns-name').fill('smith.local');
+  await settingsFrame.locator('#diag-dns-run').click();
+  await settingsFrame.locator('#diag-dns-results .diag-card').first().waitFor({ timeout: 5000 });
+  const smithEvidence = await settingsFrame.locator('#diag-dns-results').textContent();
+  const smithJSON = await settingsFrame.locator('#diag-dns-output').textContent();
+  check('generic DNS form displays disconnected app state and copyable evidence', smithEvidence.includes('Tailscale path') && smithEvidence.includes('disconnected') && smithJSON.includes('"name": "smith.local"') && smithJSON.includes('"queries": []'));
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+  await settingsFrame.locator('#diag-dns-copy').click();
+  const copiedDNS = await page.evaluate(() => navigator.clipboard.readText());
+  check('DNS results copy as readable report', copiedDNS.includes('DNS lookup: smith.local') && copiedDNS.includes('Tailscale: disconnected') && copiedDNS.includes('Womprat tsnet is not connected'));
 
   // 2) VNC URL connects end-to-end via RFB stub.
   await page.evaluate(() => { window.newBlankTab && window.newBlankTab(); });
@@ -235,6 +241,11 @@ try {
   const recentTerminal = await page.waitForFunction(() =>
     document.getElementById('recent-list')?.textContent?.includes('127.0.0.1'), {timeout: 5000}).then(() => true).catch(() => false);
   check("recent tabs refresh after save", recentTerminal);
+  const recentGrid = await page.evaluate(() => {
+    const list = document.getElementById('recent-list');
+    return { count: list.querySelectorAll('.recent-item').length, layout: getComputedStyle(list).display, columns: getComputedStyle(list).gridTemplateColumns.split(' ').length };
+  });
+  check('home recent items use responsive grid', recentGrid.count > 0 && recentGrid.count <= 10 && recentGrid.layout === 'grid' && recentGrid.columns >= 1);
   check("custom schemes leave no blank placeholders", await page.evaluate(() => !Array.from(document.querySelectorAll('.tab-title')).some(el => el.textContent === 'New tab')));
 
   // Updating title metadata must retain the tab element (and therefore avoid

@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"net/netip"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -59,9 +60,38 @@ func TestSmithDNSDiagnosticReportsNXDOMAINAndTimeout(t *testing.T) {
 	}
 }
 
-func TestSmithDNSDiagnosticDisconnectedDoesNotEnrolOrQuery(t *testing.T) {
+func TestDNSDiagnosticValidatesHostnameAndMethod(t *testing.T) {
 	app := newTestApp(t)
+	for _, name := range []string{"", "127.0.0.1", "http://smith.local", "a..local", "a.local:53", "name%0a.local"} {
+		req := httptest.NewRequest(http.MethodPost, "/api/settings/diagnostics/dns", strings.NewReader(`{"name":`+strconv.Quote(name)+`}`))
+		w := httptest.NewRecorder()
+		app.handleDNSDiagnostic(w, req)
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("name %q: status=%d body=%s", name, w.Code, w.Body.String())
+		}
+	}
+	for _, input := range []string{`{"name":"smith.local","unexpected":true}`, `{"name":"smith.local"}{"name":"other.local"}`} {
+		req := httptest.NewRequest(http.MethodPost, "/api/settings/diagnostics/dns", strings.NewReader(input))
+		w := httptest.NewRecorder()
+		app.handleDNSDiagnostic(w, req)
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("JSON %q: status=%d", input, w.Code)
+		}
+	}
 	req := httptest.NewRequest(http.MethodGet, "/api/settings/diagnostics/dns", nil)
+	w := httptest.NewRecorder()
+	app.handleDNSDiagnostic(w, req)
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("GET: status=%d", w.Code)
+	}
+	if got, err := normalizeDiagnosticDNSName("  Smith.Local. "); err != nil || got != "smith.local" {
+		t.Fatalf("normalise=%q, %v", got, err)
+	}
+}
+
+func TestDNSDiagnosticDisconnectedDoesNotEnrolOrQuery(t *testing.T) {
+	app := newTestApp(t)
+	req := httptest.NewRequest(http.MethodPost, "/api/settings/diagnostics/dns", strings.NewReader(`{"name":"smith.local"}`))
 	w := httptest.NewRecorder()
 	app.handleDNSDiagnostic(w, req)
 	if w.Code != http.StatusOK {

@@ -11,6 +11,29 @@ function extract(startMarker, endMarker, returns) {
 
 const tabHelpers = extract('function tabDropBeforeID(', 'function updateRemoteTabTitle(', '{ tabDropBeforeID, reorderTab }');
 
+test('Home shows at most ten recent cards in saved order', () => {
+  const renderRecentTabs = extract('function renderRecentTabs(tabs)', 'async function loadRecentTabs()', 'renderRecentTabs');
+  const items = [];
+  const list = { textContent: '', appendChild(item) { items.push(item); } };
+  globalThis.document = {
+    getElementById(id) { return id === 'recent-list' ? list : null; },
+    createElement(tag) { return {
+      tagName: tag, children: [], className: '', style: {},
+      addEventListener() {}, setAttribute() {}, appendChild(child) { this.children.push(child); }, append(...children) { this.children.push(...children); },
+      set innerHTML(value) { this.html = value; },
+    }; },
+  };
+  globalThis.refreshURLHistoryDatalist = () => {};
+  globalThis.sanitizeFaviconURL = () => '';
+  globalThis.icon = () => 'icon';
+  globalThis.activateRecentTab = () => {};
+  const tabs = Array.from({length: 12}, (_, i) => ({type:'browser', title:`Recent ${i}`, url:`https://example${i}.test/`}));
+  renderRecentTabs(tabs);
+  expect(items).toHaveLength(10);
+  expect(items[0].children[1].textContent).toBe('Recent 0');
+  expect(items[9].children[1].textContent).toBe('Recent 9');
+});
+
 test('tab drop before/after and append preserve stable ID order', () => {
   globalThis.state = { tabs: [{id:'a'}, {id:'b'}, {id:'c'}] };
   globalThis.validTabID = id => typeof id === 'string' && /^[a-z]+$/.test(id);

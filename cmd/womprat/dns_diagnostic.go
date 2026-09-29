@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"net/netip"
 	"strings"
@@ -11,9 +12,9 @@ import (
 	"golang.org/x/net/dns/dnsmessage"
 )
 
-// dnsProbeResult reports exactly what the embedded tsnet LocalAPI returned.
-// Resolver candidates are chosen by Tailscale's active DNS configuration;
-// they are not proof that every candidate answered a query.
+// dnsProbeResult records the app's tailnet-only upstream query. Resolver
+// candidates come from Tailscale's active DNS configuration; only Server and
+// PeerRoute describe the attempted query transport.
 type dnsProbeResult struct {
 	Record     string   `json:"record"`
 	Resolvers  []string `json:"resolvers"`
@@ -37,13 +38,33 @@ type dnsDiagnosticResponse struct {
 	Error          string           `json:"error,omitempty"`
 }
 
+func normalizeDiagnosticDNSName(input string) (string, error) {
+	name := strings.TrimSpace(input)
+	name = strings.TrimSuffix(name, ".")
+	if name == "" || net.ParseIP(name) != nil {
+		return "", fmt.Errorf("enter a DNS hostname, not an IP address")
+	}
+	if err := validateCustomURLHost("DNS", name); err != nil {
+		return "", fmt.Errorf("enter a valid DNS hostname")
+	}
+	return strings.ToLower(name), nil
+}
+
 func (a *App) handleDNSDiagnostic(w http.ResponseWriter, r *http.Request) {
-	if !requireGET(w, r) {
+	if !requirePOST(w, r) {
 		return
 	}
-	// Fixed target only: this local authenticated endpoint is a bounded
-	// diagnostic, not an arbitrary DNS-proxy API.
-	const name = "smith.local"
+	var input struct {
+		Name string `json:"name"`
+	}
+	if !decodeSettingsJSON(w, r, &input) {
+		return
+	}
+	name, err := normalizeDiagnosticDNSName(input.Name)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 	out := dnsDiagnosticResponse{Name: name, Queries: []dnsProbeResult{}}
 	a.mu.Lock()
 	ts := a.tsServer

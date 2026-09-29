@@ -252,11 +252,17 @@ tr:hover td{background:rgba(255,255,255,.02)}
     <p style="color:var(--dim);font-size:.82rem;margin-bottom:.6rem">Runs automatically when this tab opens. Checks Tailscale status, local SOCKS availability, and a domain CONNECT probe for google.com through SOCKS.</p>
     <div id="diag-status" style="margin-top:.5rem"></div>
     <div id="diagnostics-grid" class="diag-grid"></div>
-    <h3>smith.local DNS through Womprat</h3>
-    <p style="color:var(--dim);font-size:.82rem;margin-bottom:.6rem">Queries A and AAAA over a verified tsnet TCP route to the selected upstream; an upstream without a Tailscale peer/route fails closed. Resolver candidates alone do not prove a reply. No host-OS DNS or direct/LAN query is used.</p>
-    <button id="diag-smith-run" type="button">Query smith.local</button>
-    <div id="diag-smith-status" role="status" aria-live="polite"></div>
-    <pre id="diag-smith-output" class="diag-detail mono" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre>
+    <h3>DNS lookup through Womprat</h3>
+    <p style="color:var(--dim);font-size:.82rem;margin-bottom:.6rem">Check A and AAAA through the current Tailscale DNS configuration. Womprat sends supported queries over a verified tsnet route; unsupported or unroutable upstreams fail closed without host-OS DNS or a direct/LAN query.</p>
+    <form id="diag-dns-form" style="display:flex;flex-wrap:wrap;gap:.5rem;align-items:end">
+      <label for="diag-dns-name">Hostname</label>
+      <input id="diag-dns-name" type="text" value="smith.local" placeholder="host.example.com" autocomplete="off" spellcheck="false" maxlength="254" required style="flex:1 1 16rem">
+      <button id="diag-dns-run" type="submit">Look up</button>
+      <button id="diag-dns-copy" type="button" disabled>Copy results</button>
+    </form>
+    <div id="diag-dns-status" role="status" aria-live="polite"></div>
+    <div id="diag-dns-results" class="diag-grid" aria-live="polite"></div>
+    <details id="diag-dns-details" hidden><summary>Technical details (copyable JSON)</summary><pre id="diag-dns-output" class="diag-detail mono" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre></details>
   </div>
   <div class="section">
     <h3>Runtime</h3>
@@ -938,22 +944,102 @@ function renderDiagnostics(data) {
     grid.appendChild(card);
   });
 }
-async function runSmithDNSDiagnostic() {
-  const button = document.getElementById('diag-smith-run');
-  const output = document.getElementById('diag-smith-output');
-  if (button) button.disabled = true;
-  setStatus('diag-smith-status', 'warn', 'Querying smith.local through Womprat tsnet…');
+function addDNSDiagnosticCard(container, title, lines, severity = 'ok') {
+  const card = document.createElement('div');
+  card.className = 'diag-card';
+  const heading = document.createElement('div');
+  heading.className = 'diag-name';
+  heading.textContent = title;
+  card.appendChild(heading);
+  for (const [label, value] of lines) {
+    const row = document.createElement('div');
+    row.className = 'diag-detail';
+    row.textContent = `${label}: ${value}`;
+    card.appendChild(row);
+  }
+  card.classList.add(severity === 'error' ? 'diag-error' : 'diag-ok');
+  container.appendChild(card);
+}
+function renderDNSDiagnostic(data) {
+  const results = document.getElementById('diag-dns-results');
+  const details = document.getElementById('diag-dns-details');
+  const output = document.getElementById('diag-dns-output');
+  if (results) results.textContent = '';
+  if (details) details.hidden = false;
+  if (output) output.textContent = JSON.stringify(data, null, 2);
+  const copy = document.getElementById('diag-dns-copy');
+  if (copy) copy.disabled = false;
+  if (!results) return;
+  const exit = data.exitNode || data.configuredExit || 'none';
+  addDNSDiagnosticCard(results, 'Tailscale path', [
+    ['Connection', data.backendState || 'disconnected'],
+    ['Exit node', `${exit}${data.exitNode ? (data.exitNodeOnline ? ' · online' : ' · offline') : ''}`],
+    ['Tailnet DNS', data.acceptDNS ? 'enabled' : 'disabled'],
+    ...(data.error ? [['Status', data.error]] : []),
+  ], data.error ? 'error' : 'ok');
+  for (const query of data.queries || []) {
+    const addresses = query.addresses || [];
+    const rcode = query.rcode || 'No DNS response';
+    const summary = query.error || (addresses.length ? addresses.join(', ') : (rcode === 'RCodeSuccess' ? 'No address of this type' : rcode === 'RCodeNameError' ? 'Name not found (NXDOMAIN)' : rcode));
+    addDNSDiagnosticCard(results, `${query.record} · ${summary}`, [
+      ['Response', query.error ? query.error : rcode],
+      ['Resolver used', query.server || 'none'],
+      ['Transport', query.transport || 'no query sent'],
+      ['Tailnet route', query.peerRoute || 'none verified'],
+      ['Time', `${Number(query.durationMs || 0)} ms`],
+    ], query.error || (rcode !== 'RCodeSuccess') ? 'error' : 'ok');
+  }
+}
+function dnsDiagnosticReport(data) {
+  const lines = [
+    `DNS lookup: ${data.name || 'unknown'}`,
+    `Tailscale: ${data.backendState || 'disconnected'}`,
+    `Exit node: ${data.exitNode || data.configuredExit || 'none'}${data.exitNode ? (data.exitNodeOnline ? ' (online)' : ' (offline)') : ''}`,
+    `Tailnet DNS: ${data.acceptDNS ? 'enabled' : 'disabled'}`,
+  ];
+  if (data.error) lines.push(`Error: ${data.error}`);
+  for (const query of data.queries || []) {
+    lines.push('', `${query.record}: ${query.error || (query.addresses?.length ? query.addresses.join(', ') : query.rcode === 'RCodeNameError' ? 'Name not found (NXDOMAIN)' : query.rcode === 'RCodeSuccess' ? 'No address of this type' : query.rcode || 'No response')}`);
+    if (query.rcode) lines.push(`Response: ${query.rcode}`);
+    lines.push(`Resolver: ${query.server || 'none'}`, `Transport: ${query.transport || 'no query sent'}`, `Tailnet route: ${query.peerRoute || 'none verified'}`, `Time: ${Number(query.durationMs || 0)} ms`);
+  }
+  return lines.join('\n');
+}
+let lastDNSDiagnostic = null;
+async function copyDNSDiagnostic() {
+  if (!lastDNSDiagnostic) return;
   try {
-    const res = await fetch('/api/settings/diagnostics/dns');
+    await navigator.clipboard.writeText(dnsDiagnosticReport(lastDNSDiagnostic));
+    setStatus('diag-dns-status', 'ok', 'DNS results copied to clipboard.');
+  } catch (err) {
+    setStatus('diag-dns-status', 'error', `Could not copy DNS results: ${err.message}. Open Technical details to select the JSON.`);
+  }
+}
+async function runDNSDiagnostic(event) {
+  event?.preventDefault();
+  const button = document.getElementById('diag-dns-run');
+  const input = document.getElementById('diag-dns-name');
+  const details = document.getElementById('diag-dns-details');
+  const results = document.getElementById('diag-dns-results');
+  const name = (input?.value || '').trim();
+  if (!name) { setStatus('diag-dns-status', 'error', 'Enter a hostname.'); return; }
+  if (button) button.disabled = true;
+  lastDNSDiagnostic = null;
+  const copy = document.getElementById('diag-dns-copy');
+  if (copy) copy.disabled = true;
+  if (details) details.hidden = true;
+  if (results) results.textContent = '';
+  setStatus('diag-dns-status', 'warn', `Looking up ${name} through Womprat tsnet…`);
+  try {
+    const res = await fetch('/api/settings/diagnostics/dns', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({name}) });
     if (!res.ok) throw new Error(await res.text());
     const data = await res.json();
-    // Keep the raw structured evidence copyable, but never parse it as HTML.
-    if (output) output.textContent = JSON.stringify(data, null, 2);
+    lastDNSDiagnostic = data;
+    renderDNSDiagnostic(data);
     const ok = !data.error && data.queries?.some(q => q.addresses?.length);
-    setStatus('diag-smith-status', ok ? 'ok' : 'error', ok ? 'DNS returned an address; review resolver and exit-node details below.' : 'DNS did not return an address; review the errors and resolver candidates below.');
+    setStatus('diag-dns-status', ok ? 'ok' : 'error', ok ? `${data.name} returned an address.` : `${data.name} did not return an address; see the results below.`);
   } catch (err) {
-    if (output) output.textContent = '';
-    setStatus('diag-smith-status', 'error', `DNS diagnostic failed: ${err.message}`);
+    setStatus('diag-dns-status', 'error', `DNS lookup failed: ${err.message}`);
   } finally {
     if (button) button.disabled = false;
   }
@@ -1031,9 +1117,10 @@ async function initSettings() {
   await loadKeys();
   await loadAbout();
   await loadDebugLog();
-  document.getElementById('diag-smith-run')?.addEventListener('click', runSmithDNSDiagnostic);
+  document.getElementById('diag-dns-form')?.addEventListener('submit', runDNSDiagnostic);
+  document.getElementById('diag-dns-copy')?.addEventListener('click', copyDNSDiagnostic);
   // Diagnostics is the default-active tab, so run its connectivity checks on initial load.
-  // The named DNS probe runs only after an explicit click.
+  // The DNS lookup runs only after an explicit submission.
   runDiagnostics();
 }
 initSettings();

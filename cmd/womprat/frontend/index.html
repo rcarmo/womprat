@@ -154,9 +154,13 @@ button,a,.tab,.recent-item,.option{
   font-size:11px;font-weight:600;letter-spacing:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto}
 .route-pill.active{display:inline-flex}
 
-.recent-item{display:flex;align-items:center;gap:.6rem;padding:.65rem .85rem;
+.home-recent{padding:2rem;max-width:1100px;margin:0 auto;width:100%;overflow:auto;max-height:100%}
+#recent-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:.65rem}
+.recent-item{display:flex;align-items:center;gap:.55rem;min-width:0;padding:.7rem .85rem;
   border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;font-size:.85em}
-.recent-item:hover{background:var(--subtle-hover);border-color:var(--border-strong)}
+.recent-item .recent-title{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1}
+.recent-item .recent-detail{color:var(--dim);font-size:.8em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:45%;min-width:0}
+.recent-item:hover,.recent-item:focus-visible{background:var(--subtle-hover);border-color:var(--border-strong)}
 
 #download-bar{position:fixed;bottom:0;left:0;right:0;height:2.5em;
   background:var(--surface-solid);border-top:1px solid var(--border);
@@ -239,9 +243,9 @@ button,a,.tab,.recent-item,.option{
 <div id="panels">
 <!-- Home panel (shown when no tabs active) -->
 <div class="panel active" id="panel-home">
-  <div style="padding:2rem;max-width:500px;margin:0 auto">
+  <div class="home-recent">
     <h2 style="font-size:1.1em;margin-bottom:1rem;color:var(--dim)">Recent</h2>
-    <div id="recent-list" style="display:flex;flex-direction:column;gap:.4rem"></div>
+    <div id="recent-list"></div>
     <div style="margin-top:1.5rem;color:var(--dim);font-size:.82em">
       Use <kbd style="padding:2px 6px;background:var(--surface);border:1px solid var(--border);border-radius:4px">New tab</kbd> to enter a URL, or manage tailnet host URLs in Settings.
     </div>
@@ -1866,15 +1870,16 @@ function renderRecentTabs(tabs) {
   const list = document.getElementById('recent-list');
   if (!list) return;
   refreshURLHistoryDatalist(tabs.map(t => t.type === 'terminal' ? formatSSHURL(t.user || 'root', t.host || t.title, t.port) : (t.url || t.title)));
+  const visible = tabs.slice(0, 10);
   list.textContent = '';
-  if (!tabs.length) {
+  if (!visible.length) {
     const empty = document.createElement('div');
     empty.style.cssText = 'color:var(--dim);font-size:.85em';
     empty.textContent = 'No recent tabs';
     list.appendChild(empty);
     return;
   }
-  tabs.forEach(t => {
+  visible.forEach(t => {
     const detail = t.type === 'terminal'
       ? `${t.user || 'root'}@${t.host}:${t.port || 22}`
       : (t.url || '');
@@ -1904,10 +1909,10 @@ function renderRecentTabs(tabs) {
       iconSpan.innerHTML = icon(t.type === 'terminal' ? 'terminal' : 'globe');
     }
     const title = document.createElement('span');
-    title.style.fontWeight = '600';
+    title.className = 'recent-title';
     title.textContent = t.title || t.host || t.url || 'Untitled';
     const detailSpan = document.createElement('span');
-    detailSpan.style.cssText = 'color:var(--dim);font-size:.8em;margin-left:auto';
+    detailSpan.className = 'recent-detail';
     detailSpan.textContent = detail;
     item.append(iconSpan, title, detailSpan);
     list.appendChild(item);
