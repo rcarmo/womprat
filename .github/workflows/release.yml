@@ -108,13 +108,24 @@ jobs:
           make sha256
           ls -lh dist
 
+      - name: Select release notes
+        id: notes
+        env:
+          RELEASE_NAME: ${{ steps.meta.outputs.release_name }}
+        run: |
+          notes="docs/releases/$RELEASE_NAME.md"
+          if [[ -f "$notes" ]]; then
+            echo "path=$notes" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_type == 'tag' && github.ref_name || steps.meta.outputs.release_name }}
           name: womprat ${{ github.ref_type == 'tag' && github.ref_name || steps.meta.outputs.release_name }}
           prerelease: ${{ steps.meta.outputs.prerelease }}
-          generate_release_notes: true
+          body_path: ${{ steps.notes.outputs.path }}
+          generate_release_notes: ${{ steps.notes.outputs.path == '' }}
           files: |
             dist/womprat-windows-arm64.exe
             dist/womprat-windows-amd64.exe

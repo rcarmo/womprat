@@ -7,6 +7,19 @@ Please note that this package only supports Windows, since it provides functiona
 
 If you wish to build desktop applications in Go using web technologies, please consider [Wails](https://wails.io/). It uses go-webview2 internally on Windows.
 
+## Womprat integration
+
+Womprat uses this local module through a `replace` directive in the root `go.mod`. It includes the COM callbacks used for tab titles, navigation results, popup handling, browser-process errors and same-origin download cookies. The application guide is in [the root README](../../README.md).
+
+On Windows, run the callback regression tests with:
+
+```powershell
+cd internal/go-webview2
+go test -v ./pkg/edge
+```
+
+The release workflow runs these tests before publishing Windows binaries. They test COM call contracts and failure handling; a passing result does not exercise the full WebView2 UI.
+
 ## Demo
 If you are using Windows 10+, the WebView2 runtime should already be installed. If you don't have it installed, you can download and install a copy from Microsoft's website:
 

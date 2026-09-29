@@ -4,13 +4,13 @@
 
 `womprat` is a single-binary Windows client for SSH terminals, web applications, VNC desktops and RDP desktops on a Tailscale network. It runs its own `tsnet` node, so it does not install a machine-wide VPN service or change the host network stack.
 
-Windows ARM64 is the primary target. Windows AMD64 is also built and released.
+Windows ARM64 is the primary target. Windows AMD64 is also built and released. Download either binary and its checksums from [GitHub Releases](https://github.com/rcarmo/womprat/releases/latest).
 
 ![womprat browser and SSH tabs](docs/screenshot.webp)
 
-## Purpose
+## Application-scoped access
 
-I built Womprat for Windows machines where I cannot install the full Tailscale client but still need access to SSH hosts, Proxmox, internal web applications and remote desktops.
+Womprat provides access to SSH hosts, internal web applications and remote desktops without installing the full Tailscale client.
 
 The tailnet identity belongs to the application. Closing Womprat closes its Tailscale node; other applications on the machine do not gain tailnet access.
 
@@ -41,7 +41,11 @@ Womprat binds its shell, API and SOCKS listener to loopback. Application traffic
 
 Release builds fail closed. If `tsnet` is unavailable, Womprat does not fall back to the host's normal network. `WOMPRAT_DIRECT=1` works only in binaries built with `-X main.debugBuild=1` and exists for local integration tests.
 
-Public internet access requires an active Tailscale exit node. Womprat applies an exit node selected in Settings; when no replacement is selected, it preserves an exit-node route restored from tsnet state. Tailnet hosts, MagicDNS names, `.ts.net` names, and names served by configured tailnet DNS servers use the embedded Tailscale DNS route selection. Womprat sends supported upstream queries over TCP through `tsnet` only after confirming a remote Tailscale peer or subnet/exit-node route. Unsupported or unroutable resolvers fail closed without host DNS or LAN fallback. Tailscale v1.94.2 honours the nameserver's **Use with exit node** policy for custom and split-DNS routes. Womprat does not change that policy. In Settings → Diagnostics, enter a hostname and select **Look up** to see the matching configured rule, its exit-node eligibility, the chosen resolver, tailnet route, response code and addresses. **Copy results** copies a readable report; Technical details contains JSON. Womprat dials resolved IPs through `tsnet`; IP literals skip DNS. A named service must also have a reachable tailnet, subnet, or exit-node route.
+Public internet access requires an active Tailscale exit node. Womprat applies the exit node selected in Settings; when no replacement is selected, it preserves the route restored from tsnet state.
+
+MagicDNS and extra address records are answered from the Tailscale network map. Other names use Tailscale's selected DNS upstream. Womprat checks for a remote peer, subnet or exit-node route, then sends supported DNS queries through its embedded TCP/IP stack with a Tailscale source address. Resolved service addresses use the same stack; IP literals skip DNS. Unsupported or unroutable destinations fail closed without host DNS or LAN fallback.
+
+With an exit node selected, a custom nameserver must have **Use with exit node** enabled in the tailnet's DNS settings. Tailscale v1.94.2 honours that policy for global and split-DNS nameservers; Womprat does not change it. For `.local` names served by [mdnsbridge](https://github.com/rcarmo/mdnsbridge), use a restricted `local` rule pointing to the bridge's Tailscale IP. See [DNS configuration and troubleshooting](docs/dns-exit-node.md) for setup, supported transports and diagnostic results.
 
 Transient Tailscale startup failures are retried every 15 seconds. Settings reports the last error and distinguishes the selected exit-node preference from the route active in the current session. An explicit reconnect or disconnect cancels the existing retry worker before changing the connection.
 
@@ -65,7 +69,7 @@ Browser shortcuts:
 
 Terminal tabs reserve ordinary control chords for the remote shell. Shell-level tab actions use the corresponding `Ctrl+Shift` chord. `Ctrl+C` copies the current terminal selection; when there is no selection it sends ETX to interrupt the remote process. The shell WebView keeps its context menu enabled for terminal copy and paste.
 
-Open tabs can be restored on launch. Blank tabs and Settings are not persisted. Protected shell state, recent tabs and terminal appearance load after the master-password gate has been unlocked. Recent Tabs refreshes after each successful tab-state save.
+Open tabs can be restored on launch. Blank tabs and Settings are not persisted. Protected shell state, recent tabs and terminal appearance load after the master-password gate has been unlocked. Home shows up to 10 recent items in a responsive grid and refreshes them after each successful tab-state save. Use a card's **×** button to remove it from Recent without closing its active tab or changing session restore. Dismissals are saved in the app configuration.
 
 ## SSH terminals
 
@@ -88,7 +92,7 @@ SSH host keys use trust on first use. The first key is pinned in the host profil
 
 ## Browser tabs and downloads
 
-HTTP and HTTPS URLs open in native WebView2 child views. Womprat synchronises the live URL, title, favicon, history availability, zoom, tab order and restore state with the shell.
+HTTP and HTTPS URLs open in native WebView2 child views. Womprat synchronises the live URL, title, favicon, history availability, zoom, tab order and restore state with the shell. A navigation failure shows an error bar with **Reload**, **Settings** and **Dismiss** controls.
 
 Links using `target=_blank`, common `window.open()` calls and native WebView2 popup requests open as Womprat tabs. Popup redirection creates a new URL navigation. It does not preserve a popup POST body or opener-window JavaScript relationship.
 
@@ -142,7 +146,7 @@ Windows state is stored below:
 %APPDATA%\womprat\
 ```
 
-`config.enc` contains window state, open tabs, host profiles, appearance, exit-node choice and diagnostics preferences. Credential files are stored below `creds/`. Windows encrypts both configuration and credential files with user-scoped DPAPI. They are not Windows Credential Manager entries.
+`config.enc` contains window state, open tabs, Recent dismissals, host profiles, appearance, exit-node choice and diagnostics preferences. Credential files are stored below `creds/`. Windows encrypts both configuration and credential files with user-scoped DPAPI. They are not Windows Credential Manager entries.
 
 The WebView2 profile is stored below the same Womprat directory and uses WebView2's profile protection. Debug logs, when enabled, are written next to the executable.
 
@@ -163,7 +167,11 @@ Settings includes checks for:
 * the local SOCKS listener;
 * public DNS and connection through SOCKS when an exit node is active.
 
-The public probe is marked `Skipped` when no exit node is active. A configured exit node that failed to apply is reported as degraded state rather than as a working public route.
+The public probe is marked `Skipped` when no exit node is active. Settings reports a configured exit node that failed to apply as degraded state.
+
+The separate **DNS lookup through Womprat** form accepts a hostname and queries A and AAAA records when you select **Look up** or press Enter. Results show the connection and exit-node state, matching DNS rule, nameserver eligibility, selected resolver, transport, peer route, response code, addresses and elapsed time. **Copy results** copies a readable report; **Technical details** exposes the same result as JSON. Reports include private hostnames and IP addresses, so review them before sharing.
+
+An `NXDOMAIN` response means the selected resolver returned “name not found”. A successful empty response means that address family has no records. A timeout or route error is a transport failure. IPv6 addresses beginning with `fe80:` are link-local and cannot be reached across the tailnet. DNS resolution and service connectivity are separate checks; neither diagnostic changes tailnet DNS settings.
 
 Debug logging is disabled by default. Enabling it writes `womprat-log.txt`, enables WebView developer tools for newly created views and shows an attached Windows console when Womprat owns that console. Disabling it closes the log file and hides only a console owned solely by the Womprat process.
 
@@ -182,6 +190,8 @@ Womprat is an application client, not a machine-wide VPN. It does not advertise 
 Current limits include:
 
 * Windows is the supported desktop runtime; Linux targets exist for development and automated tests;
+* upstream DNS supports TCP to IP-addressed nameservers and HTTP DNS messages to an IP-addressed exit-node PeerAPI; HTTPS/hostname upstreams and automatic alternate-server retries are not implemented;
+* Recent is derived from saved session tabs, not a complete browsing history; at most 100 dismissal keys are retained;
 * browser cookies are inherited only for same-origin downloads initiated by a native browser tab; cross-origin and direct API downloads are cookie-free;
 * popup POST bodies and opener relationships are not retained;
 * VNC supports `None` and classic password authentication, not every RFB security extension;
@@ -249,7 +259,7 @@ make ux-test
 bun run tests/ux/real-remotes.mjs
 ```
 
-`tests/ux/ux.mjs` drives the shell in Chromium and covers downloads, tabs, Settings, SSH routing, VNC `None`, VNC password reconnect and RDP panel creation. `tests/ux/real-remotes.mjs` checks non-uniform framebuffer pixels and resized RDP geometry against real servers. See [`tests/ux/README.md`](tests/ux/README.md) for setup and test boundaries.
+`tests/ux/ux.mjs` drives the shell in Chromium and covers downloads, tabs, Settings, DNS form layout and copying, persistent Recent removal, SSH routing, VNC `None`, VNC password reconnect and RDP panel creation. It uses debug direct dialing and does not verify authenticated tailnet DNS. `tests/ux/real-remotes.mjs` checks non-uniform framebuffer pixels and resized RDP geometry against real servers. See [`tests/ux/README.md`](tests/ux/README.md) for setup and test boundaries.
 
 The release workflow executes the WebView2 COM regression tests on a Windows runner before it builds and publishes ARM64 and AMD64 binaries.
 
@@ -260,6 +270,6 @@ cmd/womprat/              application, APIs, protocol bridges and embedded front
 internal/go-webview2/     local WebView2 wrapper and COM fixes
 third_party/go-rdp/       local RDP module replacement
 tests/ux/                 Playwright and frontend behavioural tests
-docs/                     icons, screenshot and audit notes
+docs/                     DNS guide, security notes, release notes and images
 Makefile                  build, verification and release targets
 ```

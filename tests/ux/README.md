@@ -1,134 +1,92 @@
-# Linux UX tests (Playwright)
+# Browser and network tests
 
-These tests drive the real Womprat shell in headless Chromium against a Linux
-headless app instance. They are intended to catch shell/runtime regressions that
-plain Go tests cannot see.
+The Playwright tests run Womprat's Linux headless shell in Chromium. They cover frontend layout, interaction and protocol bridges. They do not instantiate the native Windows WebView2 host.
 
-Two harnesses are checked in:
+## Set up
 
-- `ux.mjs` — fast shell smoke test. It uses the direct-dial debug bypass and a
-  built-in RFB stub for a lightweight VNC route check.
-- `real-remotes.mjs` — integration proof against real VNC/RDP servers. It
-  verifies browser canvas pixels, not only connection status text.
+From the repository root:
 
-Both harnesses require a debug build because `WOMPRAT_DIRECT=1` is deliberately
-ignored by release builds.
+```bash
+bun add --cwd tests/ux -d playwright
+cd tests/ux
+bun x playwright install chromium
+cd ../..
+make ux-test
+```
 
-## Build the Linux debug binary
+`make ux-test` builds `dist/womprat-linux-debug`, runs `tests/ux/ux.mjs`, and runs the dynamic-title reporter test. It uses the browser cache at `$HOME/.cache/ms-playwright`.
+
+To build and run separately:
 
 ```bash
 go build -ldflags='-X main.debugBuild=1' -o dist/womprat-linux-debug ./cmd/womprat
-```
-
-Set `WOMPRAT_BIN` to override the binary path.
-
-## Install Playwright + Chromium
-
-From the repository root or this directory:
-
-```bash
-cd tests/ux
-bun add -d playwright
-bun x playwright install chromium
-```
-
-If browsers are installed under the default user cache, run with:
-
-```bash
-PLAYWRIGHT_BROWSERS_PATH=$HOME/.cache/ms-playwright bun run ux.mjs
-```
-
-## Fast shell smoke
-
-```bash
 cd tests/ux
 PLAYWRIGHT_BROWSERS_PATH=$HOME/.cache/ms-playwright bun run ux.mjs
 ```
 
-This exercises the app shell, URL routing, settings panel, VNC panel creation,
-RDP panel creation, SSH terminal panel creation, stable-ID tab reorder/close, and
-a managed HTTP download whose saved bytes are checked on disk. It also fails on
-page or console errors.
+Set `WOMPRAT_BIN` to an absolute binary path to override the default. Both browser scripts set `WOMPRAT_HEADLESS=1` and `WOMPRAT_DIRECT=1`; release builds ignore the direct-dial bypass.
 
-## Real remote pixel proof
+## Shell tests
 
-`real-remotes.mjs` expects real servers. Defaults:
+`ux.mjs` starts local HTTP and RFB fixtures and checks:
 
-```text
-VNC_TARGET=vnc://127.0.0.1:5902
-RDP_TARGET=rdp://127.0.0.1:3389
-RDP_USER=womptest
-RDP_PASS=womptest
-```
+- Settings, SSH, VNC and RDP panel creation;
+- VNC authentication and reconnect behaviour;
+- managed download contents;
+- stable tab order, titles and close targets;
+- error-bar hit targets and controls;
+- DNS form alignment at 894px and 540px, disconnected-state reporting and clipboard copying;
+- the Recent grid, removal without closing tabs, and saved dismissal state in a fresh page;
+- terminal font loading;
+- absence of browser page and console errors.
 
-Run both:
-
-```bash
-cd tests/ux
-PLAYWRIGHT_BROWSERS_PATH=$HOME/.cache/ms-playwright \
-  RDP_USER=womptest RDP_PASS=womptest \
-  bun run real-remotes.mjs
-```
-
-Run only RDP:
+To save screenshots of the DNS form during the test:
 
 ```bash
-WOMPRAT_UX_SKIP_VNC=1 RDP_USER=womptest RDP_PASS=womptest bun run tests/ux/real-remotes.mjs
+mkdir -p dist/ux-layout
+WOMPRAT_UX_SCREENSHOTS="$PWD/dist/ux-layout" make ux-test
 ```
 
-Run only VNC:
+The directory receives `dns-form-wide.png` and `dns-form-narrow.png`.
+
+`make frontend-test` runs browser-independent behavioural tests. These include the ten-item Recent display limit, tab-save ordering, terminal controls, VNC lifecycle and RDP resizing. `make verify` includes these tests, frontend bundle checks, Go tests, Windows ARM64 vet and both Windows compile checks.
+
+## Real VNC and RDP servers
+
+`real-remotes.mjs` requires reachable test servers. Its defaults are VNC at `vnc://127.0.0.1:5902` and RDP at `rdp://127.0.0.1:3389`. Supply dedicated test credentials through environment variables; do not use production accounts.
 
 ```bash
-WOMPRAT_UX_SKIP_RDP=1 VNC_TARGET=vnc://127.0.0.1:5902 bun run tests/ux/real-remotes.mjs
+export RDP_USER='test-account'
+read -rs -p 'RDP test password: ' RDP_PASS; export RDP_PASS; echo
+PLAYWRIGHT_BROWSERS_PATH=$HOME/.cache/ms-playwright bun run tests/ux/real-remotes.mjs
 ```
 
-The RDP harness uses the current credential-dialog UX: it opens the RDP tab,
-fills `.rdp-dialog [data-rdp-user]` and `.rdp-dialog [data-rdp-password]`, clicks
-Connect, waits for the canvas, and then samples framebuffer pixels. After
-resizing the browser it verifies that the WebSocket remains unchanged, the
-credential dialog stays hidden, the canvas covers the complete viewport, and
-the visual centre maps to the centre of the remote framebuffer. When the server
-advertises Display Control, it also waits for the backing canvas dimensions to
-match the resized content viewport. The active title and negotiated codecs are
-recorded in the log and a screenshot is written to
-`dist/ux-artifacts/rdp-browser-proof.png`.
+Use `WOMPRAT_UX_SKIP_VNC=1` or `WOMPRAT_UX_SKIP_RDP=1` to run one protocol. `VNC_TARGET`, `RDP_TARGET`, `RDP_USER` and `RDP_PASS` override the corresponding defaults.
 
-The VNC harness waits for a real server-reported size in `[data-vnc-status]`,
-then samples `.vnc-panel canvas` for non-uniform pixels. Current VNC negotiation
-is Raw-first for correctness, with Hextile/CopyRect/ZRLE/RRE/CoRRE still
-advertised afterward. Its screenshot is written to
-`dist/ux-artifacts/vnc-browser-proof.png`.
+The RDP script fills the credential dialog, waits for canvas output and samples non-uniform pixels. After resize, it checks the WebSocket identity, viewport coverage, credential-dialog visibility and centre-coordinate mapping. When the server supports Display Control, it also checks the backing canvas size. The VNC script waits for server-reported dimensions and samples canvas pixels.
 
-## Useful local real-server setup
+Screenshots are written to `dist/ux-artifacts/rdp-browser-proof.png` and `dist/ux-artifacts/vnc-browser-proof.png`. Set `WOMPRAT_UX_ARTIFACTS` to use another directory.
 
-Example VNC test server:
+A disposable local VNC target can be started with:
 
 ```bash
 Xvfb :78 -screen 0 1024x768x24 &
 DISPLAY=:78 openbox &
-DISPLAY=:78 xterm -geometry 80x20+120+120 -fa Monospace -fs 18 \
-  -e sh -c 'echo WOMPRAT-VNC-LINUX; while true; do date; sleep 2; done' &
+DISPLAY=:78 xterm -geometry 80x20+120+120 -fa Monospace -fs 18 &
 x11vnc -display :78 -rfbport 5902 -localhost -forever -shared -nopw -quiet &
 ```
 
-Example RDP test target uses local `xrdp` on `127.0.0.1:3389` with a test user.
-The previous integration runs used:
+The unauthenticated VNC example binds only to loopback. Stop the test processes after use. For RDP, configure a dedicated loopback-accessible XRDP instance and test user.
 
-```text
-user: womptest
-pass: womptest
+## DNS and tailnet checks
+
+```bash
+go test -race -count=1 -timeout 180s ./...
+go test tailscale.com/ipn/ipnlocal -run '^TestDNSConfigForNetmapForExitNodeConfigs$' -count=1
 ```
 
-## Test boundaries
+The second command runs the upstream policy regression and can require upstream test dependencies. It tests configured global/split resolvers with and without exit-node eligibility. App tests cover local MagicDNS records, DNS packets, timeout/NXDOMAIN reporting, policy descriptions and refusal of routes that could use host networking.
 
-The browser-level harnesses run the Linux shell in headless Chromium. They cover
-the shared frontend and bridge protocols, including real framebuffer output,
-but they do not instantiate the native Windows WebView2 child-window host.
-Windows-specific behaviour is covered by Go regression tests plus ARM64/x64
-cross-build and vet checks; final release validation should still include a
-manual run on Windows.
+These fixtures do not authenticate to a real tailnet. To check a deployed configuration, run the Windows app, select the required exit node, and use **Settings → Diagnostics → Look up**. Verify both the resolver/route and returned addresses. Then open the intended service to test connectivity. See [DNS configuration and troubleshooting](../../docs/dns-exit-node.md).
 
-## Exit codes
-
-Both harnesses exit non-zero if any assertion fails, if a browser page error is
-raised, or if console errors are observed.
+Both browser scripts exit non-zero on assertion failures or browser page/console errors. Windows COM tests run separately in the release workflow before asset publication.
