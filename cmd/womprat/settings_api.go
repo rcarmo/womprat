@@ -43,6 +43,7 @@ func (a *App) registerSettingsRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/settings/appearance", a.authMiddleware(a.handleAppearance))
 	mux.HandleFunc("/api/settings/exit-node", a.authMiddleware(a.handleExitNode))
 	mux.HandleFunc("/api/settings/save-tabs", a.authMiddleware(a.handleSaveTabs))
+	mux.HandleFunc("/api/settings/recent/remove", a.authMiddleware(a.handleRemoveRecent))
 	mux.HandleFunc("/api/settings/config", a.authMiddleware(a.handleGetConfig))
 	mux.HandleFunc("/api/settings/diagnostics", a.authMiddleware(a.handleDiagnostics))
 	mux.HandleFunc("/api/settings/diagnostics/dns", a.authMiddleware(a.handleDNSDiagnostic))
@@ -631,6 +632,47 @@ func (a *App) handleSaveTabs(w http.ResponseWriter, r *http.Request) {
 	}
 	a.mu.Lock()
 	a.config.OpenTabs = sanitizedTabs
+	a.mu.Unlock()
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// handleRemoveRecent keeps dismissal separate from OpenTabs so session restore
+// and concurrent native tab saves cannot resurrect a removed Home card.
+func (a *App) handleRemoveRecent(w http.ResponseWriter, r *http.Request) {
+	if !requirePOST(w, r) {
+		return
+	}
+	var body struct {
+		Key string `json:"key"`
+	}
+	if !decodeSettingsJSON(w, r, &body) {
+		return
+	}
+	if len(body.Key) == 0 || len(body.Key) > 4096 || strings.ContainsAny(body.Key, "\r\n\x00") {
+		http.Error(w, "invalid recent item key", http.StatusBadRequest)
+		return
+	}
+	a.configSaveMu.Lock()
+	defer a.configSaveMu.Unlock()
+	a.mu.Lock()
+	cfg := cloneConfig(a.config)
+	a.mu.Unlock()
+	for _, key := range cfg.HiddenRecent {
+		if key == body.Key {
+			writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+			return
+		}
+	}
+	cfg.HiddenRecent = append(cfg.HiddenRecent, body.Key)
+	if len(cfg.HiddenRecent) > 100 {
+		cfg.HiddenRecent = cfg.HiddenRecent[len(cfg.HiddenRecent)-100:]
+	}
+	if err := SaveConfig(cfg); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	a.mu.Lock()
+	a.config.HiddenRecent = cfg.HiddenRecent
 	a.mu.Unlock()
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }

@@ -40,6 +40,11 @@ input:focus,select:focus{outline:none;border-color:var(--accent);background:#1f1
 .key-row{align-items:center}
 .key-row input{margin-bottom:0}
 .key-row .btn-primary{min-width:156px}
+#diag-dns-form{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:end}
+#diag-dns-form label{grid-column:1/-1;margin:0}
+#diag-dns-form input{grid-column:1;min-width:0;margin:0}
+#diag-dns-form button{height:32px;white-space:nowrap}
+@media(max-width:620px){#diag-dns-form{grid-template-columns:repeat(2,minmax(0,1fr))}#diag-dns-form input{grid-column:1/-1}#diag-dns-form button{width:100%}}
 
 button{height:32px;padding:0 12px;border:none;border-radius:var(--radius);font-family:var(--font);font-size:14px;
   font-weight:600;cursor:pointer;transition:.1s;white-space:nowrap}
@@ -254,9 +259,9 @@ tr:hover td{background:rgba(255,255,255,.02)}
     <div id="diagnostics-grid" class="diag-grid"></div>
     <h3>DNS lookup through Womprat</h3>
     <p style="color:var(--dim);font-size:.82rem;margin-bottom:.6rem">Check A and AAAA through the current Tailscale DNS configuration. Womprat sends supported queries over a verified tsnet route; unsupported or unroutable upstreams fail closed without host-OS DNS or a direct/LAN query.</p>
-    <form id="diag-dns-form" style="display:flex;flex-wrap:wrap;gap:.5rem;align-items:end">
+    <form id="diag-dns-form">
       <label for="diag-dns-name">Hostname</label>
-      <input id="diag-dns-name" type="text" value="smith.local" placeholder="host.example.com" autocomplete="off" spellcheck="false" maxlength="254" required style="flex:1 1 16rem">
+      <input id="diag-dns-name" type="text" value="smith.local" placeholder="host.example.com" autocomplete="off" spellcheck="false" maxlength="254" required>
       <button id="diag-dns-run" type="submit">Look up</button>
       <button id="diag-dns-copy" type="button" disabled>Copy results</button>
     </form>

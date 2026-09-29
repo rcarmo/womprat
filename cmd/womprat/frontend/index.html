@@ -156,11 +156,13 @@ button,a,.tab,.recent-item,.option{
 
 .home-recent{padding:2rem;max-width:1100px;margin:0 auto;width:100%;overflow:auto;max-height:100%}
 #recent-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:.65rem}
-.recent-item{display:flex;align-items:center;gap:.55rem;min-width:0;padding:.7rem .85rem;
-  border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;font-size:.85em}
+.recent-item{display:flex;align-items:center;min-width:0;border:1px solid var(--border);border-radius:var(--radius);font-size:.85em}
+.recent-item:hover,.recent-item:focus-within{background:var(--subtle-hover);border-color:var(--border-strong)}
+.recent-open{display:flex;align-items:center;gap:.55rem;min-width:0;flex:1;padding:.7rem .85rem;border:0;background:none;color:inherit;text-align:left;cursor:pointer}
 .recent-item .recent-title{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1}
 .recent-item .recent-detail{color:var(--dim);font-size:.8em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:45%;min-width:0}
-.recent-item:hover,.recent-item:focus-visible{background:var(--subtle-hover);border-color:var(--border-strong)}
+.recent-remove{flex:0 0 30px;height:30px;margin-right:.35rem;border:0;border-radius:var(--radius);background:none;color:var(--dim);cursor:pointer}
+.recent-remove:hover,.recent-remove:focus-visible{background:var(--layer);color:var(--text)}
 
 #download-bar{position:fixed;bottom:0;left:0;right:0;height:2.5em;
   background:var(--surface-solid);border-top:1px solid var(--border);
@@ -246,6 +248,7 @@ button,a,.tab,.recent-item,.option{
   <div class="home-recent">
     <h2 style="font-size:1.1em;margin-bottom:1rem;color:var(--dim)">Recent</h2>
     <div id="recent-list"></div>
+    <div id="recent-status" role="status" aria-live="polite" style="font-size:.82em;color:var(--dim);margin-top:.5rem"></div>
     <div style="margin-top:1.5rem;color:var(--dim);font-size:.82em">
       Use <kbd style="padding:2px 6px;background:var(--surface);border:1px solid var(--border);border-radius:4px">New tab</kbd> to enter a URL, or manage tailnet host URLs in Settings.
     </div>
@@ -1866,11 +1869,29 @@ function dedupeRecentTabs(tabs) {
   return result;
 }
 
+let hiddenRecentKeys = new Set();
+let recentTabsSnapshot = [];
+async function removeRecentTab(tab, button) {
+  const key = recentTabKey(tab);
+  if (!key) return;
+  button.disabled = true;
+  try {
+    const res = await fetch('/api/settings/recent/remove', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({key})});
+    if (!res.ok) throw new Error(await res.text());
+    hiddenRecentKeys.add(key);
+    renderRecentTabs(recentTabsSnapshot);
+    document.getElementById('recent-status').textContent = 'Removed from Recent. Open tabs are unchanged.';
+  } catch (err) {
+    document.getElementById('recent-status').textContent = `Could not remove recent item: ${err.message}`;
+  } finally { button.disabled = false; }
+}
 function renderRecentTabs(tabs) {
   const list = document.getElementById('recent-list');
   if (!list) return;
-  refreshURLHistoryDatalist(tabs.map(t => t.type === 'terminal' ? formatSSHURL(t.user || 'root', t.host || t.title, t.port) : (t.url || t.title)));
-  const visible = tabs.slice(0, 10);
+  recentTabsSnapshot = tabs;
+  const available = tabs.filter(t => !hiddenRecentKeys.has(recentTabKey(t)));
+  refreshURLHistoryDatalist(available.map(t => t.type === 'terminal' ? formatSSHURL(t.user || 'root', t.host || t.title, t.port) : (t.url || t.title)));
+  const visible = available.slice(0, 10);
   list.textContent = '';
   if (!visible.length) {
     const empty = document.createElement('div');
@@ -1885,15 +1906,17 @@ function renderRecentTabs(tabs) {
       : (t.url || '');
     const item = document.createElement('div');
     item.className = 'recent-item';
-    item.tabIndex = 0;
-    item.setAttribute('role', 'button');
-    item.addEventListener('click', () => activateRecentTab(t));
-    item.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        activateRecentTab(t);
-      }
-    });
+    const open = document.createElement('button');
+    open.className = 'recent-open';
+    open.type = 'button';
+    open.addEventListener('click', () => activateRecentTab(t));
+    const remove = document.createElement('button');
+    remove.className = 'recent-remove';
+    remove.type = 'button';
+    remove.title = 'Remove from Recent';
+    remove.setAttribute('aria-label', `Remove ${t.title || t.host || t.url || 'item'} from Recent`);
+    remove.textContent = '×';
+    remove.addEventListener('click', () => removeRecentTab(t, remove));
 
     const iconSpan = document.createElement('span');
     const favicon = t.type === 'browser' ? sanitizeFaviconURL(t.favicon) : '';
@@ -1914,7 +1937,8 @@ function renderRecentTabs(tabs) {
     const detailSpan = document.createElement('span');
     detailSpan.className = 'recent-detail';
     detailSpan.textContent = detail;
-    item.append(iconSpan, title, detailSpan);
+    open.append(iconSpan, title, detailSpan);
+    item.append(open, remove);
     list.appendChild(item);
   });
 }
@@ -1926,6 +1950,7 @@ async function loadRecentTabs() {
     const res = await fetch('/api/settings/config');
     if (!res.ok) throw new Error(await res.text());
     const cfg = await res.json();
+    for (const key of cfg.hiddenRecent || []) hiddenRecentKeys.add(key);
     renderRecentTabs(dedupeRecentTabs(cfg.openTabs || []));
   } catch (err) {
     console.warn('recent tabs load failed', err);

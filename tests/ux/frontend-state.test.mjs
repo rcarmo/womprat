@@ -15,6 +15,8 @@ test('Home shows at most ten recent cards in saved order', () => {
   const renderRecentTabs = extract('function renderRecentTabs(tabs)', 'async function loadRecentTabs()', 'renderRecentTabs');
   const items = [];
   const list = { textContent: '', appendChild(item) { items.push(item); } };
+  globalThis.hiddenRecentKeys = new Set();
+  globalThis.recentTabKey = tab => tab.url;
   globalThis.document = {
     getElementById(id) { return id === 'recent-list' ? list : null; },
     createElement(tag) { return {
@@ -30,8 +32,9 @@ test('Home shows at most ten recent cards in saved order', () => {
   const tabs = Array.from({length: 12}, (_, i) => ({type:'browser', title:`Recent ${i}`, url:`https://example${i}.test/`}));
   renderRecentTabs(tabs);
   expect(items).toHaveLength(10);
-  expect(items[0].children[1].textContent).toBe('Recent 0');
-  expect(items[9].children[1].textContent).toBe('Recent 9');
+  expect(items[0].children[0].children[1].textContent).toBe('Recent 0');
+  expect(items[9].children[0].children[1].textContent).toBe('Recent 9');
+  expect(items[0].children[1].className).toBe('recent-remove');
 });
 
 test('tab drop before/after and append preserve stable ID order', () => {

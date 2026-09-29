@@ -141,7 +141,8 @@ const pageErrors = [];
 let browser;
 try {
   browser = await chromium.launch({ headless: true });
-  const page = await browser.newPage();
+  const context = await browser.newContext();
+  const page = await context.newPage();
   page.on("console", (m) => { if (m.type() === "error") consoleErrors.push(m.text()); });
   page.on("pageerror", (e) => pageErrors.push(String(e)));
 
@@ -178,6 +179,22 @@ try {
   const hasSettings = await page.waitForSelector("#panel-settings iframe, iframe.browser-frame", { timeout: 5000 }).then(() => true).catch(() => false);
   check("settings panel renders", hasSettings);
   const settingsFrame = page.frameLocator('#panel-settings iframe[src="/settings.html"]');
+  const dnsFormGeometry = async () => settingsFrame.locator('#diag-dns-form').evaluate(form => {
+    const rect = selector => form.querySelector(selector).getBoundingClientRect();
+    const outer = form.getBoundingClientRect();
+    const label = rect('label'), input = rect('input'), lookup = rect('#diag-dns-run'), copy = rect('#diag-dns-copy');
+    const within = r => r.left >= outer.left - 1 && r.right <= outer.right + 1;
+    return { labelAbove: label.bottom <= input.top + 1, controlsAligned: Math.abs(lookup.top - copy.top) <= 2,
+      noOverlap: input.right <= lookup.left + 1 || input.bottom <= lookup.top + 1,
+      contained: [label, input, lookup, copy].every(within) };
+  });
+  await page.setViewportSize({width: 894, height: 600});
+  const desktopDNS = await dnsFormGeometry();
+  check('DNS form aligns label and controls at screenshot width', desktopDNS.labelAbove && desktopDNS.controlsAligned && desktopDNS.noOverlap && desktopDNS.contained, JSON.stringify(desktopDNS));
+  await page.setViewportSize({width: 540, height: 600});
+  const narrowDNS = await dnsFormGeometry();
+  check('DNS form aligns and contains controls when narrow', narrowDNS.labelAbove && narrowDNS.controlsAligned && narrowDNS.noOverlap && narrowDNS.contained, JSON.stringify(narrowDNS));
+  await page.setViewportSize({width: 1280, height: 720});
   await settingsFrame.locator('#diag-dns-name').fill('smith.local');
   await settingsFrame.locator('#diag-dns-run').click();
   await settingsFrame.locator('#diag-dns-results .diag-card').first().waitFor({ timeout: 5000 });
@@ -186,6 +203,7 @@ try {
   check('generic DNS form displays disconnected app state and copyable evidence', smithEvidence.includes('Tailscale path') && smithEvidence.includes('disconnected') && smithJSON.includes('"name": "smith.local"') && smithJSON.includes('"queries": []'));
   await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
   await settingsFrame.locator('#diag-dns-copy').click();
+  await settingsFrame.locator('#diag-dns-status').getByText('DNS results copied to clipboard.').waitFor();
   const copiedDNS = await page.evaluate(() => navigator.clipboard.readText());
   check('DNS results copy as readable report', copiedDNS.includes('DNS lookup: smith.local') && copiedDNS.includes('Tailscale: disconnected') && copiedDNS.includes('Womprat tsnet is not connected'));
 
@@ -246,6 +264,21 @@ try {
     return { count: list.querySelectorAll('.recent-item').length, layout: getComputedStyle(list).display, columns: getComputedStyle(list).gridTemplateColumns.split(' ').length };
   });
   check('home recent items use responsive grid', recentGrid.count > 0 && recentGrid.count <= 10 && recentGrid.layout === 'grid' && recentGrid.columns >= 1);
+  const recentBeforeRemoval = await page.locator('#recent-list .recent-item').count();
+  await page.evaluate(() => { window.newBlankTab && window.newBlankTab(); });
+  const removalTab = await page.locator('#tab-list .tab.active').getAttribute('data-tab-id');
+  const activeTabsBeforeRemove = await page.locator('#tab-list .tab').count();
+  await page.locator('#recent-list .recent-remove').first().click();
+  await page.locator('#recent-status').getByText('Removed from Recent. Open tabs are unchanged.').waitFor();
+  const recentAfterRemoval = await page.locator('#recent-list .recent-item').count();
+  const hiddenRecentSaved = await page.evaluate(async () => (await (await fetch('/api/settings/config')).json()).hiddenRecent.length);
+  check('Recent remove hides card without opening or closing tabs', recentAfterRemoval === recentBeforeRemoval - 1 && hiddenRecentSaved === 1 && await page.locator('.tab').count() === activeTabsBeforeRemove);
+  if (removalTab) await page.evaluate(id => window.closeTab(id), removalTab);
+  const freshPage = await context.newPage();
+  await freshPage.goto(url, {waitUntil:'domcontentloaded'});
+  const hiddenInFreshPage = await freshPage.evaluate(async () => (await (await fetch('/api/settings/config')).json()).hiddenRecent.length);
+  await freshPage.close();
+  check('Recent removal persists in a fresh page', hiddenInFreshPage === hiddenRecentSaved);
   check("custom schemes leave no blank placeholders", await page.evaluate(() => !Array.from(document.querySelectorAll('.tab-title')).some(el => el.textContent === 'New tab')));
 
   // Updating title metadata must retain the tab element (and therefore avoid
