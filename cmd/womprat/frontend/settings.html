@@ -982,6 +982,11 @@ function renderDNSDiagnostic(data) {
     ['Tailnet DNS', data.acceptDNS ? 'enabled' : 'disabled'],
     ...(data.error ? [['Status', data.error]] : []),
   ], data.error ? 'error' : 'ok');
+  if (data.policy) addDNSDiagnosticCard(results, 'Tailnet DNS rule', [
+    ['Matching domain', data.policy.matchingSuffix || 'no split-DNS match'],
+    ['Configured nameservers', (data.policy.resolvers || []).map(r => `${r.address} (use with exit node: ${r.useWithExitNode ? 'yes' : 'no'})`).join(', ') || 'none'],
+    ['Policy', data.policy.error || data.policy.explanation || 'unknown'],
+  ], data.policy.error ? 'error' : 'ok');
   for (const query of data.queries || []) {
     const addresses = query.addresses || [];
     const rcode = query.rcode || 'No DNS response';
@@ -1003,6 +1008,10 @@ function dnsDiagnosticReport(data) {
     `Tailnet DNS: ${data.acceptDNS ? 'enabled' : 'disabled'}`,
   ];
   if (data.error) lines.push(`Error: ${data.error}`);
+  if (data.policy) {
+    lines.push(`DNS rule: ${data.policy.matchingSuffix || 'no split-DNS match'}`, `Policy: ${data.policy.error || data.policy.explanation || 'unknown'}`);
+    for (const resolver of data.policy.resolvers || []) lines.push(`Configured DNS: ${resolver.address}; use with exit node: ${resolver.useWithExitNode ? 'yes' : 'no'}`);
+  }
   for (const query of data.queries || []) {
     lines.push('', `${query.record}: ${query.error || (query.addresses?.length ? query.addresses.join(', ') : query.rcode === 'RCodeNameError' ? 'Name not found (NXDOMAIN)' : query.rcode === 'RCodeSuccess' ? 'No address of this type' : query.rcode || 'No response')}`);
     if (query.rcode) lines.push(`Response: ${query.rcode}`);

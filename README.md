@@ -41,7 +41,7 @@ Womprat binds its shell, API and SOCKS listener to loopback. Application traffic
 
 Release builds fail closed. If `tsnet` is unavailable, Womprat does not fall back to the host's normal network. `WOMPRAT_DIRECT=1` works only in binaries built with `-X main.debugBuild=1` and exists for local integration tests.
 
-Public internet access requires an active Tailscale exit node. Womprat applies an exit node selected in Settings; when no replacement is selected, it preserves an exit-node route restored from tsnet state. Tailnet hosts, MagicDNS names, `.ts.net` names, and names served by configured tailnet DNS servers use the embedded Tailscale DNS route selection. Womprat sends supported upstream queries over TCP through `tsnet` only after confirming a remote Tailscale peer or subnet/exit-node route. Unsupported or unroutable resolvers fail closed without host DNS or LAN fallback. The selected exit node can still override split-DNS routes in the bundled Tailscale version; Settings → Diagnostics → Query smith.local shows the chosen resolver, tailnet route, response code and addresses for that case. Womprat dials resolved IPs through `tsnet`; IP literals skip DNS. A named service must also have a reachable tailnet, subnet, or exit-node route.
+Public internet access requires an active Tailscale exit node. Womprat applies an exit node selected in Settings; when no replacement is selected, it preserves an exit-node route restored from tsnet state. Tailnet hosts, MagicDNS names, `.ts.net` names, and names served by configured tailnet DNS servers use the embedded Tailscale DNS route selection. Womprat sends supported upstream queries over TCP through `tsnet` only after confirming a remote Tailscale peer or subnet/exit-node route. Unsupported or unroutable resolvers fail closed without host DNS or LAN fallback. Tailscale v1.94.2 honours the nameserver's **Use with exit node** policy for custom and split-DNS routes. Womprat does not change that policy. In Settings → Diagnostics, enter a hostname and select **Look up** to see the matching configured rule, its exit-node eligibility, the chosen resolver, tailnet route, response code and addresses. **Copy results** copies a readable report; Technical details contains JSON. Womprat dials resolved IPs through `tsnet`; IP literals skip DNS. A named service must also have a reachable tailnet, subnet, or exit-node route.
 
 Transient Tailscale startup failures are retried every 15 seconds. Settings reports the last error and distinguishes the selected exit-node preference from the route active in the current session. An explicit reconnect or disconnect cancels the existing retry worker before changing the connection.
 
@@ -224,7 +224,7 @@ Run `make sha256` after building to create `dist/SHA256SUMS.txt`. Both release t
 
 Build dependencies:
 
-* Go 1.25 or later;
+* Go 1.25.5 or later;
 * Bun;
 * `llvm-windres`;
 * Python 3.

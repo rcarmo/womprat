@@ -36,6 +36,7 @@ type dnsDiagnosticResponse struct {
 	AcceptDNS      bool             `json:"acceptDNS"`
 	Queries        []dnsProbeResult `json:"queries"`
 	Error          string           `json:"error,omitempty"`
+	Policy         *dnsPolicy       `json:"policy,omitempty"`
 }
 
 func normalizeDiagnosticDNSName(input string) (string, error) {
@@ -116,6 +117,13 @@ func (a *App) handleDNSDiagnostic(w http.ResponseWriter, r *http.Request) {
 		if out.ExitNode == "" && (prefs.RouteAll || prefs.ExitNodeID != "" || prefs.ExitNodeIP.IsValid()) {
 			out.ExitNode = fmt.Sprintf("selected in prefs: ID=%s IP=%s; no active exit-node status", prefs.ExitNodeID, prefs.ExitNodeIP)
 		}
+	}
+	if nm, err := readDNSNetmap(ctx, lc); err != nil {
+		out.Policy = &dnsPolicy{Error: err.Error(), Resolvers: []dnsPolicyResolver{}, Explanation: "Could not inspect tailnet DNS configuration."}
+	} else {
+		exitActive := status != nil && status.ExitNodeStatus != nil
+		policy := describeDNSPolicy(nm.DNS, name, exitActive)
+		out.Policy = &policy
 	}
 	for _, record := range []string{"A", "AAAA"} {
 		if ctx.Err() != nil {

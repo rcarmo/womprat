@@ -190,9 +190,11 @@ try {
   });
   await page.setViewportSize({width: 894, height: 600});
   const desktopDNS = await dnsFormGeometry();
+  if (process.env.WOMPRAT_UX_SCREENSHOTS) await settingsFrame.locator('#diag-dns-form').screenshot({path:join(process.env.WOMPRAT_UX_SCREENSHOTS, 'dns-form-wide.png')});
   check('DNS form aligns label and controls at screenshot width', desktopDNS.labelAbove && desktopDNS.controlsAligned && desktopDNS.noOverlap && desktopDNS.contained, JSON.stringify(desktopDNS));
   await page.setViewportSize({width: 540, height: 600});
   const narrowDNS = await dnsFormGeometry();
+  if (process.env.WOMPRAT_UX_SCREENSHOTS) await settingsFrame.locator('#diag-dns-form').screenshot({path:join(process.env.WOMPRAT_UX_SCREENSHOTS, 'dns-form-narrow.png')});
   check('DNS form aligns and contains controls when narrow', narrowDNS.labelAbove && narrowDNS.controlsAligned && narrowDNS.noOverlap && narrowDNS.contained, JSON.stringify(narrowDNS));
   await page.setViewportSize({width: 1280, height: 720});
   await settingsFrame.locator('#diag-dns-name').fill('smith.local');
