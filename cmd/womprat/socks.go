@@ -91,6 +91,10 @@ func startSOCKS5Listener(app *App) {
 }
 
 func handleSOCKS5(conn net.Conn, app *App) {
+	handleSOCKS5WithDial(conn, app, dialTSNetPreferIPv4)
+}
+
+func handleSOCKS5WithDial(conn net.Conn, app *App, dial func(context.Context, *tsnet.Server, string) (net.Conn, error)) {
 	defer conn.Close()
 
 	// RFC 1928 greeting: VER, NMETHODS, METHODS...
@@ -141,11 +145,9 @@ func handleSOCKS5(conn net.Conn, app *App) {
 		return
 	}
 
-	// All WebView browser SOCKS traffic resolves and dials through tsnet. There
-	// is intentionally no direct net.Dial fallback here: public internet, LAN
-	// names, MagicDNS, and .local aliases must all use Tailscale's resolver and
-	// routing policy. If an exit node is configured, tsnet handles it; otherwise
-	// non-tailnet destinations fail closed instead of escaping locally.
+	// WebView browser hostnames use the embedded Tailscale DNS resolver and
+	// resulting IPs are dialled via tsnet. Womprat has no host-OS DNS fallback;
+	// tsnet decides the route for each resolved IP.
 	routing := "tailnet-only (no exit node)"
 	if exitNode != "" {
 		routing = fmt.Sprintf("exit node %q", exitNode)
@@ -153,7 +155,7 @@ func handleSOCKS5(conn net.Conn, app *App) {
 	log.Printf("SOCKS5 connect %s via tsnet [%s]", addr, routing)
 	dialCtx, cancelDial := context.WithTimeout(context.Background(), socksDialTimeout)
 	defer cancelDial()
-	remote, err := dialTSNetPreferIPv4(dialCtx, ts, addr)
+	remote, err := dial(dialCtx, ts, addr)
 	if err != nil {
 		log.Printf("SOCKS5 tsnet dial failed for %s: %v", addr, err)
 		writeSOCKSReply(conn, socksReplyForDialError(err))
@@ -194,10 +196,9 @@ func halfCloseWrite(c net.Conn) {
 	}
 }
 
-// dialTSNetPreferIPv4 dials through tsnet preferring IPv4, then IPv6, then the
-// unspecified network. Plain "tcp" lets tsnet/netstack pick an address family
-// and it frequently chose IPv6, which fails when the upstream path is not
-// reliably reachable over v6 and shows up as assets intermittently not loading.
+// dialTSNetPreferIPv4 queries tsnet's configured DNS resolver for hostnames
+// before routing through tsnet, preferring IPv4 then IPv6. Unknown names must
+// not fall back to the host OS resolver, which can miss split-DNS routes.
 func dialTSNetPreferIPv4(ctx context.Context, ts *tsnet.Server, addr string) (net.Conn, error) {
 	if allowDirectDial {
 		// Testing bypass: dial the target directly, preferring IPv4.
@@ -221,21 +222,14 @@ func dialTSNetPreferIPv4(ctx context.Context, ts *tsnet.Server, addr string) (ne
 	if ts == nil {
 		return nil, fmt.Errorf("tailscale not connected")
 	}
-	var lastErr error
-	for _, network := range []string{"tcp4", "tcp6", "tcp"} {
-		if ctx.Err() != nil {
-			if lastErr != nil {
-				return nil, lastErr
-			}
-			return nil, ctx.Err()
-		}
-		conn, err := ts.Dial(ctx, network, addr)
-		if err == nil {
-			return conn, nil
-		}
-		lastErr = err
+	lc, err := ts.LocalClient()
+	if err != nil {
+		return nil, fmt.Errorf("tailnet DNS client: %w", err)
 	}
-	return nil, lastErr
+	return dialTailnetResolved(ctx, addr, func(ctx context.Context, name, record string) ([]byte, error) {
+		packet, _, err := lc.QueryDNS(ctx, name, record)
+		return packet, err
+	}, ts.Dial)
 }
 
 func socksMethodsContain(methods []byte, method byte) bool {

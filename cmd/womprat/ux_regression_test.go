@@ -332,9 +332,11 @@ func TestSOCKSDialPrefersIPv4(t *testing.T) {
 	for _, want := range []string{
 		"func dialTSNetPreferIPv4(ctx context.Context, ts *tsnet.Server, addr string)",
 		"[]string{\"tcp4\", \"tcp6\", \"tcp\"}",
+		"lc.QueryDNS(ctx, name, record)",
+		"dialTailnetResolved(ctx, addr,",
 	} {
 		if !strings.Contains(s, want) {
-			t.Fatalf("SOCKS IPv4-preferred dial missing %q", want)
+			t.Fatalf("SOCKS IPv4-preferred tailnet DNS dial missing %q", want)
 		}
 	}
 }
@@ -344,7 +346,8 @@ func TestSOCKSConnectUsesBoundedTsnetDial(t *testing.T) {
 	for _, want := range []string{
 		"const socksDialTimeout = 10 * time.Second",
 		"context.WithTimeout(context.Background(), socksDialTimeout)",
-		"dialTSNetPreferIPv4(dialCtx, ts, addr)",
+		"handleSOCKS5WithDial(conn, app, dialTSNetPreferIPv4)",
+		"dial(dialCtx, ts, addr)",
 		"defer cancelDial()",
 	} {
 		if !strings.Contains(s, want) {
