@@ -332,7 +332,8 @@ func TestSOCKSDialPrefersIPv4(t *testing.T) {
 	for _, want := range []string{
 		"func dialTSNetPreferIPv4(ctx context.Context, ts *tsnet.Server, addr string)",
 		"[]string{\"tcp4\", \"tcp6\", \"tcp\"}",
-		"lc.QueryDNS(ctx, name, record)",
+		"resolverForTSNet(ts)",
+		"resolver.Query(ctx, name, record)",
 		"dialTailnetResolved(ctx, addr,",
 	} {
 		if !strings.Contains(s, want) {

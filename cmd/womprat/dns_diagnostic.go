@@ -9,8 +9,6 @@ import (
 	"time"
 
 	"golang.org/x/net/dns/dnsmessage"
-	"tailscale.com/client/local"
-	"tailscale.com/types/dnstype"
 )
 
 // dnsProbeResult reports exactly what the embedded tsnet LocalAPI returned.
@@ -19,6 +17,9 @@ import (
 type dnsProbeResult struct {
 	Record     string   `json:"record"`
 	Resolvers  []string `json:"resolvers"`
+	Server     string   `json:"server,omitempty"`
+	Transport  string   `json:"transport,omitempty"`
+	PeerRoute  string   `json:"peerRoute,omitempty"`
 	RCode      string   `json:"rcode,omitempty"`
 	Addresses  []string `json:"addresses"`
 	Error      string   `json:"error,omitempty"`
@@ -59,6 +60,12 @@ func (a *App) handleDNSDiagnostic(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, out)
 		return
 	}
+	resolver, err := resolverForTSNet(ts)
+	if err != nil {
+		out.Error = fmt.Sprintf("tailnet-only DNS resolver: %v", err)
+		writeJSON(w, http.StatusOK, out)
+		return
+	}
 	ctx, cancel := context.WithTimeout(r.Context(), 12*time.Second)
 	defer cancel()
 	status, err := lc.Status(ctx)
@@ -94,26 +101,21 @@ func (a *App) handleDNSDiagnostic(w http.ResponseWriter, r *http.Request) {
 			out.Queries = append(out.Queries, dnsProbeResult{Record: record, Resolvers: []string{}, Addresses: []string{}, Error: ctx.Err().Error()})
 			continue
 		}
-		out.Queries = append(out.Queries, probeTailnetDNS(ctx, lc, name, record))
+		out.Queries = append(out.Queries, probeTailnetDNS(ctx, resolver, name, record))
 	}
 	writeJSON(w, http.StatusOK, out)
 }
 
-// dnsQueryClient narrows the LocalAPI dependency for unit tests; production
-// calls the very same LocalClient.QueryDNS used by outbound Womprat dials.
+// dnsQueryClient is the same fail-closed transport used for outbound dials.
 type dnsQueryClient interface {
-	QueryDNS(context.Context, string, string) ([]byte, []*dnstype.Resolver, error)
+	Query(context.Context, string, string) ([]byte, []string, string, string, string, error)
 }
 
-func probeTailnetDNS(ctx context.Context, lc dnsQueryClient, name, record string) dnsProbeResult {
+func probeTailnetDNS(ctx context.Context, resolver dnsQueryClient, name, record string) dnsProbeResult {
 	result := dnsProbeResult{Record: record, Resolvers: []string{}, Addresses: []string{}}
 	start := time.Now()
-	packet, resolvers, err := lc.QueryDNS(ctx, name, record)
-	for _, resolver := range resolvers {
-		if resolver != nil {
-			result.Resolvers = append(result.Resolvers, resolver.Addr)
-		}
-	}
+	packet, candidates, server, transport, peerRoute, err := resolver.Query(ctx, name, record)
+	result.Resolvers, result.Server, result.Transport, result.PeerRoute = candidates, server, transport, peerRoute
 	if err != nil {
 		result.Error = err.Error()
 		result.DurationMS = time.Since(start).Milliseconds()
@@ -141,4 +143,4 @@ func probeTailnetDNS(ctx context.Context, lc dnsQueryClient, name, record string
 	return result
 }
 
-var _ dnsQueryClient = (*local.Client)(nil)
+var _ dnsQueryClient = tailnetResolver{}

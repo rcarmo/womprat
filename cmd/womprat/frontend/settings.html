@@ -253,7 +253,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
     <div id="diag-status" style="margin-top:.5rem"></div>
     <div id="diagnostics-grid" class="diag-grid"></div>
     <h3>smith.local DNS through Womprat</h3>
-    <p style="color:var(--dim);font-size:.82rem;margin-bottom:.6rem">Queries A and AAAA through this app's embedded Tailscale resolver. Resolver addresses are selected candidates, not proof each one answered. No TCP connection or host-OS lookup is made.</p>
+    <p style="color:var(--dim);font-size:.82rem;margin-bottom:.6rem">Queries A and AAAA over a verified tsnet TCP route to the selected upstream; an upstream without a Tailscale peer/route fails closed. Resolver candidates alone do not prove a reply. No host-OS DNS or direct/LAN query is used.</p>
     <button id="diag-smith-run" type="button">Query smith.local</button>
     <div id="diag-smith-status" role="status" aria-live="polite"></div>
     <pre id="diag-smith-output" class="diag-detail mono" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre>

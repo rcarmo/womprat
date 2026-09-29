@@ -11,26 +11,25 @@ import (
 	"testing"
 
 	"golang.org/x/net/dns/dnsmessage"
-	"tailscale.com/types/dnstype"
 )
 
-type fakeDNSQueryClient func(context.Context, string, string) ([]byte, []*dnstype.Resolver, error)
+type fakeDNSQueryClient func(context.Context, string, string) ([]byte, []string, string, string, string, error)
 
-func (f fakeDNSQueryClient) QueryDNS(ctx context.Context, name, record string) ([]byte, []*dnstype.Resolver, error) {
+func (f fakeDNSQueryClient) Query(ctx context.Context, name, record string) ([]byte, []string, string, string, string, error) {
 	return f(ctx, name, record)
 }
 
 func TestSmithDNSDiagnosticRecordsActualResolverCandidatesAndAnswers(t *testing.T) {
 	var calls []string
-	fake := fakeDNSQueryClient(func(_ context.Context, name, record string) ([]byte, []*dnstype.Resolver, error) {
+	fake := fakeDNSQueryClient(func(_ context.Context, name, record string) ([]byte, []string, string, string, string, error) {
 		calls = append(calls, name+"/"+record)
 		if name != "smith.local" || record != "A" {
 			t.Fatalf("unexpected diagnostic query %s/%s", name, record)
 		}
-		return dnsAnswer(t, name, record, netip.MustParseAddr("100.101.102.103")), []*dnstype.Resolver{{Addr: "100.100.100.100"}}, nil
+		return dnsAnswer(t, name, record, netip.MustParseAddr("100.101.102.103")), []string{"100.100.100.100"}, "100.100.100.100", "tsnet TCP DNS", "100.100.100.100 via relay (0.0.0.0/0)", nil
 	})
 	got := probeTailnetDNS(context.Background(), fake, "smith.local", "A")
-	if !reflect.DeepEqual(calls, []string{"smith.local/A"}) || got.RCode != dnsmessage.RCodeSuccess.String() || !reflect.DeepEqual(got.Addresses, []string{"100.101.102.103"}) || !reflect.DeepEqual(got.Resolvers, []string{"100.100.100.100"}) || got.Error != "" {
+	if !reflect.DeepEqual(calls, []string{"smith.local/A"}) || got.RCode != dnsmessage.RCodeSuccess.String() || !reflect.DeepEqual(got.Addresses, []string{"100.101.102.103"}) || !reflect.DeepEqual(got.Resolvers, []string{"100.100.100.100"}) || got.Error != "" || got.Transport != "tsnet TCP DNS" || got.PeerRoute == "" {
 		t.Fatalf("diagnostic=%+v, queries=%v", got, calls)
 	}
 }
@@ -41,11 +40,11 @@ func TestSmithDNSDiagnosticReportsNXDOMAINAndTimeout(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fake := fakeDNSQueryClient(func(_ context.Context, _, record string) ([]byte, []*dnstype.Resolver, error) {
+	fake := fakeDNSQueryClient(func(_ context.Context, _, record string) ([]byte, []string, string, string, string, error) {
 		if record == "A" {
-			return packet, []*dnstype.Resolver{{Addr: "http://relay/dns-query"}}, nil
+			return packet, []string{"http://relay/dns-query"}, "http://relay/dns-query", "tsnet TCP exit-node DoH", "relay via 0.0.0.0/0", nil
 		}
-		return nil, []*dnstype.Resolver{{Addr: "100.70.0.53"}}, context.DeadlineExceeded
+		return nil, []string{"100.70.0.53"}, "100.70.0.53", "tsnet TCP DNS", "relay via 0.0.0.0/0", context.DeadlineExceeded
 	})
 	a := probeTailnetDNS(context.Background(), fake, "smith.local", "A")
 	if a.RCode != dnsmessage.RCodeNameError.String() || len(a.Addresses) != 0 || len(a.Resolvers) != 1 || a.Resolvers[0] != "http://relay/dns-query" {

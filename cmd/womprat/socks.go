@@ -222,14 +222,14 @@ func dialTSNetPreferIPv4(ctx context.Context, ts *tsnet.Server, addr string) (ne
 	if ts == nil {
 		return nil, fmt.Errorf("tailscale not connected")
 	}
-	lc, err := ts.LocalClient()
+	resolver, err := resolverForTSNet(ts)
 	if err != nil {
-		return nil, fmt.Errorf("tailnet DNS client: %w", err)
+		return nil, err
 	}
 	return dialTailnetResolved(ctx, addr, func(ctx context.Context, name, record string) ([]byte, error) {
-		packet, _, err := lc.QueryDNS(ctx, name, record)
+		packet, _, _, _, _, err := resolver.Query(ctx, name, record)
 		return packet, err
-	}, ts.Dial)
+	}, resolver.dialAddress)
 }
 
 func socksMethodsContain(methods []byte, method byte) bool {
