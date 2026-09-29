@@ -79,7 +79,7 @@ button,a,.tab,.recent-item,.option{
 #new-tab .fluent-icon{width:20px;height:20px}
 
 /* Panels */
-#panels{position:absolute;inset:calc(var(--tab-h) + var(--url-h)) 0 0 0}
+#panels{position:absolute;inset:var(--chrome-bottom, calc(var(--tab-h) + var(--url-h))) 0 0 0}
 #panels > .panel{zoom:var(--shell-content-zoom)}
 #panels > .term-panel{zoom:1}
 .panel{position:absolute;inset:0;display:none}
@@ -520,12 +520,16 @@ window.wompratContentError = function(tabId, message) {
 window.wompratReportChrome = function() {
   try {
     const bar = document.getElementById('url-bar');
-    if (!bar || !window.womprat_setChromeHeight) return;
+    if (!bar) return;
     const status = navStatusEl();
     const useStatus = status && !status.hidden;
     const bottom = (useStatus ? status.getBoundingClientRect().bottom : bar.getBoundingClientRect().bottom);
+    // Keep shell panels below the visible status bar as well as native WebView
+    // content. Otherwise the absolute panel overlays its action buttons and
+    // intercepts clicks even though the buttons are visible.
+    document.documentElement.style.setProperty('--chrome-bottom', `${bottom}px`);
     const px = Math.round(bottom * (window.devicePixelRatio || 1));
-    if (px > 0) window.womprat_setChromeHeight(px);
+    if (px > 0 && window.womprat_setChromeHeight) window.womprat_setChromeHeight(px);
   } catch (err) { console.warn('chrome height report failed', err); }
 };
 window.wompratOnHostResize = function() {

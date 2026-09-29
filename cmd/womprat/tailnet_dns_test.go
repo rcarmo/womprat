@@ -105,6 +105,28 @@ func TestTailnetSplitDNSResolutionDialsResolvedIP(t *testing.T) {
 	}
 }
 
+// smith.local is a DNS name on Rui's tailnet. The .local suffix alone must
+// not force mDNS or the host resolver; only the configured tsnet DNS manager
+// selects a nameserver, including with a relay exit-node route in effect.
+func TestSmithLocalUsesTailnetDNSAndTsnetDial(t *testing.T) {
+	var queries, dials []string
+	query := func(ctx context.Context, name, record string) ([]byte, error) {
+		queries = append(queries, name+"/"+record)
+		if name != "smith.local" || record != "A" {
+			return nil, fmt.Errorf("unexpected tailnet DNS query %s/%s", name, record)
+		}
+		return dnsAnswer(t, name, record, netip.MustParseAddr("100.101.102.103")), nil
+	}
+	dial := func(ctx context.Context, network, address string) (net.Conn, error) {
+		dials = append(dials, network+"/"+address)
+		return nil, errors.New("test dial stopped before network access")
+	}
+	_, err := dialTailnetResolved(context.Background(), "smith.local:443", query, dial)
+	if err == nil || fmt.Sprint(queries) != "[smith.local/A smith.local/AAAA]" || fmt.Sprint(dials) != "[tcp4/100.101.102.103:443]" {
+		t.Fatalf("smith.local: queries=%v dials=%v error=%v", queries, dials, err)
+	}
+}
+
 func TestTailnetDNSFallbackAndFailClosed(t *testing.T) {
 	var calls []string
 	query := func(ctx context.Context, name, record string) ([]byte, error) {

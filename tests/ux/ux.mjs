@@ -150,6 +150,21 @@ try {
   await page.evaluate(() => document.getElementById("setup")?.classList.add("hidden"));
   check("shell loads", true);
 
+  // The error banner must sit above native/shell panels so its buttons receive
+  // pointer events. Exercise both dismiss and Settings with real mouse clicks.
+  await page.evaluate(() => window.wompratContentError(null, 'DNS lookup failed for smith.local'));
+  const statusSettings = page.locator('#nav-status-settings');
+  const statusHit = await statusSettings.evaluate(button => {
+    const rect = button.getBoundingClientRect();
+    return document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2) === button;
+  });
+  check('error status actions receive pointer events', statusHit);
+  await page.locator('#nav-status-dismiss').click();
+  check('error status dismiss responds to click', await page.locator('#nav-status').isHidden());
+  await page.evaluate(() => window.wompratContentError(null, 'DNS lookup failed for smith.local'));
+  await statusSettings.click();
+  check('error status Settings opens on click', await page.locator('#panel-settings.active iframe[src="/settings.html"]').count() === 1);
+
   // Routed download manager: start, poll to completion, and verify file bytes.
   await page.evaluate((u) => window.triggerDownload(u), `http://127.0.0.1:${downloadPort}/audit.txt`);
   const downloadComplete = await page.waitForFunction(() => document.getElementById("dl-status")?.textContent === "Saved to Downloads", { timeout: 10000 }).then(() => true).catch(() => false);
