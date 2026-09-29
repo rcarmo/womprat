@@ -252,6 +252,11 @@ tr:hover td{background:rgba(255,255,255,.02)}
     <p style="color:var(--dim);font-size:.82rem;margin-bottom:.6rem">Runs automatically when this tab opens. Checks Tailscale status, local SOCKS availability, and a domain CONNECT probe for google.com through SOCKS.</p>
     <div id="diag-status" style="margin-top:.5rem"></div>
     <div id="diagnostics-grid" class="diag-grid"></div>
+    <h3>smith.local DNS through Womprat</h3>
+    <p style="color:var(--dim);font-size:.82rem;margin-bottom:.6rem">Queries A and AAAA through this app's embedded Tailscale resolver. Resolver addresses are selected candidates, not proof each one answered. No TCP connection or host-OS lookup is made.</p>
+    <button id="diag-smith-run" type="button">Query smith.local</button>
+    <div id="diag-smith-status" role="status" aria-live="polite"></div>
+    <pre id="diag-smith-output" class="diag-detail mono" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre>
   </div>
   <div class="section">
     <h3>Runtime</h3>
@@ -933,6 +938,26 @@ function renderDiagnostics(data) {
     grid.appendChild(card);
   });
 }
+async function runSmithDNSDiagnostic() {
+  const button = document.getElementById('diag-smith-run');
+  const output = document.getElementById('diag-smith-output');
+  if (button) button.disabled = true;
+  setStatus('diag-smith-status', 'warn', 'Querying smith.local through Womprat tsnet…');
+  try {
+    const res = await fetch('/api/settings/diagnostics/dns');
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+    // Keep the raw structured evidence copyable, but never parse it as HTML.
+    if (output) output.textContent = JSON.stringify(data, null, 2);
+    const ok = !data.error && data.queries?.some(q => q.addresses?.length);
+    setStatus('diag-smith-status', ok ? 'ok' : 'error', ok ? 'DNS returned an address; review resolver and exit-node details below.' : 'DNS did not return an address; review the errors and resolver candidates below.');
+  } catch (err) {
+    if (output) output.textContent = '';
+    setStatus('diag-smith-status', 'error', `DNS diagnostic failed: ${err.message}`);
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
 async function runDiagnostics() {
   setStatus('diag-status', 'warn', 'Running diagnostics…');
   try {
@@ -1006,7 +1031,9 @@ async function initSettings() {
   await loadKeys();
   await loadAbout();
   await loadDebugLog();
-  // Diagnostics is the default-active tab, so run its checks on initial load.
+  document.getElementById('diag-smith-run')?.addEventListener('click', runSmithDNSDiagnostic);
+  // Diagnostics is the default-active tab, so run its connectivity checks on initial load.
+  // The named DNS probe runs only after an explicit click.
   runDiagnostics();
 }
 initSettings();

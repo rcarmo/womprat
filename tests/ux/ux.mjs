@@ -177,6 +177,11 @@ try {
   await page.evaluate(() => window.openSettings && window.openSettings());
   const hasSettings = await page.waitForSelector("#panel-settings iframe, iframe.browser-frame", { timeout: 5000 }).then(() => true).catch(() => false);
   check("settings panel renders", hasSettings);
+  const settingsFrame = page.frameLocator('#panel-settings iframe[src="/settings.html"]');
+  await settingsFrame.locator('#diag-smith-run').click();
+  await settingsFrame.locator('#diag-smith-output').getByText('smith.local').waitFor({ timeout: 5000 });
+  const smithEvidence = await settingsFrame.locator('#diag-smith-output').textContent();
+  check('smith.local diagnostic displays real app disconnected state', smithEvidence.includes('Womprat tsnet is not connected') && smithEvidence.includes('"queries": []'));
 
   // 2) VNC URL connects end-to-end via RFB stub.
   await page.evaluate(() => { window.newBlankTab && window.newBlankTab(); });

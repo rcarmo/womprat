@@ -45,6 +45,7 @@ func (a *App) registerSettingsRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/settings/save-tabs", a.authMiddleware(a.handleSaveTabs))
 	mux.HandleFunc("/api/settings/config", a.authMiddleware(a.handleGetConfig))
 	mux.HandleFunc("/api/settings/diagnostics", a.authMiddleware(a.handleDiagnostics))
+	mux.HandleFunc("/api/settings/diagnostics/dns", a.authMiddleware(a.handleDNSDiagnostic))
 }
 
 const maxSettingsJSONBody = 1 << 20
