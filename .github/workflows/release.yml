@@ -10,6 +10,11 @@ on:
         description: 'Version string to embed (defaults to tag name or Makefile version)'
         required: false
         type: string
+      validate_only:
+        description: 'Run release checks and builds without publishing'
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -133,6 +138,7 @@ jobs:
           fi
 
       - name: Publish GitHub release
+        if: ${{ !inputs.validate_only }}
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_type == 'tag' && github.ref_name || steps.meta.outputs.release_name }}

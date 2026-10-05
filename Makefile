@@ -27,7 +27,7 @@ SHELL := $(CURDIR)/scripts/make-shell.sh
 # Paths/environment are enforced by scripts/paths.sh for every recipe.
 # Retained profiles, binaries and logs live in evidence/, never in clean scopes.
 APP       := womprat
-VERSION   ?= 0.4.1
+VERSION   ?= 0.4.2
 COMMIT    ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo dev)
 GO        ?= go
 BUN       ?= bun
