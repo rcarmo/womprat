@@ -6,10 +6,10 @@ import net from "node:net";
 import http from "node:http";
 import { spawn } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { buildDir, runDir, profilePage } from './profile.mjs';
 import { join } from "node:path";
 
-const BIN = process.env.WOMPRAT_BIN || "dist/womprat-linux-debug";
+const BIN = process.env.WOMPRAT_BIN || join(buildDir, 'dist/womprat-linux-debug');
 
 function startRFBStub() {
   return new Promise((resolve) => {
@@ -106,7 +106,7 @@ function startDownloadStub() {
 
 function startWomprat(homeDir) {
   return new Promise((resolve, reject) => {
-    const env = { ...process.env, HOME: homeDir, WOMPRAT_HEADLESS: "1", WOMPRAT_DIRECT: "1" };
+    const env = { ...process.env, HOME: homeDir, XDG_CONFIG_HOME: join(homeDir, '.config'), XDG_DATA_HOME: join(homeDir, '.local/share'), WOMPRAT_HEADLESS: "1", WOMPRAT_DIRECT: "1" };
     const p = spawn(BIN, [], { env });
     let url = null, tok = null, out = "";
     const onData = (d) => {
@@ -133,16 +133,18 @@ const downloadStub = await startDownloadStub();
 const downloadPort = downloadStub.address().port;
 const authVnc = await startVNCAuthStub();
 const authVncPort = authVnc.address().port;
-const testHome = mkdtempSync(join(tmpdir(), "womprat-browser-audit-"));
+const testHome = mkdtempSync(join(runDir, "browser-audit-"));
 const { proc, url, token } = await startWomprat(testHome);
 
 const consoleErrors = [];
 const pageErrors = [];
 let browser;
+let stopProfile = async () => {};
 try {
   browser = await chromium.launch({ headless: true });
   const context = await browser.newContext();
   const page = await context.newPage();
+  stopProfile = await profilePage(page, 'ux-renderer');
   page.on("console", (m) => { if (m.type() === "error") consoleErrors.push(m.text()); });
   page.on("pageerror", (e) => pageErrors.push(String(e)));
 
@@ -309,14 +311,20 @@ try {
   check("no console errors", consoleErrors.length === 0, consoleErrors.slice(0,5).join(" | "));
   console.log("RDP tabs:", rdpHostShown);
 } finally {
-  if (browser) await browser.close();
-  proc.kill("SIGTERM");
-  rfb.close();
-  downloadStub.close();
-  authVnc.close();
-  rmSync(testHome, { recursive: true, force: true });
+  try { await stopProfile(); } finally {
+    if (browser) await browser.close();
+    if (proc.exitCode === null && proc.signalCode === null) {
+      const exited = new Promise(resolve => proc.once('exit', resolve));
+      proc.kill("SIGTERM");
+      await exited;
+    }
+    rfb.close();
+    downloadStub.close();
+    authVnc.close();
+    rmSync(testHome, { recursive: true, force: true });
+  }
 }
 
 const failed = results.filter(r => !r.ok);
 console.log(`\n=== ${results.length - failed.length}/${results.length} checks passed ===`);
-process.exit(failed.length ? 1 : 0);
+process.exitCode = failed.length ? 1 : 0;

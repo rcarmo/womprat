@@ -1,9 +1,18 @@
-# Makefile for RDP HTML5 Client
+# Vendored module: Womprat owns scratch paths and retained test evidence.
+WOMPRAT_REPO := $(abspath ../..)
+SHELL := $(WOMPRAT_REPO)/scripts/make-shell.sh
+.SHELLFLAGS := -eu -o pipefail -c
+# Upstream asset/install/docker/watch recipes assume a standalone checkout and
+# write into source or host-managed storage. Fail before any such recipe runs.
+WOMPRAT_SUPPORTED := help config vet test test-race test-int test-rfx
+ifneq ($(filter-out $(WOMPRAT_SUPPORTED),$(MAKECMDGOALS)),)
+$(error Standalone RDP targets are disabled in this vendor copy; use the owning go-rdp project for frontend/build/install/docker work)
+endif
 
 # Variables
 .DEFAULT_GOAL := help
 BINARY_NAME=go-rdp
-BUILD_DIR=bin
+BUILD_DIR=$${WOMPRAT_BUILD_DIR}/go-rdp
 GO_VERSION=1.24
 LINTER=golangci-lint
 GOSEC=gosec
@@ -59,26 +68,24 @@ lint: ## Run golangci-lint
 
 # Testing
 .PHONY: test
-test: ## Run unit tests with coverage
+test: ## Run unit tests with retained CPU/heap profiles
 	@echo "Running tests..."
-	go test -v -coverprofile=coverage_all.out ./...
-	cp coverage_all.out coverage.out
-	go tool cover -html=coverage_all.out -o coverage.html
+	bash $(WOMPRAT_REPO)/scripts/test-profile.sh rdp . './...' -v
 
 .PHONY: test-race
 test-race: ## Run tests with race detection
 	@echo "Running tests with race detection..."
-	go test -v -race -count=1 ./...
+	bash $(WOMPRAT_REPO)/scripts/test-profile.sh rdp-race . './...' -v -race
 
 .PHONY: test-int
 test-int: ## Run integration tests
 	@echo "Running integration tests..."
-	go test -v -tags=integration ./...
+	bash $(WOMPRAT_REPO)/scripts/test-profile.sh rdp-integration . './...' -v -tags=integration
 
 .PHONY: test-rfx
 test-rfx: ## Run RemoteFX codec tests
 	@echo "Running RemoteFX codec tests..."
-	go test -v -race ./internal/codec/rfx/...
+	bash $(WOMPRAT_REPO)/scripts/test-profile.sh rdp-rfx . './internal/codec/rfx/...' -v -race
 
 .PHONY: test-js
 test-js: ## Run JavaScript fallback codec tests

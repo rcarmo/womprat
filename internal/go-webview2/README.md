@@ -14,8 +14,10 @@ Womprat uses this local module through a `replace` directive in the root `go.mod
 On Windows, run the callback regression tests with:
 
 ```powershell
-cd internal/go-webview2
-go test -v ./pkg/edge
+# From the Womprat repository root, on Windows:
+make test-webview2 TEST_FLAGS='-v -count=20'
+# Or, in Git Bash without make:
+bash scripts/test-profile.sh webview2 internal/go-webview2 ./pkg/edge -v -count=20
 ```
 
 The release workflow runs these tests before publishing Windows binaries. They test COM call contracts and failure handling; a passing result does not exercise the full WebView2 UI.

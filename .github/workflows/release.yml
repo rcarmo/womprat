@@ -14,6 +14,12 @@ on:
 permissions:
   contents: write
 
+# Portable resolver normally selects RUNNER_TEMP/womprat on hosted runners.
+# All project commands source scripts/paths.sh; profiles survive as CI artifacts.
+defaults:
+  run:
+    shell: bash
+
 jobs:
   windows-tests:
     name: Execute Windows COM regression tests
@@ -24,9 +30,15 @@ jobs:
         with:
           go-version: '1.25.x'
           cache: false
-      - name: Test local WebView2 bindings
-        working-directory: internal/go-webview2
-        run: go test -v ./pkg/edge
+      - name: Test local WebView2 bindings with CPU and allocation profiles
+        run: bash scripts/test-profile.sh webview2 internal/go-webview2 ./pkg/edge -v -count=20
+      - name: Retain Windows profiling evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-test-profiles
+          path: evidence/
+          if-no-files-found: error
 
   build-release:
     name: Build and publish Windows binaries
@@ -43,7 +55,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.25.x'
-          cache: true
+          cache: false
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
@@ -105,8 +117,10 @@ jobs:
       - name: Package artifacts
         shell: bash
         run: |
+          source scripts/paths.sh
           make sha256
-          ls -lh dist
+          echo "WOMPRAT_DIST=$WOMPRAT_BUILD_DIR/dist" >> "$GITHUB_ENV"
+          ls -lh "$WOMPRAT_BUILD_DIR/dist"
 
       - name: Select release notes
         id: notes
@@ -127,6 +141,14 @@ jobs:
           body_path: ${{ steps.notes.outputs.path }}
           generate_release_notes: ${{ steps.notes.outputs.path == '' }}
           files: |
-            dist/womprat-windows-arm64.exe
-            dist/womprat-windows-amd64.exe
-            dist/SHA256SUMS.txt
+            ${{ env.WOMPRAT_DIST }}/womprat-windows-arm64.exe
+            ${{ env.WOMPRAT_DIST }}/womprat-windows-amd64.exe
+            ${{ env.WOMPRAT_DIST }}/SHA256SUMS.txt
+
+      - name: Retain Linux profiling evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-test-profiles
+          path: evidence/
+          if-no-files-found: error

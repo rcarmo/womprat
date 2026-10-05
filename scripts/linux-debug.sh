@@ -3,7 +3,7 @@
 #
 # The womprat GUI is Windows-only (WebView2), but on non-Windows builds the
 # binary keeps the local shell/API HTTP server running. This script launches the
-# Linux binary, starts an Xvfb display, opens the shell in a real browser, and
+# Linux binary, uses an existing display, opens the shell in a real browser, and
 # leaves the environment up so you can automate it with xdotool / Playwright and
 # debug the frontend + SSH/VNC/RDP/settings flows end to end.
 #
@@ -11,19 +11,19 @@
 #   scripts/linux-debug.sh [--display :99] [--browser chromium] [--no-browser]
 #
 # Environment:
-#   WOMPRAT_BIN   path to the linux binary (default dist/womprat-linux-amd64)
-#   XVFB_RES      Xvfb resolution (default 1280x900x24)
+#   WOMPRAT_BIN   path to the Linux binary (default project build/dist)
+#   DISPLAY       existing display; this harness never creates host /tmp X11 sockets
 #
 # Outputs WOMPRAT_SHELL_URL / WOMPRAT_TOKEN (captured from the binary) and the
-# Xvfb DISPLAY so other tooling can attach.
+# existing DISPLAY so other tooling can attach.
 
 set -euo pipefail
 
-DISPLAY_NUM=":99"
+source "$(dirname "${BASH_SOURCE[0]}")/paths.sh"
+DISPLAY_NUM="${DISPLAY:-:99}"
 BROWSER_BIN=""
 OPEN_BROWSER=1
-XVFB_RES="${XVFB_RES:-1280x900x24}"
-WOMPRAT_BIN="${WOMPRAT_BIN:-dist/womprat-linux-amd64}"
+WOMPRAT_BIN="${WOMPRAT_BIN:-$WOMPRAT_BUILD_DIR/dist/womprat-linux-amd64}"
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -39,7 +39,8 @@ if [ ! -x "$WOMPRAT_BIN" ]; then
   exit 1
 fi
 
-command -v Xvfb >/dev/null || { echo "Xvfb not installed (sudo apt install xvfb)" >&2; exit 1; }
+command -v xdpyinfo >/dev/null || { echo 'xdpyinfo required to validate existing display' >&2; exit 1; }
+xdpyinfo -display "$DISPLAY_NUM" >/dev/null 2>&1 || { echo 'An existing display is required; launching Xvfb writes host /tmp sockets and needs an explicit path exception.' >&2; exit 1; }
 command -v xdotool >/dev/null || echo "warning: xdotool not installed (sudo apt install xdotool)" >&2
 
 if [ -z "$BROWSER_BIN" ] && [ "$OPEN_BROWSER" = "1" ]; then
@@ -48,20 +49,19 @@ if [ -z "$BROWSER_BIN" ] && [ "$OPEN_BROWSER" = "1" ]; then
   done
 fi
 
-LOG_DIR="$(mktemp -d)"
+mkdir -p "$WOMPRAT_EVIDENCE_ROOT/debug"
+LOG_DIR="$(mktemp -d "$WOMPRAT_EVIDENCE_ROOT/debug/$(date -u +%Y%m%dT%H%M%S)-XXXXXX")"
+DEBUG_HOME="$(mktemp -d "$WOMPRAT_RUN_DIR/home-XXXXXX")"
+export HOME="$DEBUG_HOME" XDG_CONFIG_HOME="$DEBUG_HOME/.config" XDG_DATA_HOME="$DEBUG_HOME/.local/share"
+mkdir -p "$DEBUG_HOME/ff"
 echo "debug logs: $LOG_DIR"
-
-# 1) Start Xvfb.
-Xvfb "$DISPLAY_NUM" -screen 0 "$XVFB_RES" >"$LOG_DIR/xvfb.log" 2>&1 &
-XVFB_PID=$!
 export DISPLAY="$DISPLAY_NUM"
-sleep 1
 
 cleanup() {
   set +e
   [ -n "${WOMPRAT_PID:-}" ] && kill "$WOMPRAT_PID" 2>/dev/null
   [ -n "${BROWSER_PID:-}" ] && kill "$BROWSER_PID" 2>/dev/null
-  kill "$XVFB_PID" 2>/dev/null
+  # The existing display belongs to its caller; never terminate it.
 }
 trap cleanup EXIT INT TERM
 
@@ -88,15 +88,15 @@ echo "WOMPRAT_TOKEN=$TOKEN"
 echo "DISPLAY=$DISPLAY"
 echo "womprat.log: $LOG_DIR/womprat.log"
 
-# 3) Optionally open the shell in a browser on the Xvfb display.
+# 3) Optionally open the shell in a browser on the existing display.
 if [ "$OPEN_BROWSER" = "1" ] && [ -n "$BROWSER_BIN" ]; then
   case "$BROWSER_BIN" in
     chromium*|google-chrome*)
       "$BROWSER_BIN" --no-first-run --no-default-browser-check \
-        --user-data-dir="$LOG_DIR/chrome" "$SHELL_URL" >"$LOG_DIR/browser.log" 2>&1 &
+        --user-data-dir="$DEBUG_HOME/chrome" "$SHELL_URL" >"$LOG_DIR/browser.log" 2>&1 &
       ;;
     firefox*)
-      "$BROWSER_BIN" --no-remote --profile "$LOG_DIR/ff" "$SHELL_URL" >"$LOG_DIR/browser.log" 2>&1 &
+      "$BROWSER_BIN" --no-remote --profile "$DEBUG_HOME/ff" "$SHELL_URL" >"$LOG_DIR/browser.log" 2>&1 &
       ;;
     *)
       "$BROWSER_BIN" "$SHELL_URL" >"$LOG_DIR/browser.log" 2>&1 &
@@ -107,5 +107,5 @@ if [ "$OPEN_BROWSER" = "1" ] && [ -n "$BROWSER_BIN" ]; then
   echo "automate with e.g.: DISPLAY=$DISPLAY xdotool search --name womprat"
 fi
 
-echo "Environment is up. Press Ctrl-C to tear down (Xvfb + womprat + browser)."
+echo "Environment is up. Press Ctrl-C to stop womprat and the browser (existing display is preserved)."
 wait "$WOMPRAT_PID"

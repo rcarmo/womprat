@@ -2,13 +2,17 @@
 // Requires real VNC/RDP servers and verifies browser canvas pixels, not just
 // connection status. Intended for local/integration runs, not stub-only CI.
 import { chromium } from "playwright";
+import { mkdtempSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
+import { buildDir, runDir, profileDir, profilePage } from './profile.mjs';
 import { spawn } from "node:child_process";
 import { mkdirSync } from "node:fs";
 
-const ARTIFACT_DIR = process.env.WOMPRAT_UX_ARTIFACT_DIR || "dist/ux-artifacts";
+const ARTIFACT_DIR = process.env.WOMPRAT_UX_ARTIFACT_DIR || profileDir;
 mkdirSync(ARTIFACT_DIR, { recursive: true });
 
-const BIN = process.env.WOMPRAT_BIN || "dist/womprat-linux-debug";
+const BIN = process.env.WOMPRAT_BIN || join(buildDir, 'dist/womprat-linux-debug');
+const testHome = mkdtempSync(join(runDir, 'real-remotes-'));
 const VNC_TARGET = process.env.VNC_TARGET || "vnc://127.0.0.1:5902";
 const RDP_TARGET = process.env.RDP_TARGET || "rdp://127.0.0.1:3389";
 const RDP_USER = process.env.RDP_USER || "womptest";
@@ -18,7 +22,7 @@ const RUN_RDP = process.env.WOMPRAT_UX_SKIP_RDP !== "1";
 
 function startWomprat() {
   return new Promise((resolve, reject) => {
-    const env = { ...process.env, WOMPRAT_HEADLESS: "1", WOMPRAT_DIRECT: "1" };
+    const env = { ...process.env, HOME: testHome, XDG_CONFIG_HOME: join(testHome, '.config'), XDG_DATA_HOME: join(testHome, '.local/share'), WOMPRAT_HEADLESS: "1", WOMPRAT_DIRECT: "1" };
     const p = spawn(BIN, [], { env });
     let url = null, token = null, out = "";
     let settled = false;
@@ -178,9 +182,11 @@ const pageErrors = [];
 const results = [];
 const { proc, url } = await startWomprat();
 let browser;
+let stopProfile = async () => {};
 try {
   browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
+  stopProfile = await profilePage(page, 'remote-renderer');
   page.on("console", (m) => {
     if (m.type() === "error") consoleErrors.push(m.text());
     console.log("[console." + m.type() + "]", m.text());
@@ -201,11 +207,18 @@ try {
   results.push(["no pageerror", pageErrors.length === 0]);
   results.push(["no console errors", consoleErrors.length === 0]);
 } finally {
-  if (browser) await browser.close();
-  proc.kill("SIGTERM");
+  try { await stopProfile(); } finally {
+    if (browser) await browser.close();
+    if (proc.exitCode === null && proc.signalCode === null) {
+      const exited = new Promise(resolve => proc.once('exit', resolve));
+      proc.kill("SIGTERM");
+      await exited;
+    }
+    rmSync(testHome, { recursive: true, force: true });
+  }
 }
 
 for (const [name, ok] of results) console.log(`${ok ? "PASS" : "FAIL"} ${name}`);
 const failed = results.filter(([, ok]) => !ok);
 console.log(`\n=== ${results.length - failed.length}/${results.length} checks passed ===`);
-process.exit(failed.length ? 1 : 0);
+process.exitCode = failed.length ? 1 : 0;

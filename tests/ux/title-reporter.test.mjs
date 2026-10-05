@@ -1,5 +1,6 @@
 import { test, expect } from 'bun:test';
 import { chromium } from 'playwright';
+import { profilePage } from './profile.mjs';
 import { readFileSync } from 'node:fs';
 
 const source = readFileSync(new URL('../../cmd/womprat/native_content_windows.go', import.meta.url), 'utf8');
@@ -8,8 +9,10 @@ if (!script) throw new Error('browser title reporter script missing');
 
 test('native title reporter observes JavaScript title text mutations', async () => {
   const browser = await chromium.launch({headless: true});
+  let stopProfile = async () => {};
   try {
     const page = await browser.newPage();
+    stopProfile = await profilePage(page, 'title-renderer');
     await page.goto('about:blank');
     await page.setContent('<head><title>Initial</title></head><body>page</body>');
     await page.evaluate(() => {
@@ -31,6 +34,7 @@ test('native title reporter observes JavaScript title text mutations', async () 
     await page.waitForFunction(() => window.__titles.includes('Assigned by JavaScript'));
     expect(await page.title()).toBe('Assigned by JavaScript');
   } finally {
+    await stopProfile();
     await browser.close();
   }
 });

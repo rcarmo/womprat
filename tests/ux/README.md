@@ -7,22 +7,13 @@ The Playwright tests run Womprat's Linux headless shell in Chromium. They cover 
 From the repository root:
 
 ```bash
-bun add --cwd tests/ux -d playwright
-cd tests/ux
-bun x playwright install chromium
-cd ../..
+make ux-setup
 make ux-test
 ```
 
-`make ux-test` builds `dist/womprat-linux-debug`, runs `tests/ux/ux.mjs`, and runs the dynamic-title reporter test. It uses the browser cache at `$HOME/.cache/ms-playwright`.
+`make ux-test` builds `build/dist/womprat-linux-debug` beneath the resolved project temp root, runs `tests/ux/ux.mjs`, and runs the dynamic-title reporter test. Chromium uses `cache/playwright` under that root. CPU/heap profiles, logs and the matching server binary are retained under `evidence/tests/`.
 
-To build and run separately:
-
-```bash
-go build -ldflags='-X main.debugBuild=1' -o dist/womprat-linux-debug ./cmd/womprat
-cd tests/ux
-PLAYWRIGHT_BROWSERS_PATH=$HOME/.cache/ms-playwright bun run ux.mjs
-```
+The default local root is `/workspace/tmp/womprat`, falling back to platform temp plus `/womprat`. Set an absolute `PROJECT_TMP_BASE` to choose another base. CI prefers `RUNNER_TEMP`, then the original `TMPDIR`, then platform temp. See [AGENTS.md](../../AGENTS.md) for environment variables, override validation and cleanup rules.
 
 Set `WOMPRAT_BIN` to an absolute binary path to override the default. Both browser scripts set `WOMPRAT_HEADLESS=1` and `WOMPRAT_DIRECT=1`; release builds ignore the direct-dial bypass.
 
@@ -43,8 +34,8 @@ Set `WOMPRAT_BIN` to an absolute binary path to override the default. Both brows
 To save screenshots of the DNS form during the test:
 
 ```bash
-mkdir -p dist/ux-layout
-WOMPRAT_UX_SCREENSHOTS="$PWD/dist/ux-layout" make ux-test
+mkdir -p evidence/ux-layout
+WOMPRAT_UX_SCREENSHOTS="$PWD/evidence/ux-layout" make ux-test
 ```
 
 The directory receives `dns-form-wide.png` and `dns-form-narrow.png`.
@@ -58,31 +49,25 @@ The directory receives `dns-form-wide.png` and `dns-form-narrow.png`.
 ```bash
 export RDP_USER='test-account'
 read -rs -p 'RDP test password: ' RDP_PASS; export RDP_PASS; echo
-PLAYWRIGHT_BROWSERS_PATH=$HOME/.cache/ms-playwright bun run tests/ux/real-remotes.mjs
+source scripts/paths.sh
+WOMPRAT_BIN="$WOMPRAT_BUILD_DIR/dist/womprat-linux-debug" \
+  bash scripts/bun-profile.sh real-remotes run tests/ux/real-remotes.mjs
 ```
 
 Use `WOMPRAT_UX_SKIP_VNC=1` or `WOMPRAT_UX_SKIP_RDP=1` to run one protocol. `VNC_TARGET`, `RDP_TARGET`, `RDP_USER` and `RDP_PASS` override the corresponding defaults.
 
 The RDP script fills the credential dialog, waits for canvas output and samples non-uniform pixels. After resize, it checks the WebSocket identity, viewport coverage, credential-dialog visibility and centre-coordinate mapping. When the server supports Display Control, it also checks the backing canvas size. The VNC script waits for server-reported dimensions and samples canvas pixels.
 
-Screenshots are written to `dist/ux-artifacts/rdp-browser-proof.png` and `dist/ux-artifacts/vnc-browser-proof.png`. Set `WOMPRAT_UX_ARTIFACTS` to use another directory.
+Screenshots `rdp-browser-proof.png` and `vnc-browser-proof.png` are retained with the run's profiles. `WOMPRAT_UX_ARTIFACT_DIR` selects another retained evidence directory.
 
-A disposable local VNC target can be started with:
-
-```bash
-Xvfb :78 -screen 0 1024x768x24 &
-DISPLAY=:78 openbox &
-DISPLAY=:78 xterm -geometry 80x20+120+120 -fa Monospace -fs 18 &
-x11vnc -display :78 -rfbport 5902 -localhost -forever -shared -nopw -quiet &
-```
-
-The unauthenticated VNC example binds only to loopback. Stop the test processes after use. For RDP, configure a dedicated loopback-accessible XRDP instance and test user.
+Use a separately managed local display/VNC server. Xvfb creates host `/tmp` sockets even when `TMPDIR` is set, so launching it requires a path exception. For RDP, configure a dedicated loopback-accessible XRDP instance and test user.
 
 ## DNS and tailnet checks
 
 ```bash
-go test -race -count=1 -timeout 180s ./...
-go test tailscale.com/ipn/ipnlocal -run '^TestDNSConfigForNetmapForExitNodeConfigs$' -count=1
+make test-race
+make test TEST_PACKAGES=tailscale.com/ipn/ipnlocal \
+  TEST_FLAGS="-run=^TestDNSConfigForNetmapForExitNodeConfigs$ -count=20"
 ```
 
 The second command runs the upstream policy regression and can require upstream test dependencies. It tests configured global/split resolvers with and without exit-node eligibility. App tests cover local MagicDNS records, DNS packets, timeout/NXDOMAIN reporting, policy descriptions and refusal of routes that could use host networking.

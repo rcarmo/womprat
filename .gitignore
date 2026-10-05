@@ -42,3 +42,6 @@ Thumbs.db
 *~
 .vscode/
 .idea/
+
+# Retained profiling evidence (never removed by clean)
+/evidence/

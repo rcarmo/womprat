@@ -6,6 +6,26 @@
 # - keep generated Windows resources reproducible from checked-in assets
 # - provide a stable hook for local dependency/module patches
 
+# Resolve once before child TMPDIR. PROJECT_TMP_BASE appends /womprat;
+# PROJECT_TMP_ROOT is compatible if both agree. Invalid overrides fail closed.
+# CI: RUNNER_TEMP -> inherited TMPDIR -> system temp (never workspace).
+# Local: usable /workspace/tmp -> system temp. Hierarchy: cache/build/tests/logs/runs.
+SHELL := /bin/bash
+shell_quote = '$(subst ','"'"',$(1))'
+ROOT_ENV := $(if $(filter undefined,$(origin PROJECT_TMP_BASE)),,PROJECT_TMP_BASE=$(call shell_quote,$(PROJECT_TMP_BASE))) $(if $(filter undefined,$(origin PROJECT_TMP_ROOT)),,PROJECT_TMP_ROOT=$(call shell_quote,$(PROJECT_TMP_ROOT)))
+ROOT_RESOLVED := $(shell $(ROOT_ENV) bash -c 'source scripts/project-tmp.sh; project_tmp_resolve womprat')
+ifeq ($(ROOT_RESOLVED),)
+$(error Cannot resolve a safe Womprat temporary root)
+endif
+override PROJECT_TMP_ROOT := $(ROOT_RESOLVED)
+export PROJECT_TMP_ROOT
+override WOMPRAT_TMP_ROOT := $(PROJECT_TMP_ROOT)
+override WOMPRAT_RUN_DIR := $(WOMPRAT_TMP_ROOT)/runs/make/$(shell date -u +%Y%m%dT%H%M%S)-$(shell echo $$$$)
+export WOMPRAT_TMP_ROOT WOMPRAT_RUN_DIR
+SHELL := $(CURDIR)/scripts/make-shell.sh
+.SHELLFLAGS := -eu -o pipefail -c
+# Paths/environment are enforced by scripts/paths.sh for every recipe.
+# Retained profiles, binaries and logs live in evidence/, never in clean scopes.
 APP       := womprat
 VERSION   ?= 0.4.1
 COMMIT    ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo dev)
@@ -19,16 +39,20 @@ LDFLAGS   := -s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT)
 GUIFLAGS  := -H windowsgui $(LDFLAGS)
 
 CMD_DIR   := cmd/womprat
-DIST_DIR  := dist
-TMP_DIR   := .tmp
+override DIST_DIR := $(WOMPRAT_TMP_ROOT)/build/dist
+override TMP_DIR := $(WOMPRAT_RUN_DIR)/generated
+override RESOURCE_DIR := $(WOMPRAT_TMP_ROOT)/build/resources
+TEST_FLAGS ?=
+TEST_PACKAGES ?= ./...
+BUN_PROFILE := bash scripts/bun-profile.sh
 DOC_ICON  := docs/icon.png
 ICO       := $(CMD_DIR)/icon.ico
 WINRES_ICO:= $(CMD_DIR)/winres/icon.ico
 MANIFEST  := $(CMD_DIR)/womprat.manifest
 RC        := $(CMD_DIR)/womprat.rc
 RC_NOINC  := $(TMP_DIR)/womprat-noinclude.rc
-RSRC_ARM64:= $(CMD_DIR)/rsrc_windows_arm64.syso
-RSRC_AMD64:= $(CMD_DIR)/rsrc_windows_amd64.syso
+RSRC_ARM64:= $(RESOURCE_DIR)/rsrc_windows_arm64.syso
+RSRC_AMD64:= $(RESOURCE_DIR)/rsrc_windows_amd64.syso
 
 EXE_ARM64 := $(DIST_DIR)/$(APP)-windows-arm64.exe
 EXE_AMD64 := $(DIST_DIR)/$(APP)-windows-amd64.exe
@@ -100,16 +124,29 @@ frontend-check: ## Bundle-check embedded HTML/JS entry points with Bun
 vet: ## Run go vet for the Windows ARM64 target
 	GOOS=windows GOARCH=arm64 $(GO) vet ./...
 
-test: ## Run Go tests on the host toolchain
-	$(GO) test ./...
+test: ## Run Go tests with retained CPU/allocation profiles
+	bash scripts/test-profile.sh host . '$(TEST_PACKAGES)' $(TEST_FLAGS)
 
-compile-windows: ## Compile-only check for Windows arm64 and amd64
-	GOOS=windows GOARCH=arm64 $(GO) build $(GOFLAGS) -o /dev/null ./$(CMD_DIR)
-	GOOS=windows GOARCH=amd64 $(GO) build $(GOFLAGS) -o /dev/null ./$(CMD_DIR)
+.PHONY: test-race test-webview2 test-rdp paths
+paths: ## Print effective project cache/build/temp locations
+	@env | sort | grep -E '^(WOMPRAT_[A-Z_]+|GOCACHE|GOMODCACHE|GOPATH|GOTMPDIR|TMP|TEMP|BUN_INSTALL_CACHE_DIR|npm_config_cache|PLAYWRIGHT_BROWSERS_PATH|XDG_CACHE_HOME|WINEPREFIX)='
+
+test-race: ## Run profiled race tests
+	bash scripts/test-profile.sh race . '$(TEST_PACKAGES)' -race $(TEST_FLAGS)
+
+test-webview2: ## Run profiled native Windows COM tests (Windows host required)
+	bash scripts/test-profile.sh webview2 internal/go-webview2 ./pkg/edge $(TEST_FLAGS)
+
+test-rdp: ## Run profiled internal library tests (vendored web assets are not built)
+	bash scripts/test-profile.sh rdp third_party/go-rdp './internal/...' $(TEST_FLAGS)
+
+compile-windows: resources ## Compile Windows arm64 and amd64 in isolated source trees
+	bash scripts/windows-build.sh arm64 $(WOMPRAT_RUN_DIR)/compile-arm64.exe
+	bash scripts/windows-build.sh amd64 $(WOMPRAT_RUN_DIR)/compile-amd64.exe
 
 .PHONY: frontend-test
-frontend-test: ## Run server-independent frontend behavioural regression tests
-	$(BUN) test tests/ux/rdp-resize.test.mjs tests/ux/terminal-controls.test.mjs tests/ux/frontend-state.test.mjs tests/ux/vnc-lifecycle.test.mjs
+frontend-test: ## Run server-independent frontend and portable-path regressions
+	$(BUN_PROFILE) frontend test tests/ux/paths.test.mjs tests/ux/rdp-resize.test.mjs tests/ux/terminal-controls.test.mjs tests/ux/frontend-state.test.mjs tests/ux/vnc-lifecycle.test.mjs
 
 verify: frontend-check frontend-test test vet compile-windows ## Run all non-interactive checks
 
@@ -129,27 +166,27 @@ $(RC_NOINC): $(ICO) $(MANIFEST) | $(TMP_DIR)
 $(TMP_DIR):
 	@mkdir -p $@
 
-$(DIST_DIR):
-	@mkdir -p $@
+$(DIST_DIR) $(RESOURCE_DIR):
+	@source scripts/paths.sh; womprat_owned_dir '$@'
 
-resources-arm64: icon $(RC_NOINC) ## Generate Windows ARM64 resource object (.syso)
+resources-arm64: icon $(RC_NOINC) | $(RESOURCE_DIR) ## Generate Windows ARM64 resource object outside source
 	$(WINDRES) --target=aarch64-w64-windows-gnu -I $(CURDIR)/$(CMD_DIR) -O coff $(RC_NOINC) -o $(RSRC_ARM64)
 
-resources-amd64: icon $(RC_NOINC) ## Generate Windows Intel/x64 resource object (.syso)
+resources-amd64: icon $(RC_NOINC) | $(RESOURCE_DIR) ## Generate Windows x64 resource object outside source
 	$(WINDRES) --target=x86_64-w64-windows-gnu -I $(CURDIR)/$(CMD_DIR) -O coff $(RC_NOINC) -o $(RSRC_AMD64)
 
-resources: resources-arm64 resources-amd64 ## Generate all checked-in Windows resource objects
+resources: resources-arm64 resources-amd64 ## Generate Windows resources under build/resources
 
 # Builds ---------------------------------------------------------------------
 
 windows-arm64: resources | $(DIST_DIR) ## Build Windows ARM64 GUI executable
-	GOOS=windows GOARCH=arm64 $(GO) build $(GOFLAGS) -ldflags="$(GUIFLAGS)" -o $(EXE_ARM64) ./$(CMD_DIR)
+	bash scripts/windows-build.sh arm64 $(EXE_ARM64) "$(GUIFLAGS)"
 	@ls -lh $(EXE_ARM64)
 
 windows: windows-arm64 ## Alias for Windows ARM64 build
 
 windows-amd64: resources-amd64 | $(DIST_DIR) ## Build Windows AMD64/Intel x64 GUI executable
-	GOOS=windows GOARCH=amd64 $(GO) build $(GOFLAGS) -ldflags="$(GUIFLAGS)" -o $(EXE_AMD64) ./$(CMD_DIR)
+	bash scripts/windows-build.sh amd64 $(EXE_AMD64) "$(GUIFLAGS)"
 	@ls -lh $(EXE_AMD64)
 
 windows-intel: windows-amd64 ## Alias for Windows Intel/x64 build
@@ -161,9 +198,14 @@ linux: | $(DIST_DIR) ## Build Linux AMD64 debug server binary (serves shell/API 
 	@ls -lh $(BIN_LINUX)
 
 ux-test: | $(DIST_DIR) ## Build a debug headless Linux binary and run the Playwright UX test
-	$(GO) build -ldflags="-X main.debugBuild=1" -o $(DIST_DIR)/$(APP)-linux-debug ./$(CMD_DIR)
-	cd tests/ux && WOMPRAT_BIN=$(CURDIR)/$(DIST_DIR)/$(APP)-linux-debug PLAYWRIGHT_BROWSERS_PATH=$(HOME)/.cache/ms-playwright $(BUN) run ux.mjs
-	PLAYWRIGHT_BROWSERS_PATH=$(HOME)/.cache/ms-playwright $(BUN) test tests/ux/title-reporter.test.mjs
+	$(GO) build -tags=profile -ldflags="-X main.debugBuild=1" -o $(DIST_DIR)/$(APP)-linux-debug ./$(CMD_DIR)
+	WOMPRAT_BIN=$(DIST_DIR)/$(APP)-linux-debug $(BUN_PROFILE) ux run tests/ux/ux.mjs
+	$(BUN_PROFILE) title test tests/ux/title-reporter.test.mjs
+
+.PHONY: ux-setup
+ux-setup: ## Install project-local browser dependencies and cached Chromium
+	$(BUN) add --dev playwright
+	$(BUN) x playwright install chromium
 
 linux-debug: linux ## Build Linux binary and launch the Xvfb/xdotool debug harness
 	WOMPRAT_BIN=$(BIN_LINUX) bash scripts/linux-debug.sh
@@ -172,7 +214,7 @@ linux-gui: | $(DIST_DIR) $(TMP_DIR) ## Build the Linux WebKitGTK GUI app (needs 
 	@mkdir -p $(TMP_DIR)/pcshim
 	@printf 'Name: webkit2gtk-4.0 (shim)\nDescription: shim -> 4.1\nVersion: 0\nRequires: webkit2gtk-4.1\n' > $(TMP_DIR)/pcshim/webkit2gtk-4.0.pc
 	CGO_ENABLED=1 PKG_CONFIG=/usr/bin/pkg-config \
-		PKG_CONFIG_PATH=$(CURDIR)/$(TMP_DIR)/pcshim:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig \
+		PKG_CONFIG_PATH=$(TMP_DIR)/pcshim:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig \
 		GOOS=linux GOARCH=amd64 $(GO) build -tags webkitgui -ldflags="$(LDFLAGS) -X main.debugBuild=1" -o $(DIST_DIR)/$(APP)-linux-gui ./$(CMD_DIR)
 	@ls -lh $(DIST_DIR)/$(APP)-linux-gui
 
@@ -181,11 +223,11 @@ darwin: | $(DIST_DIR) ## Build Darwin ARM64 binary (for compile sanity only; app
 	@ls -lh $(BIN_DARWIN)
 
 sha256: ## Write SHA256SUMS.txt for the built Windows executables
-	@cd $(DIST_DIR) && sha256sum *.exe > SHA256SUMS.txt && cat SHA256SUMS.txt
+	@cd $(DIST_DIR) && sha256sum $(APP)-windows-*.exe > SHA256SUMS.txt && cat SHA256SUMS.txt
 
-release: clean setup patch verify windows-arm64 ## Full clean setup/patch/check/build pipeline for Windows ARM64
+release: setup patch verify windows-arm64 ## Setup/patch/check/build pipeline for Windows ARM64
 
-release-intel: clean setup patch verify windows-intel ## Full clean setup/patch/check/build pipeline for Windows Intel/x64
+release-intel: setup patch verify windows-intel ## Setup/patch/check/build pipeline for Windows Intel/x64
 
 # Local dev ------------------------------------------------------------------
 
@@ -196,12 +238,13 @@ dev: run ## Alias for local run
 
 # Cleanup --------------------------------------------------------------------
 
-clean-generated: ## Remove generated temporary files
-	rm -rf $(TMP_DIR)
-	rm -f $(RSRC_ARM64) $(RSRC_AMD64)
+# Explicit idle confirmation prevents accidental cleanup during another job.
+clean-generated: ## Remove resource outputs only (requires WOMPRAT_CONFIRM_IDLE=1)
+	@test "$${WOMPRAT_CONFIRM_IDLE:-}" = 1 || { echo 'Confirm no Womprat jobs are using build outputs: WOMPRAT_CONFIRM_IDLE=1'; exit 1; }
+	@source scripts/paths.sh; womprat_owned_dir '$(RESOURCE_DIR)'; rm -rf -- '$(RESOURCE_DIR)'
 
-clean-dist: ## Remove dist directory
-	rm -rf $(DIST_DIR)
+clean-dist: ## Remove build/dist only (requires WOMPRAT_CONFIRM_IDLE=1)
+	@test "$${WOMPRAT_CONFIRM_IDLE:-}" = 1 || { echo 'Confirm no Womprat jobs are using build outputs: WOMPRAT_CONFIRM_IDLE=1'; exit 1; }
+	@source scripts/paths.sh; womprat_owned_dir '$(DIST_DIR)'; rm -rf -- '$(DIST_DIR)'
 
-clean: clean-generated clean-dist ## Remove build products
-	rm -f $(EXE_ARM64) $(EXE_AMD64) $(BIN_LINUX) $(BIN_DARWIN)
+clean: clean-generated clean-dist ## Remove owned build outputs; never caches, runs or evidence

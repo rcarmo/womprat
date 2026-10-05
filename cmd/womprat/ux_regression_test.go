@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -73,13 +74,27 @@ func TestRDPViewportFillAndStableResize(t *testing.T) {
 	}
 }
 
+// These checked-in fixtures are immutable for the lifetime of the test process.
+// Share their strings instead of repeatedly copying large frontend bundles.
+var regressionFiles = struct {
+	sync.Mutex
+	text map[string]string
+}{text: make(map[string]string)}
+
 func readFileForRegression(t *testing.T, path string) string {
 	t.Helper()
+	regressionFiles.Lock()
+	defer regressionFiles.Unlock()
+	if text, ok := regressionFiles.text[path]; ok {
+		return text
+	}
 	b, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return string(b)
+	text := string(b)
+	regressionFiles.text[path] = text
+	return text
 }
 
 func TestDownloadHandlerUsesSharedGetMethodGuard(t *testing.T) {

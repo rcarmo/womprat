@@ -226,11 +226,11 @@ make release-intel
 Outputs:
 
 ```text
-dist/womprat-windows-arm64.exe
-dist/womprat-windows-amd64.exe
+<project-temp-root>/build/dist/womprat-windows-arm64.exe
+<project-temp-root>/build/dist/womprat-windows-amd64.exe
 ```
 
-Run `make sha256` after building to create `dist/SHA256SUMS.txt`. Both release targets use `-H windowsgui`, so they start without a console window.
+Run `make sha256` after building to create `build/dist/SHA256SUMS.txt` under the same root. `make paths` prints the resolved locations; [AGENTS.md](AGENTS.md) documents portable overrides and cleanup rules. Both release targets use `-H windowsgui`, so they start without a console window.
 
 Build dependencies:
 
@@ -254,9 +254,9 @@ Build dependencies:
 Additional validation used by this repository:
 
 ```bash
-go test -race ./...
+make test-race
 make ux-test
-bun run tests/ux/real-remotes.mjs
+# Real-server commands and credentials: tests/ux/README.md
 ```
 
 `tests/ux/ux.mjs` drives the shell in Chromium and covers downloads, tabs, Settings, DNS form layout and copying, persistent Recent removal, SSH routing, VNC `None`, VNC password reconnect and RDP panel creation. It uses debug direct dialing and does not verify authenticated tailnet DNS. `tests/ux/real-remotes.mjs` checks non-uniform framebuffer pixels and resized RDP geometry against real servers. See [`tests/ux/README.md`](tests/ux/README.md) for setup and test boundaries.
