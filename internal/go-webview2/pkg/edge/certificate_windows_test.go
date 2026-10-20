@@ -124,7 +124,10 @@ func TestCertificateRegistrationCancelFirstAndCleanup(t *testing.T) {
 			edge := &Chromium{webview: wv}
 			closeEvents, err := edge.EnableCertificateErrors(nil, func(info CertificateError) bool {
 				if mode == "unreadable" {
-					t.Fatal("decision called for unreadable event")
+					if info.Diagnostic == "" || info.PEM != "" {
+						t.Fatal("unreadable event diagnostic missing or unsafe")
+					}
+					return true // Diagnostic callbacks can never authorize an unreadable event.
 				}
 				if len(actions) != 1 || actions[0] != 1 {
 					t.Fatal("decision made before cancel")

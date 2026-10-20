@@ -1062,9 +1062,9 @@ func TestRDPCredentialsUseDialogAndStatusbar(t *testing.T) {
 func TestNavigationResultReportedToShell(t *testing.T) {
 	native := readFileForRegression(t, "native_content_windows.go")
 	for _, want := range []string{
-		"ok := args != nil && args.IsSuccess()",
-		"code = args.WebErrorStatus()",
-		"webErrorStatusMessage(code, connected)",
+		"ok, code, resultErr := args.Result()",
+		"cv.navigationStatus = code",
+		"message = cv.navigationFailureMessage()",
 		"window.wompratNavigationDone(%s,%s,%t,%d,%s)",
 		"tsConnected func() bool",
 	} {

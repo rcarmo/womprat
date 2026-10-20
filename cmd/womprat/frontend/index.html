@@ -177,7 +177,9 @@ button,a,.tab,.recent-item,.option{
 #nav-status[hidden]{display:none}
 #nav-status.loading{color:var(--text-secondary)}
 #nav-status.error{background:rgba(248,81,73,.12);border-bottom-color:rgba(248,81,73,.32);color:#ffb4ad}
-#nav-status-text{flex:1 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#nav-status-text{flex:1 1 auto;min-width:0;white-space:normal;overflow-wrap:anywhere;user-select:text}
+#nav-status.error{align-items:flex-start;height:auto;min-height:32px}
+#nav-status-actions{flex-wrap:wrap}
 #nav-status-actions{display:inline-flex;gap:6px;flex:0 0 auto}
 #nav-status.loading #nav-status-actions{display:none}
 .nav-status-btn{height:22px;padding:0 8px;font-size:11px;font-weight:600;border-radius:var(--radius);
@@ -237,6 +239,7 @@ button,a,.tab,.recent-item,.option{
   <span id="nav-status-text"></span>
   <span id="nav-status-actions">
     <button id="nav-status-proceed" class="nav-status-btn" type="button" hidden>Proceed anyway</button>
+    <button id="nav-status-copy" class="nav-status-btn" type="button">Copy error</button>
     <button id="nav-status-reload" class="nav-status-btn" type="button">Reload</button>
     <button id="nav-status-settings" class="nav-status-btn" type="button">Settings</button>
     <button id="nav-status-dismiss" class="nav-status-btn" type="button" aria-label="Dismiss">×</button>
@@ -419,7 +422,7 @@ function saveShellContentZoom(value) {
 let shellContentZoom = readShellContentZoom();
 const certificatePrompts = new Map();
 window.wompratCertificatePrompt = function(tabId, token, url) {
-  if (token && /^https:\/\//i.test(url)) certificatePrompts.set(tabId, { token, url });
+  if (token && /^https:\/\//i.test(url)) certificatePrompts.set(tabId, { token, url, message: navStatusState.tabId === tabId && navStatusState.kind === 'error' ? document.getElementById('nav-status-text')?.textContent : '' });
   else certificatePrompts.delete(tabId);
   if (tabId === state.activeTab) {
     if (token) restoreCertificateBanner(tabId);
@@ -429,7 +432,7 @@ window.wompratCertificatePrompt = function(tabId, token, url) {
 function restoreCertificateBanner(tabId) {
   const prompt = certificatePrompts.get(tabId);
   if (prompt && tabId === state.activeTab) {
-    applyNavStatus('error', `The TLS certificate for ${new URL(prompt.url).host} could not be validated. Proceeding allows this host and certificate for this browser session, including other tabs.`, tabId);
+    applyNavStatus('error', prompt.message || `The TLS certificate for ${new URL(prompt.url).host} could not be validated. Proceeding allows this host and certificate for this browser session, including other tabs.`, tabId);
   }
 }
 function updateCertificateAction() {
@@ -477,9 +480,19 @@ function applyNavStatus(kind, message, tabId) {
     el.hidden = false;
     el.classList.toggle('loading', kind === 'loading');
     el.classList.toggle('error', kind === 'error');
-    if (text) text.textContent = String(message || '');
+    if (text) { text.textContent = String(message || ''); text.title = text.textContent; }
   }
   try { wompratReportChrome(); } catch (err) { console.warn('chrome report after nav status failed', err); }
+}
+async function copyNavigationError() {
+  const text = document.getElementById('nav-status-text')?.textContent || '';
+  const tab = state.tabs.find(t => t.id === navStatusState.tabId);
+  try {
+    await navigator.clipboard.writeText(`Womprat navigation failure\nURL: ${tab?.url || ''}\n${text}`);
+  } catch (err) {
+    // Leave the visible/selectable error intact if clipboard access is denied.
+    console.warn('navigation error copy failed', err);
+  }
 }
 function clearNavStatus() { applyNavStatus('none', '', null); }
 async function preflightConnectivity(tabId) {
@@ -641,7 +654,7 @@ window.wompratNavigationDone = function(tabId, url, ok, errorCode, errorMessage)
   if (succeeded) {
     clearNavStatus();
   } else {
-    const message = String(errorMessage || '').trim() || 'Page failed to load.';
+    const message = String(errorMessage || '').trim() || `Page failed to load (WebView2 error ${Number(errorCode) || 0}).`;
     applyNavStatus('error', message, tabId);
   }
 };
@@ -1729,6 +1742,7 @@ function installShellControlHandlers() {
   document.getElementById('nav-reload')?.addEventListener('click', () => historyReload(state.activeTab));
   document.getElementById('url-go')?.addEventListener('click', () => window.navigateFromBar());
   document.getElementById('nav-status-proceed')?.addEventListener('click', proceedCertificate);
+  document.getElementById('nav-status-copy')?.addEventListener('click', copyNavigationError);
   document.getElementById('nav-status-reload')?.addEventListener('click', () => { clearNavStatus(); historyReload(state.activeTab); });
   document.getElementById('nav-status-settings')?.addEventListener('click', () => openSettings());
   document.getElementById('nav-status-dismiss')?.addEventListener('click', () => clearNavStatus());

@@ -176,6 +176,13 @@ try {
     window.wompratNavigationDone(window.__certificateTab, 'https://flint.local:8443/', false, 0, 'Page failed to load.');
   });
   check('generic failure hides certificate exception', await page.locator('#nav-status-proceed').isHidden());
+  await page.evaluate(() => window.wompratNavigationDone(window.__certificateTab, 'https://flint.local:8443/vault/id', false, 16, 'TLS handshake failed. (ERR_SSL_PROTOCOL_ERROR)'));
+  check('concrete TLS failure stays visible', (await page.locator('#nav-status-text').textContent()).includes('ERR_SSL_PROTOCOL_ERROR'));
+  const copyHit = await page.locator('#nav-status-copy').evaluate(button => { const r=button.getBoundingClientRect();return document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)===button; });
+  check('copy error button receives pointer events', copyHit);
+  await page.context().grantPermissions(['clipboard-read','clipboard-write']);
+  await page.click('#nav-status-copy');
+  check('copy includes URL and native error', await page.evaluate(async () => { const text=await navigator.clipboard.readText();return text.includes('ERR_SSL_PROTOCOL_ERROR')&&text.includes('https://flint.local:8443/vault/id'); }));
   await page.evaluate(() => window.wompratCertificatePrompt(window.__certificateTab, 'native-certificate-token', 'https://flint.local:8443/'));
   check('certificate exception button is visible', await page.locator('#nav-status-proceed').isVisible());
   check('certificate button has session warning', (await page.locator('#nav-status-proceed').getAttribute('title')).includes('browser session'));
@@ -183,6 +190,22 @@ try {
   check('certificate consent click forwards tab and opaque token', await page.evaluate(() => window.__certificateClicks.length === 1 && window.__certificateClicks[0].tab === window.__certificateTab && window.__certificateClicks[0].token === 'native-certificate-token'));
   check('certificate consent hides one-use button', await page.locator('#nav-status-proceed').isHidden());
   await page.evaluate(() => { window.wompratCertificatePrompt(window.__certificateTab, '', ''); window.wompratNavigationDone(window.__certificateTab, '', true); delete window.womprat_proceedCertificate; });
+
+  // Real Chromium handshake failure, independent of the native Windows bridge:
+  // HTTPS against the local plain-HTTP fixture must expose a net::ERR_ symbol.
+  const failedPage = await context.newPage();
+  const diagnosticCDP = await context.newCDPSession(failedPage);
+  const tree = await diagnosticCDP.send('Page.getFrameTree');
+  const mainFrame = tree.frameTree.frame.id;
+  const failedRequests = new Set();
+  let handshakeError = '';
+  diagnosticCDP.on('Network.requestWillBeSent', event => { if (event.type === 'Document' && event.frameId === mainFrame) failedRequests.add(event.requestId); });
+  diagnosticCDP.on('Network.loadingFailed', event => { if (failedRequests.has(event.requestId)) handshakeError = event.errorText; });
+  await diagnosticCDP.send('Network.enable');
+  await failedPage.goto(`https://127.0.0.1:${downloadPort}/`, { timeout: 5000 }).catch(() => {});
+  check('Chromium reports real TLS handshake failure', handshakeError.includes('ERR_SSL_PROTOCOL_ERROR'), handshakeError);
+  await diagnosticCDP.detach();
+  await failedPage.close();
 
   // Routed download manager: start, poll to completion, and verify file bytes.
   await page.evaluate((u) => window.triggerDownload(u), `http://127.0.0.1:${downloadPort}/audit.txt`);

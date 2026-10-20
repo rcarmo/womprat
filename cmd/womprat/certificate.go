@@ -46,11 +46,13 @@ func (d *certificateDecision) clear() { *d = certificateDecision{} }
 
 func (d *certificateDecision) detected(raw, pem string, status int32, token string) bool {
 	uri := certificateURL(raw)
-	// New events must not leave an earlier actionable prompt behind.
-	d.pending = certificatePrompt{}
 	// Never offer exceptions for subresources, revoked certificates, client-cert
 	// failures, unavailable certificates, or an event without a tracked navigation.
-	if uri == "" || uri != d.current || pem == "" ||
+	if uri == "" || uri != d.current {
+		return false // unrelated resource errors must not revoke top-level consent
+	}
+	d.pending = certificatePrompt{}
+	if pem == "" ||
 		(status != webErrorStatusCertificateCommonNameWrong && status != webErrorStatusCertificateExpired && status != webErrorStatusCertificateInvalid) {
 		d.grant = certificatePrompt{}
 		return false

@@ -67,6 +67,16 @@ func TestCertificatePromptExcludesResourcesRevocationAndClientAuth(t *testing.T)
 	}
 }
 
+func TestUnrelatedCertificateEventDoesNotEraseNavigationPrompt(t *testing.T) {
+	var d certificateDecision
+	d.starting("https://flint.local:8443/vault/id")
+	d.detected(d.current, "leaf", webErrorStatusCertificateInvalid, "token")
+	d.detected("https://flint.local:8443/favicon.ico", "other", webErrorStatusCertificateInvalid, "resource-token")
+	if d.pending.Token != "token" {
+		t.Fatal("subresource erased top-level consent")
+	}
+}
+
 func TestCertificatePromptInvalidatesOnNavigationAndDestruction(t *testing.T) {
 	var d certificateDecision
 	d.starting("https://flint.local:8443/")

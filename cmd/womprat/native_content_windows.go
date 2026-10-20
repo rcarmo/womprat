@@ -275,15 +275,24 @@ func (nilContentView) Hide()           {}
 func (nilContentView) Destroy()        {}
 
 type nativeContentView struct {
-	parent                 uintptr
-	hwnd                   uintptr
-	tabID                  string
-	url                    string
-	shell                  shellWebView
-	tsConnected            func() bool
-	edge                   *webview2edge.Chromium
-	certificate            certificateDecision
-	closeCertificateEvents func()
+	parent                     uintptr
+	hwnd                       uintptr
+	tabID                      string
+	url                        string
+	shell                      shellWebView
+	tsConnected                func() bool
+	edge                       *webview2edge.Chromium
+	certificate                certificateDecision
+	closeCertificateEvents     func()
+	closeNavigationDiagnostics func()
+	navigationURL              string
+	navigationFailed           bool
+	navigationStatus           int32
+	navigationGetterError      string
+	chromiumError              string
+	certificateDiagnostic      string
+	certificateSetupError      string
+	networkDiagnosticError     string
 }
 
 func newNativeContentView(parent uintptr, dataPath, tabID string, shell shellWebView, tsConnected func() bool, prepareDownload func(string, []*http.Cookie) (string, error)) (*nativeContentView, error) {
@@ -370,15 +379,16 @@ func newNativeContentView(parent uintptr, dataPath, tabID string, shell shellWeb
 			cv.edge.Eval(browserTitleReporterJS)
 		}
 		if cv.shell != nil {
-			ok := args != nil && args.IsSuccess()
-			var code int32
+			ok, code, resultErr := args.Result()
+			cv.navigationFailed = !ok
+			cv.navigationStatus = code
+			cv.navigationGetterError = ""
+			if resultErr != nil {
+				cv.navigationGetterError = resultErr.Error()
+			}
 			var message string
 			if !ok {
-				if args != nil {
-					code = args.WebErrorStatus()
-				}
-				connected := cv.tsConnected == nil || cv.tsConnected()
-				message = webErrorStatusMessage(code, connected)
+				message = cv.navigationFailureMessage()
 			}
 			// Read the live document URL so in-page link clicks / redirects update the
 			// shell address bar and tab, instead of leaving the URL we last passed to
@@ -393,7 +403,7 @@ func newNativeContentView(parent uintptr, dataPath, tabID string, shell shellWeb
 				cv.certificate.clear()
 			}
 			if !ok && cv.certificate.pending.Token != "" {
-				message = "The site's TLS certificate could not be validated. Proceeding allows this host and certificate for this browser session, including other tabs."
+				message += " Proceeding allows this host and certificate for this browser session, including other tabs."
 			}
 			log.Printf("content: %s navigation completed url=%q ok=%t webErrorStatus=%d msg=%q", cv.tabID, cv.url, ok, code, message)
 			cv.shell.Eval(fmt.Sprintf("window.wompratNavigationDone(%s,%s,%t,%d,%s)",
@@ -408,6 +418,37 @@ func newNativeContentView(parent uintptr, dataPath, tabID string, shell shellWeb
 	}
 	log.Printf("content: %s WebView2 embedded", tabID)
 	cv.edge = edge
+	if edge.EventRegistrationError != nil {
+		procDestroyWindow.Call(hwnd)
+		return nil, edge.EventRegistrationError
+	}
+	closeDiagnostics, diagErr := edge.EnableNavigationDiagnostics(func(uri string) {
+		cv.navigationURL = navigationTarget(uri)
+		cv.navigationFailed = false
+		cv.navigationGetterError = ""
+		cv.chromiumError = ""
+		cv.certificateDiagnostic = cv.certificateSetupError
+	}, func(failure webview2edge.NetworkFailure) {
+		if failure.Canceled || navigationTarget(failure.URL) == "" || navigationTarget(failure.URL) != cv.navigationURL {
+			return
+		}
+		cv.chromiumError = failure.ErrorText
+		log.Printf("content[%s] Chromium navigation failure url=%q error=%q", tabID, failure.URL, failure.ErrorText)
+		if cv.navigationFailed {
+			cv.reportNavigationFailure()
+		}
+	}, func(err error) {
+		cv.networkDiagnosticError = err.Error()
+		log.Printf("content[%s] network diagnostics: %v", tabID, err)
+		if cv.navigationFailed {
+			cv.reportNavigationFailure()
+		}
+	})
+	if diagErr != nil {
+		cv.networkDiagnosticError = diagErr.Error()
+	} else {
+		cv.closeNavigationDiagnostics = closeDiagnostics
+	}
 	if err := edge.PutAreBrowserAcceleratorKeysEnabled(false); err != nil {
 		log.Printf("content: disable browser accelerator keys failed: %v", err)
 	}
@@ -416,15 +457,28 @@ func newNativeContentView(parent uintptr, dataPath, tabID string, shell shellWeb
 		cv.certificate.starting(uri)
 		cv.reportCertificatePrompt()
 	}, func(info webview2edge.CertificateError) bool {
+		if info.Diagnostic != "" {
+			cv.certificateDiagnostic = info.Diagnostic
+			cv.certificate.pending = certificatePrompt{}
+			cv.certificate.grant = certificatePrompt{}
+			log.Printf("content[%s] certificate event failed: %s", tabID, info.Diagnostic)
+			return false
+		}
 		token, err := generateSessionToken()
 		if err != nil {
+			cv.certificateDiagnostic = "Could not create a consent token"
 			return false
 		}
 		allow := cv.certificate.detected(info.URI, info.PEM, info.Status, token)
+		if !allow && cv.certificate.pending.Token == "" && certificateURL(info.URI) == cv.certificate.current {
+			cv.certificateDiagnostic = fmt.Sprintf("Certificate error %d could not be safely overridden for this navigation", info.Status)
+		}
 		log.Printf("content[%s] certificate error: status=%d url=%q allowed=%v", tabID, info.Status, info.URI, allow)
 		return allow
 	})
 	if certErr != nil {
+		cv.certificateSetupError = certErr.Error()
+		cv.certificateDiagnostic = certErr.Error()
 		log.Printf("content[%s] certificate exceptions unavailable: %v", tabID, certErr)
 	} else {
 		cv.closeCertificateEvents = closeEvents
@@ -717,6 +771,10 @@ func (v *nativeContentView) Destroy() {
 		if v.closeCertificateEvents != nil {
 			v.closeCertificateEvents()
 			v.closeCertificateEvents = nil
+		}
+		if v.closeNavigationDiagnostics != nil {
+			v.closeNavigationDiagnostics()
+			v.closeNavigationDiagnostics = nil
 		}
 		procDestroyWindow.Call(v.hwnd)
 		v.hwnd = 0

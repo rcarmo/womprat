@@ -50,6 +50,9 @@ type CertificateError struct {
 	URI    string
 	PEM    string
 	Status int32
+	// Diagnostic is nonempty when event details or actions failed. Callers
+	// must not offer an exception from incomplete certificate information.
+	Diagnostic string
 }
 
 func comString(getter ComProc, receiver uintptr) (string, error) {
@@ -93,10 +96,11 @@ type certificateEventVtbl struct {
 	Invoke ComProc
 }
 type certificateEventHandler struct {
-	vtbl   *certificateEventVtbl
-	iid    GUID
-	refs   int32
-	invoke func(uintptr)
+	vtbl     *certificateEventVtbl
+	iid      GUID
+	refs     int32
+	invoke   func(uintptr)
+	complete func(int32, string)
 }
 
 var certificateEventRoots = struct {
@@ -171,11 +175,24 @@ func (e *Chromium) EnableCertificateErrors(starting func(string), decide func(Ce
 		a := (*certificateErrorArgs)(unsafe.Pointer(raw))
 		result, _, _ := a.vtbl.PutAction.Call(raw, 1) // CANCEL before reading anything
 		if int32(result) < 0 {
+			if decide != nil {
+				decide(CertificateError{Diagnostic: fmt.Sprintf("Cancel certificate error: HRESULT 0x%08X", uint32(result))})
+			}
 			return
 		}
 		info, err := a.details()
-		if err == nil && decide != nil && decide(info) {
-			a.vtbl.PutAction.Call(raw, 0)
+		if err != nil {
+			info.Diagnostic = err.Error()
+			if decide != nil {
+				decide(info)
+			}
+			return
+		}
+		if decide != nil && decide(info) {
+			result, _, _ = a.vtbl.PutAction.Call(raw, 0)
+			if int32(result) < 0 {
+				decide(CertificateError{Diagnostic: fmt.Sprintf("Allow certificate error: HRESULT 0x%08X", uint32(result))})
+			}
 		}
 	})
 	startHandler := newCertificateEvent("{9ADBE429-F36D-432B-9DDC-F8881FBD76E3}", func(raw uintptr) {

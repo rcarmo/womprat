@@ -1,6 +1,9 @@
 package edge
 
-import "unsafe"
+import (
+	"fmt"
+	"unsafe"
+)
 
 type _ICoreWebView2NavigationCompletedEventArgsVtbl struct {
 	_IUnknownVtbl
@@ -11,6 +14,26 @@ type _ICoreWebView2NavigationCompletedEventArgsVtbl struct {
 
 type ICoreWebView2NavigationCompletedEventArgs struct {
 	vtbl *_ICoreWebView2NavigationCompletedEventArgsVtbl
+}
+
+// Result preserves failed getter HRESULTs instead of inventing UNKNOWN status.
+func (i *ICoreWebView2NavigationCompletedEventArgs) Result() (bool, int32, error) {
+	if i == nil {
+		return false, 0, fmt.Errorf("WebView2 returned no navigation result")
+	}
+	var success, status int32
+	r, _, _ := i.vtbl.GetIsSuccess.Call(uintptr(unsafe.Pointer(i)), uintptr(unsafe.Pointer(&success)))
+	if int32(r) < 0 {
+		return false, 0, fmt.Errorf("get_IsSuccess: HRESULT 0x%08X", uint32(r))
+	}
+	if success != 0 {
+		return true, 0, nil
+	}
+	r, _, _ = i.vtbl.GetWebErrorStatus.Call(uintptr(unsafe.Pointer(i)), uintptr(unsafe.Pointer(&status)))
+	if int32(r) < 0 {
+		return false, 0, fmt.Errorf("get_WebErrorStatus: HRESULT 0x%08X", uint32(r))
+	}
+	return false, status, nil
 }
 
 func (i *ICoreWebView2NavigationCompletedEventArgs) AddRef() uintptr {
@@ -43,7 +66,7 @@ func (i *ICoreWebView2NavigationCompletedEventArgs) WebErrorStatus() int32 {
 		uintptr(unsafe.Pointer(i)),
 		uintptr(unsafe.Pointer(&status)),
 	)
-	if r != 0 {
+	if int32(r) < 0 {
 		return 0
 	}
 	return status

@@ -4,6 +4,7 @@
 package edge
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -51,6 +52,9 @@ type Chromium struct {
 	NavigationCompletedCallback  func(sender *ICoreWebView2, args *ICoreWebView2NavigationCompletedEventArgs)
 	DocumentTitleChangedCallback func(string)
 	AcceleratorKeyCallback       func(uint) bool
+
+	// Set if required native navigation reporting cannot attach.
+	EventRegistrationError error
 
 	cookieMu       sync.Mutex
 	cookieRequests map[*ICoreWebView2GetCookiesCompletedHandler]*cookieRequest
@@ -317,11 +321,14 @@ func (e *Chromium) CreateCoreWebView2ControllerCompleted(res uintptr, controller
 		uintptr(unsafe.Pointer(e.webResourceRequested)),
 		uintptr(unsafe.Pointer(&token)),
 	)
-	_, _, _ = e.webview.vtbl.AddNavigationCompleted.Call(
+	hr, _, _ = e.webview.vtbl.AddNavigationCompleted.Call(
 		uintptr(unsafe.Pointer(e.webview)),
 		uintptr(unsafe.Pointer(e.navigationCompleted)),
 		uintptr(unsafe.Pointer(&token)),
 	)
+	if int32(hr) < 0 {
+		e.EventRegistrationError = fmt.Errorf("NavigationCompleted registration: HRESULT 0x%08X", uint32(hr))
+	}
 	if e.DocumentTitleChangedCallback != nil {
 		hr, _, _ := e.webview.vtbl.AddDocumentTitleChanged.Call(
 			uintptr(unsafe.Pointer(e.webview)),
