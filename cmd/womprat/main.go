@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -1130,12 +1131,23 @@ func (a *App) serveFrontend(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	data, err := frontendFS.ReadFile(path)
+	asset, err := frontendFS.Open(path)
 	if err != nil {
 		http.NotFound(w, r)
 		return
 	}
+	defer asset.Close()
+	info, err := asset.Stat()
+	if err != nil || info.IsDir() {
+		http.NotFound(w, r)
+		return
+	}
 	if strings.HasSuffix(path, ".html") {
+		data, err := io.ReadAll(asset)
+		if err != nil {
+			http.Error(w, "Could not read shell page", http.StatusInternalServerError)
+			return
+		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		// Internal shell pages may frame only other local shell pages (settings).
 		// External web content must be direct WebView navigation, never iframe.
@@ -1154,7 +1166,11 @@ func (a *App) serveFrontend(w http.ResponseWriter, r *http.Request) {
 	} else if strings.HasSuffix(path, ".ttf") {
 		w.Header().Set("Content-Type", "font/ttf")
 	}
-	w.Write(data)
+	// Stream through io.Copy's bounded buffer instead of allocating a full
+	// copy of large embedded JS/font assets on every request.
+	if _, err := io.Copy(w, asset); err != nil {
+		log.Printf("frontend asset write failed for %q: %v", path, err)
+	}
 }
 
 func (a *App) ts() *tsnet.Server {

@@ -27,7 +27,7 @@ SHELL := $(CURDIR)/scripts/make-shell.sh
 # Paths/environment are enforced by scripts/paths.sh for every recipe.
 # Profiles are transient run data; retain only analysed conclusions in evidence/.
 APP       := womprat
-VERSION   ?= 0.4.2
+VERSION   ?= 0.4.3
 COMMIT    ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo dev)
 GO        ?= go
 BUN       ?= bun
