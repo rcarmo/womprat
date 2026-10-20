@@ -275,13 +275,15 @@ func (nilContentView) Hide()           {}
 func (nilContentView) Destroy()        {}
 
 type nativeContentView struct {
-	parent      uintptr
-	hwnd        uintptr
-	tabID       string
-	url         string
-	shell       shellWebView
-	tsConnected func() bool
-	edge        *webview2edge.Chromium
+	parent                 uintptr
+	hwnd                   uintptr
+	tabID                  string
+	url                    string
+	shell                  shellWebView
+	tsConnected            func() bool
+	edge                   *webview2edge.Chromium
+	certificate            certificateDecision
+	closeCertificateEvents func()
 }
 
 func newNativeContentView(parent uintptr, dataPath, tabID string, shell shellWebView, tsConnected func() bool, prepareDownload func(string, []*http.Cookie) (string, error)) (*nativeContentView, error) {
@@ -302,6 +304,8 @@ func newNativeContentView(parent uintptr, dataPath, tabID string, shell shellWeb
 		}
 	}
 	edge.ProcessFailedCallback = func(kind int32) {
+		cv.certificate.clear()
+		cv.reportCertificatePrompt()
 		log.Printf("content: process failed tab=%s kind=%d", cv.tabID, kind)
 		if cv.shell == nil {
 			return
@@ -385,9 +389,16 @@ func newNativeContentView(parent uintptr, dataPath, tabID string, shell shellWeb
 					cv.shell.Eval(fmt.Sprintf("window.wompratSyncTabURL(%s,%s)", jsString(cv.tabID), jsString(src)))
 				}
 			}
+			if ok {
+				cv.certificate.clear()
+			}
+			if !ok && cv.certificate.pending.Token != "" {
+				message = "The site's TLS certificate could not be validated. Proceeding allows this host and certificate for this browser session, including other tabs."
+			}
 			log.Printf("content: %s navigation completed url=%q ok=%t webErrorStatus=%d msg=%q", cv.tabID, cv.url, ok, code, message)
 			cv.shell.Eval(fmt.Sprintf("window.wompratNavigationDone(%s,%s,%t,%d,%s)",
 				jsString(cv.tabID), jsString(cv.url), ok, code, jsString(message)))
+			cv.reportCertificatePrompt()
 			cv.reportNavState()
 		}
 	}
@@ -401,6 +412,23 @@ func newNativeContentView(parent uintptr, dataPath, tabID string, shell shellWeb
 		log.Printf("content: disable browser accelerator keys failed: %v", err)
 	}
 	edge.Init(browserTitleReporterJS)
+	closeEvents, certErr := edge.EnableCertificateErrors(func(uri string) {
+		cv.certificate.starting(uri)
+		cv.reportCertificatePrompt()
+	}, func(info webview2edge.CertificateError) bool {
+		token, err := generateSessionToken()
+		if err != nil {
+			return false
+		}
+		allow := cv.certificate.detected(info.URI, info.PEM, info.Status, token)
+		log.Printf("content[%s] certificate error: status=%d url=%q allowed=%v", tabID, info.Status, info.URI, allow)
+		return allow
+	})
+	if certErr != nil {
+		log.Printf("content[%s] certificate exceptions unavailable: %v", tabID, certErr)
+	} else {
+		cv.closeCertificateEvents = closeEvents
+	}
 	cv.resize()
 	log.Printf("content: created browser WebView for tab %s hwnd=0x%x", tabID, hwnd)
 	return cv, nil
@@ -617,6 +645,8 @@ func (v *nativeContentView) prepareManagedDownload(targetURL string, prepare fun
 
 func (v *nativeContentView) Navigate(url string) {
 	if v != nil && v.edge != nil {
+		v.certificate.clear()
+		v.reportCertificatePrompt()
 		v.url = url
 		log.Printf("content: tab %s navigate %s", v.tabID, url)
 		v.edge.Navigate(url)
@@ -624,16 +654,22 @@ func (v *nativeContentView) Navigate(url string) {
 }
 func (v *nativeContentView) GoBack() {
 	if v != nil && v.edge != nil {
+		v.certificate.clear()
+		v.reportCertificatePrompt()
 		v.edge.GoBack()
 	}
 }
 func (v *nativeContentView) GoForward() {
 	if v != nil && v.edge != nil {
+		v.certificate.clear()
+		v.reportCertificatePrompt()
 		v.edge.GoForward()
 	}
 }
 func (v *nativeContentView) Reload() {
 	if v != nil && v.edge != nil {
+		v.certificate.clear()
+		v.reportCertificatePrompt()
 		v.edge.Reload()
 	}
 }
@@ -677,6 +713,11 @@ func (v *nativeContentView) Hide() {
 }
 func (v *nativeContentView) Destroy() {
 	if v != nil && v.hwnd != 0 {
+		v.certificate.clear()
+		if v.closeCertificateEvents != nil {
+			v.closeCertificateEvents()
+			v.closeCertificateEvents = nil
+		}
 		procDestroyWindow.Call(v.hwnd)
 		v.hwnd = 0
 		v.edge = nil

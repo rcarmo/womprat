@@ -11,7 +11,7 @@ make ux-setup
 make ux-test
 ```
 
-`make ux-test` builds `build/dist/womprat-linux-debug` beneath the resolved project temp root, runs `tests/ux/ux.mjs`, and runs the dynamic-title reporter test. Chromium uses `cache/playwright` under that root. CPU/heap profiles, logs and the matching server binary are retained under `evidence/tests/`.
+`make ux-test` builds `build/dist/womprat-linux-debug` beneath the resolved project temp root, runs `tests/ux/ux.mjs`, and runs the dynamic-title reporter test. Chromium uses `cache/playwright` under that root. Ordinary tests do not collect profiles. For pre-release analysis, use `make ux-test PROFILE=1`; CPU/heap profiles, logs and the matching server binary are temporary data beneath the project run directory. Analyse and tune, keep concise conclusions, then delete the captures and disposable logs.
 
 The default local root is `/workspace/tmp/womprat`, falling back to platform temp plus `/womprat`. Set an absolute `PROJECT_TMP_BASE` to choose another base. CI prefers `RUNNER_TEMP`, then the original `TMPDIR`, then platform temp. See [AGENTS.md](../../AGENTS.md) for environment variables, override validation and cleanup rules.
 
@@ -34,8 +34,9 @@ Set `WOMPRAT_BIN` to an absolute binary path to override the default. Both brows
 To save screenshots of the DNS form during the test:
 
 ```bash
-mkdir -p evidence/ux-layout
-WOMPRAT_UX_SCREENSHOTS="$PWD/evidence/ux-layout" make ux-test
+source scripts/paths.sh
+mkdir -p "$WOMPRAT_RUN_DIR/ux-layout"
+WOMPRAT_UX_SCREENSHOTS="$WOMPRAT_RUN_DIR/ux-layout" make ux-test
 ```
 
 The directory receives `dns-form-wide.png` and `dns-form-narrow.png`.
@@ -58,7 +59,7 @@ Use `WOMPRAT_UX_SKIP_VNC=1` or `WOMPRAT_UX_SKIP_RDP=1` to run one protocol. `VNC
 
 The RDP script fills the credential dialog, waits for canvas output and samples non-uniform pixels. After resize, it checks the WebSocket identity, viewport coverage, credential-dialog visibility and centre-coordinate mapping. When the server supports Display Control, it also checks the backing canvas size. The VNC script waits for server-reported dimensions and samples canvas pixels.
 
-Screenshots `rdp-browser-proof.png` and `vnc-browser-proof.png` are retained with the run's profiles. `WOMPRAT_UX_ARTIFACT_DIR` selects another retained evidence directory.
+Screenshots `rdp-browser-proof.png` and `vnc-browser-proof.png` are retained with the run's profiles. `WOMPRAT_UX_ARTIFACT_DIR` selects another project-owned scratch directory. Remove disposable screenshots after use.
 
 Use a separately managed local display/VNC server. Xvfb creates host `/tmp` sockets even when `TMPDIR` is set, so launching it requires a path exception. For RDP, configure a dedicated loopback-accessible XRDP instance and test user.
 

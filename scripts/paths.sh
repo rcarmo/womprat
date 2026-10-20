@@ -30,6 +30,8 @@ export WOMPRAT_RUN_DIR="${WOMPRAT_RUN_DIR:-$WOMPRAT_TMP_ROOT/runs/direct/$(date 
 [[ $WOMPRAT_RUN_DIR == "$WOMPRAT_TMP_ROOT/runs/"*/* ]] || { echo 'Run directory must be runs/<purpose>/<run-id>' >&2; return 1 2>/dev/null || exit 1; }
 womprat_owned_dir "$WOMPRAT_RUN_DIR"
 export TMPDIR="$WOMPRAT_RUN_DIR/tmp" TMP="$WOMPRAT_RUN_DIR/tmp" TEMP="$WOMPRAT_RUN_DIR/tmp"
+# Pin the project toolchain even when the host exports an older GOTOOLCHAIN.
+export GOTOOLCHAIN=go1.27.3
 export GOCACHE="$WOMPRAT_TMP_ROOT/cache/go/build" GOMODCACHE="$WOMPRAT_TMP_ROOT/cache/go/mod" GOPATH="$WOMPRAT_TMP_ROOT/cache/go/path"
 export GOBIN="$WOMPRAT_TMP_ROOT/build/tools" GOTMPDIR="$WOMPRAT_RUN_DIR/go"
 export BUN_INSTALL_CACHE_DIR="$WOMPRAT_TMP_ROOT/cache/bun" npm_config_cache="$WOMPRAT_TMP_ROOT/cache/npm"

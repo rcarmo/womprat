@@ -234,12 +234,18 @@ Run `make sha256` after building to create `build/dist/SHA256SUMS.txt` under the
 
 Build dependencies:
 
-* Go 1.25.5 or later;
+* Go 1.27.3 (selected automatically by the project scripts);
 * Bun;
 * `llvm-windres`;
 * Python 3.
 
 `make doctor` checks the tools and required icon/manifest inputs. `make help` lists all targets.
+
+## HTTPS certificate exceptions
+
+For an untrusted, expired or hostname-mismatched HTTPS certificate, the error banner offers **Proceed anyway**. This allows that hostname and certificate for the current browser session, including other tabs sharing the browser profile. Restart Womprat to clear these exceptions. A changed certificate needs fresh approval; revoked certificates and client-certificate errors cannot be bypassed.
+
+The button appears only after WebView2 reports the certificate itself. Generic load, DNS and connection errors do not enable it. An up-to-date WebView2 runtime is required.
 
 ## Tests
 

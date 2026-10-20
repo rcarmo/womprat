@@ -168,6 +168,22 @@ try {
   await statusSettings.click();
   check('error status Settings opens on click', await page.locator('#panel-settings.active iframe[src="/settings.html"]').count() === 1);
 
+  // Native certificate consent appears in the existing banner, not a popup.
+  await page.evaluate(() => {
+    window.__certificateClicks = [];
+    window.womprat_proceedCertificate = async (tab, token) => { window.__certificateClicks.push({tab, token}); return true; };
+    window.__certificateTab = document.querySelector('#tab-list .tab.active').dataset.tabId;
+    window.wompratNavigationDone(window.__certificateTab, 'https://flint.local:8443/', false, 0, 'Page failed to load.');
+  });
+  check('generic failure hides certificate exception', await page.locator('#nav-status-proceed').isHidden());
+  await page.evaluate(() => window.wompratCertificatePrompt(window.__certificateTab, 'native-certificate-token', 'https://flint.local:8443/'));
+  check('certificate exception button is visible', await page.locator('#nav-status-proceed').isVisible());
+  check('certificate button has session warning', (await page.locator('#nav-status-proceed').getAttribute('title')).includes('browser session'));
+  await page.click('#nav-status-proceed');
+  check('certificate consent click forwards tab and opaque token', await page.evaluate(() => window.__certificateClicks.length === 1 && window.__certificateClicks[0].tab === window.__certificateTab && window.__certificateClicks[0].token === 'native-certificate-token'));
+  check('certificate consent hides one-use button', await page.locator('#nav-status-proceed').isHidden());
+  await page.evaluate(() => { window.wompratCertificatePrompt(window.__certificateTab, '', ''); window.wompratNavigationDone(window.__certificateTab, '', true); delete window.womprat_proceedCertificate; });
+
   // Routed download manager: start, poll to completion, and verify file bytes.
   await page.evaluate((u) => window.triggerDownload(u), `http://127.0.0.1:${downloadPort}/audit.txt`);
   const downloadComplete = await page.waitForFunction(() => document.getElementById("dl-status")?.textContent === "Saved to Downloads", { timeout: 10000 }).then(() => true).catch(() => false);

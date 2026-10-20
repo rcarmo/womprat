@@ -258,6 +258,16 @@ func runGUI(app *App, shellURL string) {
 			view.Reload()
 		}
 	})
+	w.Bind("womprat_proceedCertificate", func(tabID, token string) bool {
+		app.mu.Lock()
+		active := app.activeTab == tabID && !app.locked
+		app.mu.Unlock()
+		if !active {
+			return false
+		}
+		v, ok := app.activeContentView().(*nativeContentView)
+		return ok && v.tabID == tabID && v.ProceedCertificate(token)
+	})
 	w.Bind("womprat_updateTitle", func(title, url, favicon string) { app.updateActiveBrowserTitle(title, url, favicon) })
 	w.Bind("womprat_closeTab", func(tabID string) { app.closeTab(tabID) })
 	w.Bind("womprat_reorderTab", func(tabID, beforeID string) { app.reorderTab(tabID, beforeID) })

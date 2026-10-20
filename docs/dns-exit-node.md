@@ -12,7 +12,7 @@ Tailscale normally uses the selected exit node's DNS resolver for all domains. T
 4. Enable **Use with exit node** for that nameserver.
 5. In Womprat, select the exit node and run a lookup in **Settings → Diagnostics**.
 
-Womprat bundles Tailscale v1.94.2 and honours this policy. It does not edit nameserver settings or enable the option on your behalf. See [Tailscale's DNS documentation](https://tailscale.com/kb/1054/dns) for the distinction between global and restricted nameservers.
+Womprat bundles Tailscale v1.104.1 and honours this policy. It does not edit nameserver settings or enable the option on your behalf. See [Tailscale's DNS documentation](https://tailscale.com/kb/1054/dns) for the distinction between global and restricted nameservers.
 
 ## `.local` names through mdnsbridge
 
@@ -37,7 +37,7 @@ In **Settings → Diagnostics**, enter a hostname and select **Look up** or pres
 | Configured nameservers | Addresses and their exit-node eligibility |
 | Resolver used | Upstream chosen for this query |
 | Transport | TCP DNS, exit-node HTTP DNS, or a local MagicDNS record |
-| Tailnet route | Remote peer and IP prefix used to reach the upstream |
+| Tailnet route | Verification that the upstream IP has a remote tsnet peer route |
 | Response and addresses | DNS response code and returned A/AAAA records |
 | Time | Elapsed query time, including failure handling |
 

@@ -6,8 +6,8 @@ label=${1:?usage: test-profile.sh label module-dir packages [go test flags...]};
 module=${1:?}; shift
 packages=${1:?}; shift
 [[ $label =~ ^[a-zA-Z0-9_-]+$ ]] || exit 2
-mkdir -p "$WOMPRAT_EVIDENCE_ROOT/tests"
-evidence=$(mktemp -d "$WOMPRAT_EVIDENCE_ROOT/tests/$label-$(date -u +%Y%m%dT%H%M%S)-XXXXXX")
+mkdir -p "$WOMPRAT_RUN_DIR/profiles"
+evidence=$(mktemp -d "$WOMPRAT_RUN_DIR/profiles/$label-$(date -u +%Y%m%dT%H%M%S)-XXXXXX")
 printf '%s\n' "$evidence" > "$WOMPRAT_RUN_DIR/latest-evidence"
 cd "$module"
 { git -C "$WOMPRAT_REPO" rev-parse HEAD; git -C "$WOMPRAT_REPO" diff --stat; go version; go env GOOS GOARCH GOCACHE GOMODCACHE GOTMPDIR; printf 'CPU=100Hz; memory=1 byte; package pattern=%s\n' "$packages"; printf 'go test %q ' "$@"; echo; } > "$evidence/metadata.txt"
@@ -46,5 +46,5 @@ while IFS= read -r package; do
     status=1
   fi
 done < "$evidence/packages.txt"
-echo "Evidence: $evidence; review cumulative CPU, alloc_space and alloc_objects before acceptance."
+echo "Transient profiles: $evidence; review cumulative CPU/alloc_space/alloc_objects, keep concise conclusions, then delete captures and matching binaries/logs."
 exit "$status"

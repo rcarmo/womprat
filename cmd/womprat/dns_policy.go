@@ -7,29 +7,25 @@ import (
 	"time"
 
 	"tailscale.com/client/local"
-	"tailscale.com/ipn"
 	"tailscale.com/tailcfg"
 	"tailscale.com/types/netmap"
 )
 
-// Read-only LocalAPI snapshot. Never return/log the full network map (which
-// includes unrelated peer and control-plane data). Private keys are redacted.
+// Read-only LocalAPI snapshot. Never log/return the full network map: it
+// includes unrelated peer and control-plane data. Keep only DNS-policy uses.
 func readDNSNetmap(ctx context.Context, lc *local.Client) (*netmap.NetworkMap, error) {
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
-	watch, err := lc.WatchIPNBus(ctx, ipn.NotifyInitialNetMap|ipn.NotifyNoPrivateKeys)
+	// Tailscale 1.104 removed NetMap from IPN notifications. Its read-only
+	// current-netmap endpoint supplies the same snapshot, including live peers.
+	nm, err := local.GetDebugResultJSON[*netmap.NetworkMap](ctx, lc, "current-netmap")
 	if err != nil {
 		return nil, err
 	}
-	defer watch.Close()
-	note, err := watch.Next()
-	if err != nil {
-		return nil, err
-	}
-	if note.NetMap == nil {
+	if nm == nil || !nm.SelfNode.Valid() {
 		return nil, fmt.Errorf("no authenticated network map available")
 	}
-	return note.NetMap, nil
+	return nm, nil
 }
 
 type dnsPolicyResolver struct {

@@ -35,9 +35,9 @@ func resolverForTSNet(ts *tsnet.Server) (tailnetResolver, error) {
 	if !ok || manager == nil {
 		return tailnetResolver{}, fmt.Errorf("tsnet DNS manager unavailable")
 	}
-	engine, ok := sys.Engine.GetOK()
-	if !ok || engine == nil {
-		return tailnetResolver{}, fmt.Errorf("tsnet engine unavailable")
+	dialer, ok := sys.Dialer.GetOK()
+	if !ok || dialer == nil || dialer.UseNetstackForIP == nil {
+		return tailnetResolver{}, fmt.Errorf("tsnet route verifier unavailable")
 	}
 	stackHandle, ok := sys.Netstack.GetOK()
 	if !ok {
@@ -67,11 +67,12 @@ func resolverForTSNet(ts *tsnet.Server) (tailnetResolver, error) {
 			return manager.Resolver().GetUpstreamResolvers(fqdn), nil
 		},
 		route: func(ip netip.Addr) (string, error) {
-			peer, ok := engine.PeerForIP(ip)
-			if !ok || !peer.Node.Valid() || peer.IsSelf {
+			// tsnet wires this directly to LocalBackend.PeerForIP.
+			self4, self6 := ts.TailscaleIPs()
+			if ip == self4 || ip == self6 || !dialer.UseNetstackForIP(ip) {
 				return "", fmt.Errorf("%s has no remote Tailscale peer/route", ip)
 			}
-			return fmt.Sprintf("%s via %s (%s)", ip, peer.Node.Name(), peer.Route), nil
+			return "verified tsnet peer route for " + ip.String(), nil
 		},
 		// Dial the embedded stack itself, not ts.Dial/UserDial: UserDial can
 		// fall back to a host socket if a route disappears after the check.
@@ -83,8 +84,8 @@ func resolverForTSNet(ts *tsnet.Server) (tailnetResolver, error) {
 			if err != nil {
 				return nil, err
 			}
-			peer, routed := engine.PeerForIP(target.Addr())
-			if !routed || peer.IsSelf {
+			self4, self6 := ts.TailscaleIPs()
+			if target.Addr() == self4 || target.Addr() == self6 || !dialer.UseNetstackForIP(target.Addr()) {
 				return nil, fmt.Errorf("no remote Tailscale route to %s", target)
 			}
 			v4, v6 := ts.TailscaleIPs()

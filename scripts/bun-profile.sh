@@ -2,6 +2,7 @@
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/paths.sh"
 label=${1:?}; shift
+if [[ ${WOMPRAT_PROFILE:-1} != 1 ]]; then exec bun "$@"; fi
 [[ $label =~ ^[a-zA-Z0-9_.-]+$ ]] || exit 2
 # Bun's preload afterAll is file-scoped: one process per file ensures complete
 # capture instead of stopping after the first file in a multi-file invocation.
@@ -14,9 +15,9 @@ if [[ ${1:-} == test && $# -gt 2 ]]; then
   done
   exit "$status"
 fi
-mkdir -p "$WOMPRAT_EVIDENCE_ROOT/tests"
+mkdir -p "$WOMPRAT_RUN_DIR/profiles"
 export WOMPRAT_PROFILE_DIR
-WOMPRAT_PROFILE_DIR=$(mktemp -d "$WOMPRAT_EVIDENCE_ROOT/tests/$label-$(date -u +%Y%m%dT%H%M%S)-XXXXXX")
+WOMPRAT_PROFILE_DIR=$(mktemp -d "$WOMPRAT_RUN_DIR/profiles/$label-$(date -u +%Y%m%dT%H%M%S)-XXXXXX")
 { git -C "$WOMPRAT_REPO" rev-parse HEAD; bun --version; printf 'Bun JSC sampling profiler (1000us interval); full V8-format heap snapshot\n'; printf '%q ' "$@"; echo; } > "$WOMPRAT_PROFILE_DIR/metadata.txt"
 ulimit -c 0 # never let a profiling runtime crash write a host core dump
 status=0
@@ -39,5 +40,5 @@ if [[ -n ${WOMPRAT_BIN:-} ]]; then
 fi
 test -s "$WOMPRAT_PROFILE_DIR/bun-cpu.json" || { echo 'MISSING Bun CPU profile' >&2; status=1; }
 find "$WOMPRAT_PROFILE_DIR" -type f -name '*.heapsnapshot' | grep -q . || { echo 'MISSING Bun heap profile' >&2; status=1; }
-echo "Evidence: $WOMPRAT_PROFILE_DIR (review CPU and heap before acceptance)"
+echo "Transient profiles: $WOMPRAT_PROFILE_DIR (analyse, retain concise conclusions, then delete captures and matching binaries/logs)"
 exit "$status"

@@ -3,13 +3,14 @@ import { join } from 'node:path';
 
 export const buildDir = process.env.WOMPRAT_BUILD_DIR;
 export const runDir = process.env.WOMPRAT_RUN_DIR;
-export const profileDir = process.env.WOMPRAT_PROFILE_DIR;
-if (!buildDir || !runDir || !profileDir) {
-  throw new Error('Use make ux-test or scripts/bun-profile.sh; project paths/profiling are required');
+export const profileDir = process.env.WOMPRAT_PROFILE_DIR || runDir;
+if (!buildDir || !runDir) {
+  throw new Error('Use make ux-test or source scripts/paths.sh; project paths are required');
 }
 
 // Capture the Chromium renderer as well as the Bun driver.
 export async function profilePage(page, name) {
+  if (!process.env.WOMPRAT_PROFILE_DIR) return async () => {};
   const cdp = await page.context().newCDPSession(page);
   await cdp.send('Profiler.enable');
   await cdp.send('Profiler.setSamplingInterval', { interval: 1000 });

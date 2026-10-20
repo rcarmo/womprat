@@ -20,12 +20,12 @@ endif
 override PROJECT_TMP_ROOT := $(ROOT_RESOLVED)
 export PROJECT_TMP_ROOT
 override WOMPRAT_TMP_ROOT := $(PROJECT_TMP_ROOT)
-override WOMPRAT_RUN_DIR := $(WOMPRAT_TMP_ROOT)/runs/make/$(shell date -u +%Y%m%dT%H%M%S)-$(shell echo $$$$)
+override WOMPRAT_RUN_DIR := $(or $(WOMPRAT_RUN_DIR),$(WOMPRAT_TMP_ROOT)/runs/make/$(shell date -u +%Y%m%dT%H%M%S)-$(shell echo $$$$))
 export WOMPRAT_TMP_ROOT WOMPRAT_RUN_DIR
 SHELL := $(CURDIR)/scripts/make-shell.sh
 .SHELLFLAGS := -eu -o pipefail -c
 # Paths/environment are enforced by scripts/paths.sh for every recipe.
-# Retained profiles, binaries and logs live in evidence/, never in clean scopes.
+# Profiles are transient run data; retain only analysed conclusions in evidence/.
 APP       := womprat
 VERSION   ?= 0.4.2
 COMMIT    ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo dev)
@@ -45,6 +45,7 @@ override RESOURCE_DIR := $(WOMPRAT_TMP_ROOT)/build/resources
 TEST_FLAGS ?=
 TEST_PACKAGES ?= ./...
 BUN_PROFILE := bash scripts/bun-profile.sh
+export WOMPRAT_PROFILE = $(PROFILE)
 DOC_ICON  := docs/icon.png
 ICO       := $(CMD_DIR)/icon.ico
 WINRES_ICO:= $(CMD_DIR)/winres/icon.ico
@@ -124,21 +125,23 @@ frontend-check: ## Bundle-check embedded HTML/JS entry points with Bun
 vet: ## Run go vet for the Windows ARM64 target
 	GOOS=windows GOARCH=arm64 $(GO) vet ./...
 
-test: ## Run Go tests with retained CPU/allocation profiles
-	bash scripts/test-profile.sh host . '$(TEST_PACKAGES)' $(TEST_FLAGS)
+PROFILE ?= 0
+
+test: ## Run Go tests (PROFILE=1 captures CPU/allocations for pre-release analysis)
+	@if [ '$(PROFILE)' = 1 ]; then bash scripts/test-profile.sh host . '$(TEST_PACKAGES)' $(TEST_FLAGS); else $(GO) test $(TEST_FLAGS) $(TEST_PACKAGES); fi
 
 .PHONY: test-race test-webview2 test-rdp paths
 paths: ## Print effective project cache/build/temp locations
 	@env | sort | grep -E '^(WOMPRAT_[A-Z_]+|GOCACHE|GOMODCACHE|GOPATH|GOTMPDIR|TMP|TEMP|BUN_INSTALL_CACHE_DIR|npm_config_cache|PLAYWRIGHT_BROWSERS_PATH|XDG_CACHE_HOME|WINEPREFIX)='
 
-test-race: ## Run profiled race tests
-	bash scripts/test-profile.sh race . '$(TEST_PACKAGES)' -race $(TEST_FLAGS)
+test-race: ## Run race tests (PROFILE=1 captures CPU/allocations)
+	@if [ '$(PROFILE)' = 1 ]; then bash scripts/test-profile.sh race . '$(TEST_PACKAGES)' -race $(TEST_FLAGS); else $(GO) test -race -count=1 $(TEST_FLAGS) $(TEST_PACKAGES); fi
 
-test-webview2: ## Run profiled native Windows COM tests (Windows host required)
-	bash scripts/test-profile.sh webview2 internal/go-webview2 ./pkg/edge $(TEST_FLAGS)
+test-webview2: ## Run native Windows COM tests (Windows host required)
+	@if [ '$(PROFILE)' = 1 ]; then bash scripts/test-profile.sh webview2 internal/go-webview2 ./pkg/edge $(TEST_FLAGS); else cd internal/go-webview2 && $(GO) test $(TEST_FLAGS) ./pkg/edge; fi
 
-test-rdp: ## Run profiled internal library tests (vendored web assets are not built)
-	bash scripts/test-profile.sh rdp third_party/go-rdp './internal/...' $(TEST_FLAGS)
+test-rdp: ## Run internal library tests (vendored web assets are not built)
+	@if [ '$(PROFILE)' = 1 ]; then bash scripts/test-profile.sh rdp third_party/go-rdp './internal/...' $(TEST_FLAGS); else cd third_party/go-rdp && $(GO) test $(TEST_FLAGS) ./internal/...; fi
 
 compile-windows: resources ## Compile Windows arm64 and amd64 in isolated source trees
 	bash scripts/windows-build.sh arm64 $(WOMPRAT_RUN_DIR)/compile-arm64.exe
@@ -146,7 +149,7 @@ compile-windows: resources ## Compile Windows arm64 and amd64 in isolated source
 
 .PHONY: frontend-test
 frontend-test: ## Run server-independent frontend and portable-path regressions
-	$(BUN_PROFILE) frontend test tests/ux/paths.test.mjs tests/ux/rdp-resize.test.mjs tests/ux/terminal-controls.test.mjs tests/ux/frontend-state.test.mjs tests/ux/vnc-lifecycle.test.mjs
+	$(BUN_PROFILE) frontend test tests/ux/certificate-banner.test.mjs tests/ux/paths.test.mjs tests/ux/rdp-resize.test.mjs tests/ux/terminal-controls.test.mjs tests/ux/frontend-state.test.mjs tests/ux/vnc-lifecycle.test.mjs
 
 verify: frontend-check frontend-test test vet compile-windows ## Run all non-interactive checks
 
@@ -198,7 +201,7 @@ linux: | $(DIST_DIR) ## Build Linux AMD64 debug server binary (serves shell/API 
 	@ls -lh $(BIN_LINUX)
 
 ux-test: | $(DIST_DIR) ## Build a debug headless Linux binary and run the Playwright UX test
-	$(GO) build -tags=profile -ldflags="-X main.debugBuild=1" -o $(DIST_DIR)/$(APP)-linux-debug ./$(CMD_DIR)
+	$(GO) build $(if $(filter 1,$(PROFILE)),-tags=profile,) -ldflags="-X main.debugBuild=1" -o $(DIST_DIR)/$(APP)-linux-debug ./$(CMD_DIR)
 	WOMPRAT_BIN=$(DIST_DIR)/$(APP)-linux-debug $(BUN_PROFILE) ux run tests/ux/ux.mjs
 	$(BUN_PROFILE) title test tests/ux/title-reporter.test.mjs
 
@@ -225,8 +228,10 @@ darwin: | $(DIST_DIR) ## Build Darwin ARM64 binary (for compile sanity only; app
 sha256: ## Write SHA256SUMS.txt for the built Windows executables
 	@cd $(DIST_DIR) && sha256sum $(APP)-windows-*.exe > SHA256SUMS.txt && cat SHA256SUMS.txt
 
+release: PROFILE=1
 release: setup patch verify windows-arm64 ## Setup/patch/check/build pipeline for Windows ARM64
 
+release-intel: PROFILE=1
 release-intel: setup patch verify windows-intel ## Setup/patch/check/build pipeline for Windows Intel/x64
 
 # Local dev ------------------------------------------------------------------
