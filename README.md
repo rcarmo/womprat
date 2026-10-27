@@ -45,9 +45,15 @@ Public internet access requires an active Tailscale exit node. Womprat applies t
 
 MagicDNS and extra address records are answered from the Tailscale network map. Other names use Tailscale's selected DNS upstream. Womprat checks for a remote peer, subnet or exit-node route, then sends supported DNS queries through its embedded TCP/IP stack with a Tailscale source address. Resolved service addresses use the same stack; IP literals skip DNS. Unsupported or unroutable destinations fail closed without host DNS or LAN fallback.
 
-With an exit node selected, a custom nameserver must have **Use with exit node** enabled in the tailnet's DNS settings. Tailscale v1.94.2 honours that policy for global and split-DNS nameservers; Womprat does not change it. For `.local` names served by [mdnsbridge](https://github.com/rcarmo/mdnsbridge), use a restricted `local` rule pointing to the bridge's Tailscale IP. See [DNS configuration and troubleshooting](docs/dns-exit-node.md) for setup, supported transports and diagnostic results.
+With an exit node selected, a custom nameserver must have **Use with exit node** enabled in the tailnet's DNS settings. Tailscale v1.104.1 honours that policy for global and split-DNS nameservers; Womprat does not change it. For `.local` names served by [mdnsbridge](https://github.com/rcarmo/mdnsbridge), use a restricted `local` rule pointing to the bridge's Tailscale IP. See [DNS configuration and troubleshooting](docs/dns-exit-node.md) for setup, supported transports and diagnostic results.
 
 Transient Tailscale startup failures are retried every 15 seconds. Settings reports the last error and distinguishes the selected exit-node preference from the route active in the current session. An explicit reconnect or disconnect cancels the existing retry worker before changing the connection.
+
+## Address-bar search
+
+Words and phrases entered in the address bar search DuckDuckGo by default. Choose **DuckDuckGo**, **Bing** or **Google** in **Settings → Browser → Address-bar search**; the choice is saved and takes effect immediately.
+
+Web URLs, domain names, IP addresses, `localhost`, host-and-port addresses and SSH/VNC/RDP URLs navigate directly. For a single-label tailnet host, enter `http://relay` or `relay/` to distinguish it from a search. Searches use Womprat's existing network path and require a working exit node for public internet access.
 
 ## Tabs and shortcuts
 

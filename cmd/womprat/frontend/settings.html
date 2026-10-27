@@ -206,6 +206,17 @@ tr:hover td{background:rgba(255,255,255,.02)}
 <!-- ═══ Browser ═══ -->
 <div class="tab-panel" id="panel-browser">
   <div class="section">
+    <h3>Address-bar search</h3>
+    <p style="color:var(--dim);font-size:.82rem;margin-bottom:.6rem">Text that is not a web address is sent to your selected search engine. Searches use the same tailnet and exit-node connection as web pages.</p>
+    <label for="search-provider">Search engine</label>
+    <select id="search-provider">
+      <option value="duckduckgo">DuckDuckGo</option>
+      <option value="bing">Bing</option>
+      <option value="google">Google</option>
+    </select>
+    <div id="search-provider-status" class="status"></div>
+  </div>
+  <div class="section">
     <h3>Cache</h3>
     <p style="color:var(--dim);font-size:.82rem;margin-bottom:.6rem">Cached pages and assets from browsed tailnet services.</p>
     <div style="display:flex;align-items:center;gap:.8rem">
@@ -641,6 +652,7 @@ async function loadBrowserSettings() {
     const data = await fetchJSON('/api/settings/browser', {});
     document.getElementById('cache-size').textContent = data.cacheSize || '0 KB';
     document.getElementById('save-passwords').checked = data.savePasswords !== false;
+  document.getElementById('search-provider').value = data.searchProvider || 'duckduckgo';
     const ct = document.getElementById('cookies-table');
     ct.textContent = '';
     if (data.cookies?.length) {
@@ -1117,6 +1129,18 @@ async function loadConfigSettings() {
 
 async function initSettings() {
   renderDiagnostics({checks: []});
+  document.getElementById('search-provider')?.addEventListener('change', async (e) => {
+    const select = e.target;
+    select.disabled = true;
+    try {
+      const response = await fetch('/api/settings/browser/search', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({searchProvider:select.value})});
+      if (!response.ok) throw new Error(await response.text());
+      setStatus('search-provider-status', 'ok', 'Search engine saved.');
+    } catch (err) {
+      setStatus('search-provider-status', 'error', 'Could not save search engine.');
+      await loadBrowserSettings();
+    } finally { select.disabled = false; }
+  });
   document.getElementById('save-passwords')?.addEventListener('change', async (e) => {
     try {
       const res = await fetch('/api/settings/browser/save-passwords', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({enabled: e.target.checked})});

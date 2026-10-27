@@ -229,7 +229,7 @@ button,a,.tab,.recent-item,.option{
   <button id="nav-forward" class="icon-button" title="Forward" aria-label="Forward" data-icon="arrowRight"></button>
   <button id="nav-reload" class="icon-button" title="Reload" aria-label="Reload" data-icon="arrowClockwise"></button>
   <span id="url-mode" class="url-mode" hidden aria-hidden="true"></span>
-  <input id="url-input" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Enter URL, ssh://user@host, vnc://host or rdp://user@host">
+  <input id="url-input" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Search or enter an address, ssh://, vnc:// or rdp://">
   <datalist id="url-history"></datalist>
   <span id="route-pill" class="route-pill" title="Exit node route status"></span>
   <button id="url-go" class="icon-button text-button">Go</button>
@@ -1821,14 +1821,28 @@ function installBrowserHotkeys() {
 let lastURLBarNavigation = { url: '', at: 0 };
 window.navigateFromBar = async function() {
   const input = document.getElementById('url-input');
-  const url = input?.value.trim() || '';
-  if (!url) return;
+  const raw = input?.value.trim() || '';
+  if (!raw) return;
   const now = performance.now();
   // Only collapse a genuine double-dispatch (e.g. Enter immediately followed by
   // a Go-button click). Intentional re-entry of the same URL — retrying a failed
   // load — must always navigate, so the window is deliberately tiny.
-  if (lastURLBarNavigation.url === url && now - lastURLBarNavigation.at < 150) return;
-  lastURLBarNavigation = { url, at: now };
+  if (lastURLBarNavigation.url === raw && now - lastURLBarNavigation.at < 150) return;
+  const submission = { url: raw, at: now };
+  lastURLBarNavigation = submission;
+  const activeAtSubmission = state.activeTab;
+  let url;
+  try {
+    const response = await fetch('/api/settings/browser/resolve-address', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({input:raw})});
+    if (!response.ok) throw new Error(await response.text());
+    url = (await response.json()).url;
+    if (!url) throw new Error('No navigation target returned');
+  } catch (err) {
+    if (lastURLBarNavigation === submission && state.activeTab === activeAtSubmission) applyNavStatus('error', err.message || 'Could not resolve address or search.', activeAtSubmission);
+    return;
+  }
+  if (lastURLBarNavigation !== submission || state.activeTab !== activeAtSubmission) return;
+  if (input) input.value = url;
   clearNavStatus();
   // The URL bar behaves like a real browser address bar: if the active tab is a
   // browser tab, navigate it IN PLACE rather than spawning a new tab. Custom

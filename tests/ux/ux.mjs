@@ -250,6 +250,29 @@ try {
   const copiedDNS = await page.evaluate(() => navigator.clipboard.readText());
   check('DNS results copy as readable report', copiedDNS.includes('DNS lookup: smith.local') && copiedDNS.includes('Tailscale: disconnected') && copiedDNS.includes('Womprat tsnet is not connected'));
 
+  // Search settings and address-bar classification need no live internet.
+  await settingsFrame.locator('button[data-tab="browser"]').click();
+  const providerSelect = settingsFrame.locator('#search-provider');
+  check('address search defaults to DuckDuckGo', await providerSelect.inputValue() === 'duckduckgo');
+  await providerSelect.selectOption('google');
+  await settingsFrame.locator('#search-provider-status').filter({hasText:'Search engine saved.'}).waitFor();
+  check('search provider saves in browser settings', await page.evaluate(async () => (await (await fetch('/api/settings/browser/search')).json()).searchProvider === 'google'));
+  await page.evaluate(() => { window.newBlankTab(); window.__searchTab=document.querySelector('#tab-list .tab.active').dataset.tabId; window.__searchTargets=[]; window.womprat_navigate=async target => window.__searchTargets.push(target); });
+  await page.locator('#url-input').fill('café & C++ #guide');
+  await page.locator('#url-input').press('Enter');
+  await page.waitForFunction(() => window.__searchTargets?.length === 1);
+  check('Enter searches with current provider and encoded query', await page.evaluate(() => {const u=new URL(window.__searchTargets[0]);return u.hostname==='www.google.com'&&u.searchParams.get('q')==='café & C++ #guide';}));
+  await page.locator('#url-input').fill('https://flint.local:8443/vault/id');
+  await page.locator('#url-input').press('Enter');
+  await page.waitForFunction(() => window.__searchTargets?.length === 2);
+  check('explicit HTTPS URL bypasses search', await page.evaluate(() => window.__searchTargets[1]==='https://flint.local:8443/vault/id'));
+  await page.evaluate(async () => {await fetch('/api/settings/browser/search',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({searchProvider:'duckduckgo'})});});
+  await page.locator('#url-input').fill('weather tomorrow');
+  await page.locator('#url-input').press('Enter');
+  await page.waitForFunction(() => window.__searchTargets?.length === 3);
+  check('DuckDuckGo is used immediately after changing provider', await page.evaluate(() => new URL(window.__searchTargets[2]).hostname==='duckduckgo.com'));
+  await page.evaluate(() => {delete window.womprat_navigate;window.closeTab(window.__searchTab);window.openSettings();});
+
   // 2) VNC URL connects end-to-end via RFB stub.
   await page.evaluate(() => { window.newBlankTab && window.newBlankTab(); });
   await page.fill("#url-input", `vnc://127.0.0.1:${rfbPort}`);

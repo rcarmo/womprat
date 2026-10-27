@@ -14,10 +14,11 @@ import (
 )
 
 type BrowserData struct {
-	CacheSize     string          `json:"cacheSize"`
-	SavePasswords bool            `json:"savePasswords"`
-	Cookies       []CookieDomain  `json:"cookies"`
-	Passwords     []SavedPassword `json:"passwords"`
+	CacheSize      string          `json:"cacheSize"`
+	SavePasswords  bool            `json:"savePasswords"`
+	SearchProvider string          `json:"searchProvider"`
+	Cookies        []CookieDomain  `json:"cookies"`
+	Passwords      []SavedPassword `json:"passwords"`
 }
 
 type CookieDomain struct {
@@ -37,6 +38,8 @@ func (a *App) registerBrowserRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/settings/browser/clear-passwords", a.authMiddleware(a.handleClearPasswords))
 	mux.HandleFunc("/api/settings/browser/clear-all", a.authMiddleware(a.handleClearAll))
 	mux.HandleFunc("/api/settings/browser/save-passwords", a.authMiddleware(a.handleSavePasswordsToggle))
+	mux.HandleFunc("/api/settings/browser/search", a.authMiddleware(a.handleSearchProvider))
+	mux.HandleFunc("/api/settings/browser/resolve-address", a.authMiddleware(a.handleResolveAddress))
 }
 
 func (a *App) handleBrowserData(w http.ResponseWriter, r *http.Request) {
@@ -45,12 +48,14 @@ func (a *App) handleBrowserData(w http.ResponseWriter, r *http.Request) {
 	}
 	a.mu.Lock()
 	savePasswords := a.config.SavePasswords
+	searchProvider := normalizeSearchProvider(a.config.SearchProvider)
 	a.mu.Unlock()
 	data := BrowserData{
-		CacheSize:     getCacheSize(),
-		SavePasswords: savePasswords,
-		Cookies:       listCookieDomains(),
-		Passwords:     listSavedPasswords(),
+		CacheSize:      getCacheSize(),
+		SavePasswords:  savePasswords,
+		SearchProvider: searchProvider,
+		Cookies:        listCookieDomains(),
+		Passwords:      listSavedPasswords(),
 	}
 	writeJSON(w, http.StatusOK, data)
 }

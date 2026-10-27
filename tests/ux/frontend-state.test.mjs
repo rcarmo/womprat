@@ -59,12 +59,32 @@ test('blank-tab navigation registers native state before navigating', async () =
   const events = [];
   const input = { value: 'example.com' };
   const active = { id:'blank', type:'browser', url:'about:blank' };
-  const fn = Function('window','document','performance','clearNavStatus','activeTabObj','openSpecialURLPreview','isBlankBrowserTab','registerLocalTab','openBrowser',`let lastURLBarNavigation={url:'',at:0};${source.slice(begin,end)}; return window.navigateFromBar`)(
+  const fn = Function('window','document','performance','clearNavStatus','activeTabObj','openSpecialURLPreview','isBlankBrowserTab','registerLocalTab','openBrowser','state','fetch','applyNavStatus',`let lastURLBarNavigation={url:'',at:0};${source.slice(begin,end)}; return window.navigateFromBar`)(
     { womprat_navigate: async url => events.push(`navigate:${url}`) },
     { getElementById: () => input }, { now: () => 1000 }, () => {}, () => active, () => false,
-    () => true, async () => events.push('register'), () => events.push('open'));
+    () => true, async () => events.push('register'), () => events.push('open'), {activeTab:'blank'},
+    async () => ({ok:true,json:async()=>({url:'http://example.com'})}), () => events.push('error'));
   await fn();
-  expect(events).toEqual(['register','navigate:example.com']);
+  expect(events).toEqual(['register','navigate:http://example.com']);
+});
+
+test('address resolution cannot navigate a superseded submission or different tab', async () => {
+  const begin = source.indexOf('window.navigateFromBar = async function()');
+  const end = source.indexOf('// openSpecialURLPreview', begin);
+  const requests=[], navigated=[];
+  const state={activeTab:'a'}, input={value:'first search'};
+  let tick=1000;
+  const window={womprat_navigate:async target=>navigated.push(target)};
+  const fn=Function('window','state','document','performance','fetch','applyNavStatus','clearNavStatus','activeTabObj','openSpecialURLPreview','isBlankBrowserTab','registerLocalTab','openBrowser',`let lastURLBarNavigation={url:'',at:0};${source.slice(begin,end)};return window.navigateFromBar`)(
+    window,state,{getElementById:()=>input},{now:()=>tick+=200},
+    ()=>new Promise(resolve=>requests.push(resolve)),()=>{},()=>{},()=>({id:'a',type:'browser'}),()=>false,()=>false,async()=>{},()=>{});
+  const first=fn();input.value='second search';const second=fn();
+  requests[1]({ok:true,json:async()=>({url:'https://duckduckgo.com/?q=second'})});await second;
+  requests[0]({ok:true,json:async()=>({url:'https://duckduckgo.com/?q=first'})});await first;
+  expect(navigated).toEqual(['https://duckduckgo.com/?q=second']);
+  input.value='third search';const third=fn();state.activeTab='b';
+  requests[2]({ok:true,json:async()=>({url:'https://duckduckgo.com/?q=third'})});await third;
+  expect(navigated).toHaveLength(1);
 });
 
 test('native tab registrations and mutations preserve call order', async () => {

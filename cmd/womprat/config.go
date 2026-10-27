@@ -37,7 +37,8 @@ type AppConfig struct {
 	Hosts map[string]HostConfig `json:"hosts"`
 
 	// Browser
-	SavePasswords bool `json:"savePasswords"`
+	SavePasswords  bool   `json:"savePasswords"`
+	SearchProvider string `json:"searchProvider"`
 
 	// Networking
 	ExitNode string `json:"exitNode"` // tailnet peer to use as exit node (empty = direct)
@@ -75,11 +76,12 @@ type HostConfig struct {
 
 func defaultConfig() *AppConfig {
 	return &AppConfig{
-		UnlockMethod: "dpapi",
-		WindowWidth:  1200,
-		WindowHeight: 800,
-		Hosts:        make(map[string]HostConfig),
-		TerminalFont: defaultTerminalFont,
+		UnlockMethod:   "dpapi",
+		WindowWidth:    1200,
+		WindowHeight:   800,
+		Hosts:          make(map[string]HostConfig),
+		TerminalFont:   defaultTerminalFont,
+		SearchProvider: defaultSearchProvider,
 	}
 }
 
@@ -188,6 +190,7 @@ func normalizeConfig(cfg *AppConfig) {
 	}
 	cfg.FontSize = normalizeFontSize(cfg.FontSize)
 	cfg.TerminalFont = normalizeTerminalFont(cfg.TerminalFont)
+	cfg.SearchProvider = normalizeSearchProvider(cfg.SearchProvider)
 	cfg.Theme = normalizeTheme(cfg.Theme)
 	cfg.Hosts = sanitizeHostConfigs(cfg.Hosts)
 	cfg.OpenTabs = sanitizeSavedTabs(cfg.OpenTabs)

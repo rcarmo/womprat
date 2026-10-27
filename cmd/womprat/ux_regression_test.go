@@ -1751,7 +1751,7 @@ func TestURLBarEnterIsSingleNavigation(t *testing.T) {
 	for _, want := range []string{
 		"event.preventDefault();\n    event.stopPropagation();\n    if (event.repeat) return;\n    window.navigateFromBar();",
 		"let lastURLBarNavigation = { url: '', at: 0 };",
-		"if (lastURLBarNavigation.url === url && now - lastURLBarNavigation.at < 150) return;",
+		"if (lastURLBarNavigation.url === raw && now - lastURLBarNavigation.at < 150) return;",
 	} {
 		if !strings.Contains(s, want) {
 			t.Fatalf("URL bar duplicate navigation guard missing %q", want)
