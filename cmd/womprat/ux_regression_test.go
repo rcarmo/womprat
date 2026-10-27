@@ -857,9 +857,9 @@ func TestSettingsOnlyListsAdvertisedExitNodes(t *testing.T) {
 }
 
 func TestBackendRejectsNonExitNodePeers(t *testing.T) {
-	s := readFileForRegression(t, "settings_api.go")
+	s := readFileForRegression(t, "exit_node_preferences.go")
 	for _, want := range []string{
-		"if !p.ExitNodeOption",
+		"if !selected.ExitNodeOption",
 		"is not advertised as an exit node",
 	} {
 		if !strings.Contains(s, want) {

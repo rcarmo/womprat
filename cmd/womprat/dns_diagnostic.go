@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"golang.org/x/net/dns/dnsmessage"
+	"tailscale.com/ipn"
 )
 
 // dnsProbeResult records the app's tailnet-only upstream query. Resolver
@@ -31,12 +32,31 @@ type dnsDiagnosticResponse struct {
 	Name           string           `json:"name"`
 	BackendState   string           `json:"backendState,omitempty"`
 	ConfiguredExit string           `json:"configuredExit,omitempty"`
+	RoutingError   string           `json:"routingError,omitempty"`
 	ExitNode       string           `json:"exitNode,omitempty"`
 	ExitNodeOnline bool             `json:"exitNodeOnline"`
 	AcceptDNS      bool             `json:"acceptDNS"`
 	Queries        []dnsProbeResult `json:"queries"`
 	Error          string           `json:"error,omitempty"`
 	Policy         *dnsPolicy       `json:"policy,omitempty"`
+}
+
+func (out *dnsDiagnosticResponse) addEffectiveExitNodePrefs(prefs *ipn.Prefs) {
+	if prefs == nil {
+		return
+	}
+	out.AcceptDNS = prefs.CorpDNS
+	if out.ExitNode != "" {
+		return
+	}
+	if prefs.ExitNodeID != "" || prefs.ExitNodeIP.IsValid() {
+		out.ExitNode = fmt.Sprintf("selected in prefs: ID=%s IP=%s; no active exit-node status", prefs.ExitNodeID, prefs.ExitNodeIP)
+	} else {
+		out.ExitNode = "No exit node selected in effective Tailscale preferences"
+		if out.ConfiguredExit != "" && out.RoutingError == "" {
+			out.RoutingError = fmt.Sprintf("Saved exit node %q has not been applied; public internet and exit-node DNS are unavailable", out.ConfiguredExit)
+		}
+	}
 }
 
 func normalizeDiagnosticDNSName(input string) (string, error) {
@@ -70,6 +90,7 @@ func (a *App) handleDNSDiagnostic(w http.ResponseWriter, r *http.Request) {
 	a.mu.Lock()
 	ts := a.tsServer
 	out.ConfiguredExit = a.config.ExitNode
+	out.RoutingError = a.tsLastError
 	a.mu.Unlock()
 	if ts == nil {
 		out.Error = "Womprat tsnet is not connected; no DNS query ran"
@@ -113,10 +134,7 @@ func (a *App) handleDNSDiagnostic(w http.ResponseWriter, r *http.Request) {
 		}
 		out.Error += fmt.Sprintf("tsnet prefs: %v", err)
 	} else if prefs != nil {
-		out.AcceptDNS = prefs.CorpDNS
-		if out.ExitNode == "" && (prefs.RouteAll || prefs.ExitNodeID != "" || prefs.ExitNodeIP.IsValid()) {
-			out.ExitNode = fmt.Sprintf("selected in prefs: ID=%s IP=%s; no active exit-node status", prefs.ExitNodeID, prefs.ExitNodeIP)
-		}
+		out.addEffectiveExitNodePrefs(prefs)
 	}
 	if nm, err := readDNSNetmap(ctx, lc); err != nil {
 		out.Policy = &dnsPolicy{Error: err.Error(), Resolvers: []dnsPolicyResolver{}, Explanation: "Could not inspect tailnet DNS configuration."}

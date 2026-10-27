@@ -15,10 +15,10 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"golang.org/x/crypto/pbkdf2"
 	"golang.org/x/crypto/ssh"
-	"tailscale.com/ipn"
 )
 
 const maxSSHKeyBytes = 64 * 1024
@@ -539,13 +539,33 @@ func (a *App) handleExitNode(w http.ResponseWriter, r *http.Request) {
 		if apply == nil {
 			apply = a.applyExitNodePreference
 		}
-		if err := apply(r.Context(), body.ExitNode); err != nil {
+		ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+		err := apply(ctx, body.ExitNode)
+		cancel()
+		if err != nil {
+			a.mu.Lock()
+			a.exitNodeActive = false
+			a.tsLastError = fmt.Sprintf("exit node %q: %v", body.ExitNode, err)
+			a.mu.Unlock()
+			if oldExitNode != "" {
+				a.scheduleExitNodeRecovery()
+			}
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		cfg.ExitNode = body.ExitNode
 		if err := SaveConfig(cfg); err != nil {
-			if rollbackErr := apply(r.Context(), oldExitNode); rollbackErr != nil {
+			rollbackCtx, rollbackCancel := context.WithTimeout(context.Background(), 15*time.Second)
+			rollbackErr := apply(rollbackCtx, oldExitNode)
+			rollbackCancel()
+			if rollbackErr != nil {
+				a.mu.Lock()
+				a.exitNodeActive = false
+				a.tsLastError = fmt.Sprintf("route rollback failed: %v", rollbackErr)
+				a.mu.Unlock()
+				if oldExitNode != "" {
+					a.scheduleExitNodeRecovery()
+				}
 				http.Error(w, fmt.Sprintf("save failed: %v; route rollback failed: %v", err, rollbackErr), http.StatusInternalServerError)
 				return
 			}
@@ -575,38 +595,7 @@ func (a *App) applyExitNodePreference(ctx context.Context, exitNode string) erro
 	if err != nil {
 		return err
 	}
-	prefs := &ipn.MaskedPrefs{
-		Prefs: ipn.Prefs{
-			RouteAll: exitNode != "",
-		},
-		RouteAllSet:   true,
-		ExitNodeIPSet: true,
-		ExitNodeIDSet: true,
-	}
-	if exitNode != "" {
-		status, err := lc.Status(ctx)
-		if err != nil {
-			return err
-		}
-		for _, p := range status.Peer {
-			name := strings.TrimSuffix(p.HostName, ".")
-			if name == exitNode || p.DNSName == exitNode || strings.TrimSuffix(p.DNSName, ".") == exitNode {
-				if !p.ExitNodeOption {
-					return fmt.Errorf("%s is not advertised as an exit node", exitNode)
-				}
-				if len(p.TailscaleIPs) == 0 {
-					return fmt.Errorf("exit node %s has no tailscale IP", exitNode)
-				}
-				prefs.ExitNodeIP = p.TailscaleIPs[0]
-				break
-			}
-		}
-		if !prefs.ExitNodeIP.IsValid() {
-			return fmt.Errorf("exit node %s was not found in tailnet peers", exitNode)
-		}
-	}
-	_, err = lc.EditPrefs(ctx, prefs)
-	return err
+	return applyAndVerifyExitNode(ctx, lc, exitNode)
 }
 
 func (a *App) handleSaveTabs(w http.ResponseWriter, r *http.Request) {

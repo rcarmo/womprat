@@ -980,8 +980,9 @@ function renderDNSDiagnostic(data) {
     ['Connection', data.backendState || 'disconnected'],
     ['Exit node', `${exit}${data.exitNode ? (data.exitNodeOnline ? ' · online' : ' · offline') : ''}`],
     ['Tailnet DNS', data.acceptDNS ? 'enabled' : 'disabled'],
+    ...(data.routingError ? [['Exit-node error', data.routingError]] : []),
     ...(data.error ? [['Status', data.error]] : []),
-  ], data.error ? 'error' : 'ok');
+  ], data.error || data.routingError ? 'error' : 'ok');
   if (data.policy) addDNSDiagnosticCard(results, 'Tailnet DNS rule', [
     ['Matching domain', data.policy.matchingSuffix || 'no split-DNS match'],
     ['Configured nameservers', (data.policy.resolvers || []).map(r => `${r.address} (use with exit node: ${r.useWithExitNode ? 'yes' : 'no'})`).join(', ') || 'none'],
@@ -1007,6 +1008,7 @@ function dnsDiagnosticReport(data) {
     `Exit node: ${data.exitNode || data.configuredExit || 'none'}${data.exitNode ? (data.exitNodeOnline ? ' (online)' : ' (offline)') : ''}`,
     `Tailnet DNS: ${data.acceptDNS ? 'enabled' : 'disabled'}`,
   ];
+  if (data.routingError) lines.push(`Exit-node error: ${data.routingError}`);
   if (data.error) lines.push(`Error: ${data.error}`);
   if (data.policy) {
     lines.push(`DNS rule: ${data.policy.matchingSuffix || 'no split-DNS match'}`, `Policy: ${data.policy.error || data.policy.explanation || 'unknown'}`);

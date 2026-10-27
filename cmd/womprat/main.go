@@ -100,35 +100,39 @@ type browserContentManager interface {
 }
 
 type App struct {
-	configSaveMu     sync.Mutex // acquire before mu for snapshot/save/commit
-	tsStartMu        sync.Mutex // serialize tsnet startup and replacement
-	tsRetryMu        sync.Mutex
-	tsRetrying       bool
-	tsRetryCancel    context.CancelFunc
-	tsRetryDone      chan struct{}
-	tsRetryInterval  time.Duration
-	tsRetryStart     func(context.Context) error
-	exitNodeApply    func(context.Context, string) error
-	exitNodeState    func(context.Context) (bool, error)
-	mu               sync.Mutex
-	config           *AppConfig
-	tsServer         *tsnet.Server
-	tsLastError      string
-	exitNodeActive   bool
-	tabs             []Tab
-	activeTab        string
-	sshConns         map[string]*ssh.Client
-	pendingAuth      map[string]*pendingSSH
-	sessionToken     string
-	locked           bool
-	webview          shellWebView
-	contentViews     browserContentManager
-	downloadTicketMu sync.Mutex
-	downloadTickets  map[string]downloadTicket
-	dispatch         func(func())
-	serverPort       int
-	lastCloseAt      time.Time
-	lastCloseTab     string
+	configSaveMu      sync.Mutex // acquire before mu for snapshot/save/commit
+	tsStartMu         sync.Mutex // serialize tsnet startup and replacement
+	tsRetryMu         sync.Mutex
+	tsRetrying        bool
+	tsRetryCancel     context.CancelFunc
+	tsRetryDone       chan struct{}
+	tsRetryInterval   time.Duration
+	exitRetryMu       sync.Mutex
+	exitRetryCancel   context.CancelFunc
+	exitRetryDone     chan struct{}
+	exitRetryInterval time.Duration
+	tsRetryStart      func(context.Context) error
+	exitNodeApply     func(context.Context, string) error
+	exitNodeState     func(context.Context) (bool, error)
+	mu                sync.Mutex
+	config            *AppConfig
+	tsServer          *tsnet.Server
+	tsLastError       string
+	exitNodeActive    bool
+	tabs              []Tab
+	activeTab         string
+	sshConns          map[string]*ssh.Client
+	pendingAuth       map[string]*pendingSSH
+	sessionToken      string
+	locked            bool
+	webview           shellWebView
+	contentViews      browserContentManager
+	downloadTicketMu  sync.Mutex
+	downloadTickets   map[string]downloadTicket
+	dispatch          func(func())
+	serverPort        int
+	lastCloseAt       time.Time
+	lastCloseTab      string
 }
 
 func main() {
@@ -817,6 +821,7 @@ func (a *App) startTailscale() error {
 }
 
 func (a *App) startTailscaleContext(parent context.Context) error {
+	a.stopExitNodeRecovery()
 	a.tsStartMu.Lock()
 	defer a.tsStartMu.Unlock()
 
@@ -866,6 +871,7 @@ func (a *App) startTailscaleContext(parent context.Context) error {
 	if exitNode != "" {
 		if err := a.applyConfiguredExitNode(parent, exitNode); err != nil {
 			log.Printf("tsnet: FAILED to apply configured exit node %q: %v (public sites will be unreachable)", exitNode, err)
+			a.scheduleExitNodeRecovery()
 		}
 	} else if err := a.refreshExitNodeActive(parent); err != nil {
 		log.Printf("tsnet: routing prefs unavailable: %v", err)
@@ -907,7 +913,17 @@ func (a *App) readExitNodeActive(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	return prefs.RouteAll && (prefs.ExitNodeID != "" || prefs.ExitNodeIP.IsValid()), nil
+	if prefs.ExitNodeID == "" && !prefs.ExitNodeIP.IsValid() {
+		return false, nil
+	}
+	status, err := lc.Status(ctx)
+	if err != nil {
+		return false, err
+	}
+	if err := effectiveExitNode(prefs, status, prefs.ExitNodeID); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func (a *App) applyConfiguredExitNode(parent context.Context, exitNode string) error {
@@ -1003,6 +1019,7 @@ func (a *App) setTailscaleError(err error) {
 }
 
 func (a *App) stopTailscaleRetry() {
+	a.stopExitNodeRecovery()
 	a.tsRetryMu.Lock()
 	cancel := a.tsRetryCancel
 	done := a.tsRetryDone
@@ -1014,6 +1031,8 @@ func (a *App) stopTailscaleRetry() {
 	if done != nil {
 		<-done
 	}
+	// Startup can schedule route recovery while the canceled retry drains.
+	a.stopExitNodeRecovery()
 }
 
 // logTSNetRouting records the effective tsnet routing preferences so the log

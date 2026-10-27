@@ -12,7 +12,24 @@ import (
 	"testing"
 
 	"golang.org/x/net/dns/dnsmessage"
+	"tailscale.com/ipn"
 )
+
+func TestDNSDiagnosticDoesNotMistakeAcceptRoutesForExitNodeSelection(t *testing.T) {
+	out := dnsDiagnosticResponse{ConfiguredExit: "relay"}
+	out.addEffectiveExitNodePrefs(&ipn.Prefs{RouteAll: true, CorpDNS: true})
+	if strings.Contains(out.ExitNode, "selected in prefs:") || !strings.Contains(out.RoutingError, "has not been applied") {
+		t.Fatal("empty selection still reported as selected", out)
+	}
+	if !out.AcceptDNS {
+		t.Fatal("accept DNS lost")
+	}
+	out.RoutingError = "exit node relay: peer snapshot not ready"
+	out.addEffectiveExitNodePrefs(&ipn.Prefs{RouteAll: true})
+	if !strings.Contains(out.RoutingError, "peer snapshot not ready") {
+		t.Fatal("real routing error overwritten")
+	}
+}
 
 type fakeDNSQueryClient func(context.Context, string, string) ([]byte, []string, string, string, string, error)
 
