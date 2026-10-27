@@ -1125,7 +1125,7 @@ func TestNavigationDoneHandlesSuccessAndFailure(t *testing.T) {
 	}
 }
 
-func TestURLBarSelectAllAndNoCompletionPopup(t *testing.T) {
+func TestURLBarSelectAllAndAccessibleHistory(t *testing.T) {
 	s := readFileForRegression(t, "frontend/index.html")
 	// The persistent native datalist completion popup is removed and browser
 	// autofill suppressed.
@@ -1138,7 +1138,7 @@ func TestURLBarSelectAllAndNoCompletionPopup(t *testing.T) {
 	// Address-bar select-all on first click.
 	for _, want := range []string{
 		"let selectAllPending = false;",
-		"urlInput.addEventListener('focus', () => { selectAllPending = true; });",
+		"urlInput.addEventListener('focus', () => { selectAllPending = true; historySuggestionsEnabled = true; refreshURLHistoryDatalist(); });",
 		"if (document.activeElement === urlInput) selectAllPending = false;",
 		"urlInput.select();",
 	} {
@@ -1749,7 +1749,7 @@ func TestShellReferencedHelpersAreDefined(t *testing.T) {
 func TestURLBarEnterIsSingleNavigation(t *testing.T) {
 	s := readFileForRegression(t, "frontend/index.html")
 	for _, want := range []string{
-		"event.preventDefault();\n    event.stopPropagation();\n    if (event.repeat) return;\n    window.navigateFromBar();",
+		"event.preventDefault();\n    event.stopPropagation();\n    if (event.repeat) return;\n    if (selectedHistorySuggestion >= 0) acceptAddressSuggestion(selectedHistorySuggestion);\n    else window.navigateFromBar();",
 		"let lastURLBarNavigation = { url: '', at: 0 };",
 		"if (lastURLBarNavigation.url === raw && now - lastURLBarNavigation.at < 150) return;",
 	} {

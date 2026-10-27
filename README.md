@@ -55,6 +55,8 @@ Words and phrases entered in the address bar search DuckDuckGo by default. Choos
 
 Web URLs, domain names, IP addresses, `localhost`, host-and-port addresses and SSH/VNC/RDP URLs navigate directly. For a single-label tailnet host, enter `http://relay` or `relay/` to distinguish it from a search. Searches use Womprat's existing network path and require a working exit node for public internet access.
 
+History suggestions appear while typing in the address bar. Use ↑/↓ then Enter, or click a suggestion; Escape dismisses them. Up to 100 submitted addresses and searches are saved in encrypted local settings. Suggestions are generated locally and remain available after restarting.
+
 ## Tabs and shortcuts
 
 The tab strip contains native browser views and shell-rendered terminal, VNC, RDP and Settings panels. A new tab is an address-bar placeholder; navigating it replaces that placeholder rather than leaving an empty tab behind. Dragging a tab before or after another tab preserves the same order in shell and persisted state.

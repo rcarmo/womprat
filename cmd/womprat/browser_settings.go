@@ -40,6 +40,7 @@ func (a *App) registerBrowserRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/settings/browser/save-passwords", a.authMiddleware(a.handleSavePasswordsToggle))
 	mux.HandleFunc("/api/settings/browser/search", a.authMiddleware(a.handleSearchProvider))
 	mux.HandleFunc("/api/settings/browser/resolve-address", a.authMiddleware(a.handleResolveAddress))
+	mux.HandleFunc("/api/settings/browser/history", a.authMiddleware(a.handleAddressHistory))
 }
 
 func (a *App) handleBrowserData(w http.ResponseWriter, r *http.Request) {

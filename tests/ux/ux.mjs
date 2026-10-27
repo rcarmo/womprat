@@ -257,7 +257,7 @@ try {
   await providerSelect.selectOption('google');
   await settingsFrame.locator('#search-provider-status').filter({hasText:'Search engine saved.'}).waitFor();
   check('search provider saves in browser settings', await page.evaluate(async () => (await (await fetch('/api/settings/browser/search')).json()).searchProvider === 'google'));
-  await page.evaluate(() => { window.newBlankTab(); window.__searchTab=document.querySelector('#tab-list .tab.active').dataset.tabId; window.__searchTargets=[]; window.womprat_navigate=async target => window.__searchTargets.push(target); });
+  await page.evaluate(() => { window.newBlankTab(); window.__searchTab=document.querySelector('#tab-list .tab.active').dataset.tabId; window.__searchTargets=[]; window.womprat_setChromeHeight=px=>window.__historyChromeHeight=px; window.womprat_navigate=async target => window.__searchTargets.push(target); });
   await page.locator('#url-input').fill('café & C++ #guide');
   await page.locator('#url-input').press('Enter');
   await page.waitForFunction(() => window.__searchTargets?.length === 1);
@@ -271,7 +271,28 @@ try {
   await page.locator('#url-input').press('Enter');
   await page.waitForFunction(() => window.__searchTargets?.length === 3);
   check('DuckDuckGo is used immediately after changing provider', await page.evaluate(() => new URL(window.__searchTargets[2]).hostname==='duckduckgo.com'));
-  await page.evaluate(() => {delete window.womprat_navigate;window.closeTab(window.__searchTab);window.openSettings();});
+  await page.locator('#url-input').fill('weather');
+  check('history suggests previous search text', await page.locator('#address-suggestions button').filter({hasText:'weather tomorrow'}).isVisible());
+  await page.locator('#url-input').press('ArrowDown');
+  await page.locator('#url-input').press('Enter');
+  await page.waitForFunction(() => window.__searchTargets?.length === 4);
+  check('keyboard accepts history search once', await page.evaluate(() => new URL(window.__searchTargets[3]).searchParams.get('q')==='weather tomorrow'));
+  await page.locator('#url-input').fill('flint');
+  const historyURL=page.locator('#address-suggestions button').filter({hasText:'https://flint.local:8443/vault/id'});
+  check('history matches hostname without scheme', await historyURL.isVisible());
+  check('history suggestions stay inside reported shell chrome', await page.locator('#address-suggestions').evaluate(el => el.getBoundingClientRect().bottom * devicePixelRatio <= window.__historyChromeHeight + 1));
+  await historyURL.click();
+  await page.waitForFunction(() => window.__searchTargets?.length === 5);
+  check('mouse accepts history URL without searching', await page.evaluate(() => window.__searchTargets[4]==='https://flint.local:8443/vault/id'));
+  await page.locator('#url-input').fill('weather');
+  await page.locator('#url-input').press('Escape');
+  check('Escape hides history without navigating', await page.locator('#address-suggestions').isHidden() && await page.evaluate(() => window.__searchTargets.length===5));
+  await page.locator('#url-input').fill('no-match-history-xyz');
+  check('unmatched input hides suggestions', await page.locator('#address-suggestions').isHidden());
+  await page.locator('#url-input').fill('weather');
+  await page.locator('#url-input').press('Tab');
+  check('leaving address field dismisses history', await page.locator('#address-suggestions').isHidden());
+  await page.evaluate(() => {delete window.womprat_navigate;delete window.womprat_setChromeHeight;window.closeTab(window.__searchTab);window.openSettings();});
 
   // 2) VNC URL connects end-to-end via RFB stub.
   await page.evaluate(() => { window.newBlankTab && window.newBlankTab(); });
@@ -343,6 +364,12 @@ try {
   const freshPage = await context.newPage();
   await freshPage.goto(url, {waitUntil:'domcontentloaded'});
   const hiddenInFreshPage = await freshPage.evaluate(async () => (await (await fetch('/api/settings/config')).json()).hiddenRecent.length);
+  const savedInput = await freshPage.evaluate(async () => (await (await fetch('/api/settings/browser/history')).json()).history.includes('weather tomorrow'));
+  await freshPage.evaluate(() => document.getElementById('setup')?.classList.add('hidden'));
+  await freshPage.evaluate(() => {window.newBlankTab();});
+  await freshPage.locator('#url-input').fill('weather');
+  await freshPage.locator('#address-suggestions button').filter({hasText:'weather tomorrow'}).waitFor();
+  check('saved history is available in a fresh shell', savedInput && await freshPage.locator('#address-suggestions button').filter({hasText:'weather tomorrow'}).isVisible());
   await freshPage.close();
   check('Recent removal persists in a fresh page', hiddenInFreshPage === hiddenRecentSaved);
   check("custom schemes leave no blank placeholders", await page.evaluate(() => !Array.from(document.querySelectorAll('.tab-title')).some(el => el.textContent === 'New tab')));
@@ -357,6 +384,19 @@ try {
     return document.querySelector(`#tab-list .tab[data-tab-id="${CSS.escape(id)}"]`) === tab && tab.querySelector('.tab-title')?.textContent === 'Updated title 🐀';
   });
   check("tab metadata updates in place", titleUpdateStable);
+  const loadingStable = await page.evaluate(() => {
+    const tabs=Array.from(document.querySelectorAll('#tab-list .tab'));
+    const icons=tabs.map(tab=>tab.querySelector('.tab-icon-slot'));
+    const target=tabs.at(-1), id=target.dataset.tabId;
+    // showBrowserTab and completion exercise loading plus lifecycle render calls.
+    window.showBrowserTab(id,'https://flint.local:8443/','loading',{skipNative:true});
+    const started=Array.from(document.querySelectorAll('#tab-list .tab'));
+    const sameStart=started.length===tabs.length&&started.every((tab,i)=>tab===tabs[i]&&(tab===target||tab.querySelector('.tab-icon-slot')===icons[i]));
+    window.wompratNavigationDone(id,'https://flint.local:8443/',true);
+    const ended=Array.from(document.querySelectorAll('#tab-list .tab'));
+    return sameStart&&ended.length===tabs.length&&ended.every((tab,i)=>tab===tabs[i]&&(tab===target||tab.querySelector('.tab-icon-slot')===icons[i]));
+  });
+  check('loading and navigation preserve every tab and inactive icon', loadingStable);
 
   // Standard tab lifecycle over the real tabs created above: reorder by stable
   // id through drag-and-drop, then close that exact tab.

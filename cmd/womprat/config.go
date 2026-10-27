@@ -30,8 +30,9 @@ type AppConfig struct {
 	Maximized    bool `json:"maximized"`
 
 	// Session restore
-	OpenTabs     []SavedTab `json:"openTabs"`
-	HiddenRecent []string   `json:"hiddenRecent,omitempty"`
+	OpenTabs       []SavedTab `json:"openTabs"`
+	HiddenRecent   []string   `json:"hiddenRecent,omitempty"`
+	AddressHistory []string   `json:"addressHistory,omitempty"`
 
 	// Per-host SSH settings
 	Hosts map[string]HostConfig `json:"hosts"`
@@ -166,6 +167,7 @@ func cloneConfig(cfg *AppConfig) *AppConfig {
 		out.OpenTabs = append([]SavedTab(nil), cfg.OpenTabs...)
 	}
 	out.HiddenRecent = append([]string(nil), cfg.HiddenRecent...)
+	out.AddressHistory = append([]string(nil), cfg.AddressHistory...)
 	if cfg.Hosts != nil {
 		out.Hosts = make(map[string]HostConfig, len(cfg.Hosts))
 		for host, conf := range cfg.Hosts {
@@ -191,6 +193,7 @@ func normalizeConfig(cfg *AppConfig) {
 	cfg.FontSize = normalizeFontSize(cfg.FontSize)
 	cfg.TerminalFont = normalizeTerminalFont(cfg.TerminalFont)
 	cfg.SearchProvider = normalizeSearchProvider(cfg.SearchProvider)
+	cfg.AddressHistory = normalizeAddressHistory(cfg.AddressHistory)
 	cfg.Theme = normalizeTheme(cfg.Theme)
 	cfg.Hosts = sanitizeHostConfigs(cfg.Hosts)
 	cfg.OpenTabs = sanitizeSavedTabs(cfg.OpenTabs)

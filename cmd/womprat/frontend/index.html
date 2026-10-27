@@ -174,6 +174,10 @@ button,a,.tab,.recent-item,.option{
 #download-bar .status{color:var(--dim)}
 #nav-status{display:flex;align-items:center;gap:8px;min-height:28px;padding:4px 10px;font-size:12px;
   border-bottom:1px solid var(--border);background:var(--surface-solid);color:var(--text)}
+#address-suggestions{position:absolute;top:var(--address-history-top,calc(var(--tab-h) + var(--url-h)));left:0;right:0;z-index:10;max-height:160px;overflow:auto;background:var(--surface-solid);border-bottom:1px solid var(--border-strong);padding:4px 8px}
+#address-suggestions[hidden]{display:none}
+.address-suggestion{display:block;width:100%;height:34px;padding:0 10px;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border:0;border-radius:var(--radius);background:transparent;color:var(--text);font:inherit;cursor:pointer}
+.address-suggestion[aria-selected="true"],.address-suggestion:hover{background:var(--accent-hover)}
 #nav-status[hidden]{display:none}
 #nav-status.loading{color:var(--text-secondary)}
 #nav-status.error{background:rgba(248,81,73,.12);border-bottom-color:rgba(248,81,73,.32);color:#ffb4ad}
@@ -229,11 +233,12 @@ button,a,.tab,.recent-item,.option{
   <button id="nav-forward" class="icon-button" title="Forward" aria-label="Forward" data-icon="arrowRight"></button>
   <button id="nav-reload" class="icon-button" title="Reload" aria-label="Reload" data-icon="arrowClockwise"></button>
   <span id="url-mode" class="url-mode" hidden aria-hidden="true"></span>
-  <input id="url-input" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Search or enter an address, ssh://, vnc:// or rdp://">
-  <datalist id="url-history"></datalist>
+  <input id="url-input" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Search or enter an address, ssh://, vnc:// or rdp://" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="address-suggestions">
+
   <span id="route-pill" class="route-pill" title="Exit node route status"></span>
   <button id="url-go" class="icon-button text-button">Go</button>
 </div>
+<div id="address-suggestions" role="listbox" aria-label="Address and search history" hidden></div>
 <div id="nav-status" role="status" aria-live="polite" hidden>
   <span id="nav-status-spinner" class="nav-spinner" aria-hidden="true"></span>
   <span id="nav-status-text"></span>
@@ -273,6 +278,7 @@ window.fetch = (url, opts = {}) => {
 };
 </script>
 <script type="module">
+import { addressHistorySuggestions } from './address-history.js';
 import { Terminal } from './vendor/xterm.mjs';
 import { FitAddon } from './vendor/addon-fit.mjs';
 import { WebLinksAddon } from './vendor/addon-web-links.mjs';
@@ -541,7 +547,10 @@ function setTabLoading(tabId, loading) {
   if (!tabId) return;
   const had = loadingTabs.has(tabId);
   if (loading) loadingTabs.add(tabId); else loadingTabs.delete(tabId);
-  if (had !== loadingTabs.has(tabId)) renderTabs();
+  if (had !== loadingTabs.has(tabId)) {
+    const tab = state.tabs.find(t => t.id === tabId);
+    if (tab && !updateRenderedTab(tab, true)) renderTabs();
+  }
 }
 const URL_MODE_LABELS = { ssh: 'SSH', vnc: 'VNC', rdp: 'RDP', settings: 'CFG' };
 function updateURLMode(tab) {
@@ -585,11 +594,16 @@ window.wompratReportChrome = function() {
     if (!bar) return;
     const status = navStatusEl();
     const useStatus = status && !status.hidden;
-    const bottom = (useStatus ? status.getBoundingClientRect().bottom : bar.getBoundingClientRect().bottom);
+    const suggestions = document.getElementById('address-suggestions');
+    const baseBottom = Math.max(bar.getBoundingClientRect().bottom, useStatus ? status.getBoundingClientRect().bottom : 0);
+    const barBottom = bar.getBoundingClientRect().bottom;
+    document.documentElement.style.setProperty('--address-history-top', `${barBottom}px`);
+    if (suggestions) suggestions.style.maxHeight = `${Math.max(0, Math.min(160, 512 / (window.devicePixelRatio || 1) - barBottom, innerHeight - barBottom - 16))}px`;
+    const bottom = Math.max(baseBottom, suggestions && !suggestions.hidden ? suggestions.getBoundingClientRect().bottom : 0);
     // Keep shell panels below the visible status bar as well as native WebView
     // content. Otherwise the absolute panel overlays its action buttons and
     // intercepts clicks even though the buttons are visible.
-    document.documentElement.style.setProperty('--chrome-bottom', `${bottom}px`);
+    document.documentElement.style.setProperty('--chrome-bottom', `${baseBottom}px`);
     const px = Math.round(bottom * (window.devicePixelRatio || 1));
     if (px > 0 && window.womprat_setChromeHeight) window.womprat_setChromeHeight(px);
   } catch (err) { console.warn('chrome height report failed', err); }
@@ -827,25 +841,93 @@ function formatSSHURL(user, host, port) {
   const p = Number(port || 0);
   return p && p !== 22 ? `ssh://${u}@${h}:${p}` : `ssh://${u}@${h}`;
 }
-function refreshURLHistoryDatalist(extra = []) {
+let persistedAddressHistory = [];
+let historyRevision = 0;
+let historySaveQueue = Promise.resolve();
+async function loadPersistedAddressHistory() {
+  const revision = historyRevision;
   try {
-    const list = document.getElementById('url-history');
-    if (!list) return;
-    const urls = new Set(loadURLHistory());
-    for (const t of state.tabs || []) {
-      if ((t.type === 'browser' || t.type === 'vnc' || t.type === 'rdp') && t.url) urls.add(t.url);
-      if (t.type === 'terminal' && t.host) urls.add(formatSSHURL(t.user, t.host, t.port));
-    }
-    for (const u of extra || []) if (u) urls.add(u);
-    list.textContent = '';
-    [...urls].filter(isHistoryURL).slice(0, 100).forEach(u => {
-      const opt = document.createElement('option');
-      opt.value = u;
-      list.appendChild(opt);
-    });
-  } catch (err) {
-    console.warn('refreshURLHistoryDatalist failed', err);
+    const response = await fetch('/api/settings/browser/history');
+    if (!response.ok) return;
+    const saved = (await response.json()).history;
+    if (!Array.isArray(saved)) return;
+    persistedAddressHistory = revision === historyRevision ? saved : [...new Set([...persistedAddressHistory, ...saved])].slice(0,100);
+    refreshURLHistoryDatalist();
+  } catch (err) { console.warn('load address history failed', err); }
+}
+function saveAddressHistory(input) {
+  historyRevision++;
+  persistedAddressHistory = [input, ...persistedAddressHistory.filter(value => value !== input)].slice(0,100);
+  historySaveQueue = historySaveQueue.then(async () => {
+    const response = await fetch('/api/settings/browser/history', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({input})});
+    if (!response.ok) throw new Error(await response.text());
+  }).catch(err => console.warn('save address history failed', err));
+}
+let historySuggestionsEnabled = false;
+let historySuggestions = [];
+let selectedHistorySuggestion = -1;
+function hideAddressSuggestions() {
+  historySuggestionsEnabled = false;
+  const list = document.getElementById('address-suggestions');
+  const input = document.getElementById('url-input');
+  if (list) { list.hidden = true; list.replaceChildren(); }
+  input?.setAttribute('aria-expanded', 'false');
+  input?.removeAttribute('aria-activedescendant');
+  historySuggestions = [];
+  selectedHistorySuggestion = -1;
+  wompratReportChrome();
+}
+function refreshURLHistoryDatalist(extra = []) {
+  // Retain the call sites that refresh visited-address history, but render an
+  // accessible local list: native datalist popups are unreliable in WebView2.
+  const input = document.getElementById('url-input');
+  const list = document.getElementById('address-suggestions');
+  if (!input || !list || document.activeElement !== input || !historySuggestionsEnabled) return;
+  const values = [...persistedAddressHistory, ...loadURLHistory()];
+  for (const tab of state.tabs || []) {
+    if (tab.type === 'terminal' && tab.host) values.push(formatSSHURL(tab.user, tab.host, tab.port));
+    else if (isHistoryURL(tab.url)) values.push(tab.url);
   }
+  values.push(...extra);
+  historySuggestions = addressHistorySuggestions(input.value, values);
+  selectedHistorySuggestion = -1;
+  list.replaceChildren();
+  historySuggestions.forEach((value, index) => {
+    const item = document.createElement('button');
+    item.type = 'button'; item.className = 'address-suggestion';
+    item.id = `address-suggestion-${index}`;
+    item.setAttribute('role', 'option'); item.setAttribute('aria-selected', 'false');
+    item.tabIndex = -1; item.textContent = value; item.title = value;
+    item.addEventListener('pointerdown', event => event.preventDefault());
+    item.addEventListener('click', () => acceptAddressSuggestion(index));
+    list.appendChild(item);
+  });
+  list.hidden = historySuggestions.length === 0;
+  input.setAttribute('aria-expanded', String(!list.hidden));
+  input.removeAttribute('aria-activedescendant');
+  wompratReportChrome();
+}
+function acceptAddressSuggestion(index) {
+  const value = historySuggestions[index];
+  if (!value) return;
+  const input = document.getElementById('url-input');
+  input.value = value;
+  hideAddressSuggestions();
+  // Selecting a history result is intentional, even just after the same search.
+  lastURLBarNavigation = { url: '', at: 0 };
+  window.navigateFromBar();
+}
+function selectAddressSuggestion(direction) {
+  historySuggestionsEnabled = true;
+  if (!historySuggestions.length) refreshURLHistoryDatalist();
+  if (!historySuggestions.length) return false;
+  selectedHistorySuggestion = selectedHistorySuggestion < 0
+    ? (direction > 0 ? 0 : historySuggestions.length - 1)
+    : (selectedHistorySuggestion + direction + historySuggestions.length) % historySuggestions.length;
+  const list = document.getElementById('address-suggestions');
+  for (let i = 0; i < list.children.length; i++) list.children[i].setAttribute('aria-selected', String(i === selectedHistorySuggestion));
+  document.getElementById('url-input')?.setAttribute('aria-activedescendant', `address-suggestion-${selectedHistorySuggestion}`);
+  return true;
 }
 async function updateNetworkIndicator() {
   const pill = document.getElementById('route-pill');
@@ -898,6 +980,7 @@ async function hydrateShellAfterAuth() {
   if (shellHydrated) return;
   shellHydrated = true;
   await loadTerminalAppearance();
+  await loadPersistedAddressHistory();
   await loadRecentTabs();
   await hydrateNativeTabs();
 }
@@ -1355,25 +1438,41 @@ function tabIconElement(tab) {
   return slot;
 }
 
+function tabIconState(tab) {
+  return `${tab.type}|${loadingTabs.has(tab.id)}|${sanitizeFaviconURL(tab.favicon)}`;
+}
 function updateRenderedTab(tab, refreshIcon = false) {
   if (!tab || !validTabID(tab.id)) return false;
   const el = document.querySelector(`#tab-list .tab[data-tab-id="${CSS.escape(tab.id)}"]`);
   if (!el) return false;
   const title = el.querySelector('.tab-title');
   if (title && title.textContent !== (tab.title || '')) title.textContent = tab.title || '';
-  if (refreshIcon) el.querySelector('.tab-icon-slot')?.replaceWith(tabIconElement(tab));
+  if (refreshIcon) {
+    el.querySelector('.tab-icon-slot')?.replaceWith(tabIconElement(tab));
+    el.dataset.iconState = tabIconState(tab);
+  }
   return true;
 }
 
 function renderTabs() {
   const list = document.getElementById('tab-list');
   if (!list) return;
-  list.textContent = '';
-  state.tabs.forEach(tab => {
+  const existing = new Map(Array.from(list.children).map(el => [el.dataset.tabId, el]));
+  state.tabs.forEach((tab, index) => {
+    const current = existing.get(tab.id);
+    if (current) {
+      existing.delete(tab.id);
+      current.classList.toggle('active', tab.id === state.activeTab);
+      const iconChanged = current.dataset.iconState !== tabIconState(tab);
+      updateRenderedTab(tab, iconChanged);
+      if (list.children[index] !== current) list.insertBefore(current, list.children[index] || null);
+      return;
+    }
     const el = document.createElement('div');
     el.className = `tab${tab.id === state.activeTab ? ' active' : ''}`;
     el.draggable = true;
     el.dataset.tabId = tab.id;
+    el.dataset.iconState = tabIconState(tab);
     el.onclick = (e) => {
       if (e.target?.closest?.('.tab-close')) return;
       activateTab(tab.id);
@@ -1426,8 +1525,9 @@ function renderTabs() {
     close.addEventListener('dblclick', stopCloseEvent, true);
     close.addEventListener('click', closeFromEvent, true);
     el.appendChild(close);
-    list.appendChild(el);
+    list.insertBefore(el, list.children[index] || null);
   });
+  for (const el of existing.values()) el.remove();
 }
 
 function clearTabDropIndicators() {
@@ -1519,6 +1619,7 @@ function activateTab(id, options = {}) {
   // when moving to a different tab so it never lingers over an unrelated page.
   if (navStatusState.tabId && navStatusState.tabId !== id) clearNavStatus();
   state.activeTab = id;
+  hideAddressSuggestions();
   restoreCertificateBanner(id);
   if (!options.skipNative && window.womprat_switchTab) { try { window.womprat_switchTab(id); } catch (err) { console.warn('native tab switch failed', err); } }
 
@@ -1747,11 +1848,19 @@ function installShellControlHandlers() {
   document.getElementById('nav-status-settings')?.addEventListener('click', () => openSettings());
   document.getElementById('nav-status-dismiss')?.addEventListener('click', () => clearNavStatus());
   document.getElementById('url-input')?.addEventListener('keydown', (event) => {
+    if (event.isComposing || event.keyCode === 229) return;
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault(); event.stopPropagation();
+      selectAddressSuggestion(event.key === 'ArrowDown' ? 1 : -1);
+      return;
+    }
+    if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); hideAddressSuggestions(); return; }
     if (event.key !== 'Enter') return;
     event.preventDefault();
     event.stopPropagation();
     if (event.repeat) return;
-    window.navigateFromBar();
+    if (selectedHistorySuggestion >= 0) acceptAddressSuggestion(selectedHistorySuggestion);
+    else window.navigateFromBar();
   });
   // Address-bar select-all: a single click anywhere in the field selects the
   // whole URL (like Chrome/Edge), so it can be replaced or copied immediately.
@@ -1759,8 +1868,10 @@ function installShellControlHandlers() {
   // collapse the selection to a caret. Subsequent clicks/drags behave normally.
   const urlInput = document.getElementById('url-input');
   if (urlInput) {
+    urlInput.addEventListener('input', () => { historySuggestionsEnabled = true; refreshURLHistoryDatalist(); });
+    urlInput.addEventListener('blur', () => hideAddressSuggestions());
     let selectAllPending = false;
-    urlInput.addEventListener('focus', () => { selectAllPending = true; });
+    urlInput.addEventListener('focus', () => { selectAllPending = true; historySuggestionsEnabled = true; refreshURLHistoryDatalist(); });
     urlInput.addEventListener('mousedown', () => {
       // If already focused, let the click place the caret / start a drag.
       if (document.activeElement === urlInput) selectAllPending = false;
@@ -1823,6 +1934,7 @@ window.navigateFromBar = async function() {
   const input = document.getElementById('url-input');
   const raw = input?.value.trim() || '';
   if (!raw) return;
+  hideAddressSuggestions();
   const now = performance.now();
   // Only collapse a genuine double-dispatch (e.g. Enter immediately followed by
   // a Go-button click). Intentional re-entry of the same URL — retrying a failed
@@ -1842,6 +1954,7 @@ window.navigateFromBar = async function() {
     return;
   }
   if (lastURLBarNavigation !== submission || state.activeTab !== activeAtSubmission) return;
+  saveAddressHistory(raw);
   if (input) input.value = url;
   clearNavStatus();
   // The URL bar behaves like a real browser address bar: if the active tab is a
@@ -1888,6 +2001,9 @@ window.wompratSyncTabURL = function(tabId, url) {
 
 installShellControlHandlers();
 installBrowserHotkeys();
+// Load local history through the authenticated settings API even in a fresh
+// shell that has not configured a Tailscale key yet.
+loadPersistedAddressHistory();
 
 window.navigateTab = function(id) {
   // Legacy entrypoint kept for old handlers; route through persistent URL bar.

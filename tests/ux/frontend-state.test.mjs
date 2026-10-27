@@ -59,7 +59,7 @@ test('blank-tab navigation registers native state before navigating', async () =
   const events = [];
   const input = { value: 'example.com' };
   const active = { id:'blank', type:'browser', url:'about:blank' };
-  const fn = Function('window','document','performance','clearNavStatus','activeTabObj','openSpecialURLPreview','isBlankBrowserTab','registerLocalTab','openBrowser','state','fetch','applyNavStatus',`let lastURLBarNavigation={url:'',at:0};${source.slice(begin,end)}; return window.navigateFromBar`)(
+  const fn = Function('window','document','performance','clearNavStatus','activeTabObj','openSpecialURLPreview','isBlankBrowserTab','registerLocalTab','openBrowser','state','fetch','applyNavStatus',`const hideAddressSuggestions=()=>{},saveAddressHistory=()=>{};let lastURLBarNavigation={url:'',at:0};${source.slice(begin,end)}; return window.navigateFromBar`)(
     { womprat_navigate: async url => events.push(`navigate:${url}`) },
     { getElementById: () => input }, { now: () => 1000 }, () => {}, () => active, () => false,
     () => true, async () => events.push('register'), () => events.push('open'), {activeTab:'blank'},
@@ -75,7 +75,7 @@ test('address resolution cannot navigate a superseded submission or different ta
   const state={activeTab:'a'}, input={value:'first search'};
   let tick=1000;
   const window={womprat_navigate:async target=>navigated.push(target)};
-  const fn=Function('window','state','document','performance','fetch','applyNavStatus','clearNavStatus','activeTabObj','openSpecialURLPreview','isBlankBrowserTab','registerLocalTab','openBrowser',`let lastURLBarNavigation={url:'',at:0};${source.slice(begin,end)};return window.navigateFromBar`)(
+  const fn=Function('window','state','document','performance','fetch','applyNavStatus','clearNavStatus','activeTabObj','openSpecialURLPreview','isBlankBrowserTab','registerLocalTab','openBrowser',`const hideAddressSuggestions=()=>{},saveAddressHistory=()=>{};let lastURLBarNavigation={url:'',at:0};${source.slice(begin,end)};return window.navigateFromBar`)(
     window,state,{getElementById:()=>input},{now:()=>tick+=200},
     ()=>new Promise(resolve=>requests.push(resolve)),()=>{},()=>{},()=>({id:'a',type:'browser'}),()=>false,()=>false,async()=>{},()=>{});
   const first=fn();input.value='second search';const second=fn();
@@ -160,12 +160,24 @@ test('restored exit-node routing remains visible without a configured name',()=>
   return update().then(()=>{expect(pill.textContent).toBe('Exit node');expect(pill.title).toContain('restored by Tailscale')});
 });
 
+test('late history hydration does not overwrite input submitted while loading', async () => {
+  const begin = source.indexOf('let persistedAddressHistory = []');
+  const end = source.indexOf('let historySuggestionsEnabled', begin);
+  let finishLoad;
+  const fetch = async (_url,options) => options ? {ok:true} : await new Promise(resolve=>finishLoad=resolve);
+  const helpers=Function('fetch','refreshURLHistoryDatalist',`${source.slice(begin,end)};return {loadPersistedAddressHistory,saveAddressHistory,history:()=>persistedAddressHistory};`)(fetch,()=>{});
+  const load=helpers.loadPersistedAddressHistory();
+  helpers.saveAddressHistory('new search');
+  finishLoad({ok:true,json:async()=>({history:['old search']})});await load;
+  expect(helpers.history()).toEqual(['new search','old search']);
+});
+
 test('post-auth hydration loads appearance before tabs exactly once', async () => {
   const begin = source.indexOf('let shellHydrated = false;');
   const end = source.indexOf('async function checkAuth()', begin);
   const events = [];
-  const hydrate = Function('loadTerminalAppearance','loadRecentTabs','hydrateNativeTabs',`${source.slice(begin,end)}; return hydrateShellAfterAuth`)(
-    async () => events.push('appearance'), async () => events.push('recent'), async () => events.push('tabs'));
+  const hydrate = Function('loadTerminalAppearance','loadRecentTabs','hydrateNativeTabs','loadPersistedAddressHistory',`${source.slice(begin,end)}; return hydrateShellAfterAuth`)(
+    async () => events.push('appearance'), async () => events.push('recent'), async () => events.push('tabs'), async () => events.push('history'));
   await Promise.all([hydrate(), hydrate()]);
-  expect(events).toEqual(['appearance','recent','tabs']);
+  expect(events).toEqual(['appearance','history','recent','tabs']);
 });

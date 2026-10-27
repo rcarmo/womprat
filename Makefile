@@ -27,7 +27,7 @@ SHELL := $(CURDIR)/scripts/make-shell.sh
 # Paths/environment are enforced by scripts/paths.sh for every recipe.
 # Profiles are transient run data; retain only analysed conclusions in evidence/.
 APP       := womprat
-VERSION   ?= 0.4.4
+VERSION   ?= 0.4.5
 COMMIT    ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo dev)
 GO        ?= go
 BUN       ?= bun
@@ -149,7 +149,7 @@ compile-windows: resources ## Compile Windows arm64 and amd64 in isolated source
 
 .PHONY: frontend-test
 frontend-test: ## Run server-independent frontend and portable-path regressions
-	$(BUN_PROFILE) frontend test tests/ux/certificate-banner.test.mjs tests/ux/paths.test.mjs tests/ux/rdp-resize.test.mjs tests/ux/terminal-controls.test.mjs tests/ux/frontend-state.test.mjs tests/ux/vnc-lifecycle.test.mjs
+	$(BUN_PROFILE) frontend test tests/ux/address-history.test.mjs tests/ux/certificate-banner.test.mjs tests/ux/paths.test.mjs tests/ux/rdp-resize.test.mjs tests/ux/terminal-controls.test.mjs tests/ux/frontend-state.test.mjs tests/ux/vnc-lifecycle.test.mjs
 
 verify: frontend-check frontend-test test vet compile-windows ## Run all non-interactive checks
 

@@ -51,7 +51,7 @@ func TestSearchRoutesRequireAuthAndRejectUnsafeAddress(t *testing.T) {
 	app := newTestApp(t)
 	mux := http.NewServeMux()
 	app.registerBrowserRoutes(mux)
-	for _, path := range []string{"/api/settings/browser/search", "/api/settings/browser/resolve-address"} {
+	for _, path := range []string{"/api/settings/browser/search", "/api/settings/browser/resolve-address", "/api/settings/browser/history"} {
 		r := httptest.NewRequest("POST", path, strings.NewReader(`{"input":"hello","searchProvider":"google"}`))
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, r)
