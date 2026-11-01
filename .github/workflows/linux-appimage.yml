@@ -26,7 +26,10 @@ defaults:
 jobs:
   linux-appimage:
     name: Browser parity and Fedora 44 AppImage
-    runs-on: ubuntu-24.04
+    # Fedora WebKit's user-namespace sandbox must work as an ordinary UID.
+    # Ubuntu 24.04 host policy blocks UID maps inside the disposable container;
+    # use 22.04 without changing host sysctls or disabling the WebKit sandbox.
+    runs-on: ubuntu-22.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
