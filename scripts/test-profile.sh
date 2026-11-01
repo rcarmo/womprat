@@ -10,7 +10,10 @@ mkdir -p "$WOMPRAT_RUN_DIR/profiles"
 evidence=$(mktemp -d "$WOMPRAT_RUN_DIR/profiles/$label-$(date -u +%Y%m%dT%H%M%S)-XXXXXX")
 printf '%s\n' "$evidence" > "$WOMPRAT_RUN_DIR/latest-evidence"
 cd "$module"
-{ git -C "$WOMPRAT_REPO" rev-parse HEAD; git -C "$WOMPRAT_REPO" diff --stat; go version; go env GOOS GOARCH GOCACHE GOMODCACHE GOTMPDIR; printf 'CPU=100Hz; memory=1 byte; package pattern=%s\n' "$packages"; printf 'go test %q ' "$@"; echo; } > "$evidence/metadata.txt"
+{ if git -C "$WOMPRAT_REPO" rev-parse HEAD 2>/dev/null; then git -C "$WOMPRAT_REPO" diff --stat; else
+    [[ ${WOMPRAT_SOURCE_COMMIT:-} =~ ^[a-f0-9]{7,40}$ ]] || { echo 'Missing source revision for staged profile workload' >&2; exit 1; }
+    printf 'Staged source revision: %s\n' "$WOMPRAT_SOURCE_COMMIT"
+  fi; go version; go env GOOS GOARCH GOCACHE GOMODCACHE GOTMPDIR; printf 'CPU=100Hz; memory=1 byte; package pattern=%s\n' "$packages"; printf 'go test %q ' "$@"; echo; } > "$evidence/metadata.txt"
 # Respect build tags during package discovery. No test execution occurs here.
 list_flags=()
 for arg in "$@"; do [[ $arg != -tags=* ]] || list_flags+=("$arg"); done

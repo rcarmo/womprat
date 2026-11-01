@@ -1,12 +1,12 @@
 # Linux AppImage acceptance
 
-Linux AppImage CI is wired into main pushes, pull requests, manual validation and the release workflow. It currently fails at `make linux-release-check`: the Linux browser host and its acceptance hooks have not been implemented. The existing `webkitgui` target navigates one WebView and replaces the shell; it cannot produce an accepted AppImage.
+Linux AppImage CI is wired into main pushes, pull requests, manual validation and the release workflow. The GTK/WebKitGTK 4.1 host now keeps the shell and browser views separate. Native fixtures cover create/switch/close/reorder, popup/link navigation, back, managed HttpOnly-cookie downloads, TLS consent and cookie deletion. AppImage hooks build on Debian 12, audit dependencies without host GTK/WebKit, and run normal-user Fedora 44 acceptance. `make linux-release-check` checks hook presence only. Full release acceptance is still incomplete: normal-user sandbox startup is blocked on the development host by UID namespace permissions; packaged runtime and CPU/allocation analysis must pass in CI.
 
 Windows jobs remain independent. A failed Linux gate makes the overall release run fail and withholds Linux assets; Windows publication can still finish. Existing releases and tags are unchanged.
 
 ## Build and acceptance hooks
 
-`make linux-appimage VERSION=<version> COMMIT=<sha>` runs `scripts/linux-release.sh`. The browser port must implement these checked-in hooks before the gate can advance:
+`make linux-appimage VERSION=<version> COMMIT=<sha>` runs `scripts/linux-release.sh`. The checked-in hooks implement these steps:
 
 | Hook | Invocation | Required behaviour |
 | --- | --- | --- |
@@ -36,6 +36,8 @@ A real device/tailnet check may require separate operator approval. Synthetic ro
 All hooks source `scripts/paths.sh` or inherit its resolved configuration. CI chooses `$RUNNER_TEMP/womprat`; local runs normally use `/workspace/tmp/womprat`. Build and test staging is below `runs/<purpose>/<run-id>/linux-release-*/`, with outputs in `build/dist` only after acceptance. Container source staging, package-manager caches and temporary display sockets use project-owned mounts; no source/evidence mutations or host `/tmp` display sockets.
 
 Acceptance captures CPU and allocation behaviour of the Go backend and relevant GUI/browser processes. Inspect cumulative CPU, `alloc_space` and `alloc_objects` for Go, investigate measured outliers and remeasure equivalent workloads. Report missing/sparse captures and subprocess boundaries. A screenshot or headless Go test is insufficient.
+
+The native acceptance runner captures Go CPU/heap, heaptrack allocations and inherited perf CPU samples. Perf/heaptrack failure or missing captures fail acceptance. Capture boundaries, WebKit sandbox/preload interaction and equivalent-workload outliers require analysis before release completion.
 
 Transient `linux-appimage-profiles` artifacts have one-day retention for current analysis. Analyse promptly, retain concise conclusions and delete remote artifacts and matching local profiles/binaries/logs immediately after use. Failed/probe scratch follows the same rule. Never include profiles in published release assets.
 

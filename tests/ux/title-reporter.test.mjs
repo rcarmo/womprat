@@ -3,7 +3,7 @@ import { chromium } from 'playwright';
 import { profilePage } from './profile.mjs';
 import { readFileSync } from 'node:fs';
 
-const source = readFileSync(new URL('../../cmd/womprat/native_content_windows.go', import.meta.url), 'utf8');
+const source = readFileSync(new URL('../../cmd/womprat/browser_bridge.go', import.meta.url), 'utf8');
 const script = source.split('const browserTitleReporterJS = `')[1]?.split('`\n\nfunc parseTitleMessage')[0];
 if (!script) throw new Error('browser title reporter script missing');
 

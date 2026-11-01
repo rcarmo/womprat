@@ -7,12 +7,10 @@ const release = readFileSync('.github/workflows/release.yml', 'utf8');
 const linux = readFileSync('.github/workflows/linux-appimage.yml', 'utf8');
 const script = readFileSync('scripts/linux-release.sh', 'utf8');
 
-test('current Linux release preflight refuses the unimplemented browser port', () => {
+test('Linux release preflight finds checked-in hooks but does not perform acceptance', () => {
   const result = spawnSync('bash', ['scripts/linux-release.sh', '--check'], { encoding: 'utf8' });
-  expect(result.status).toBe(1);
-  expect(result.stderr).toContain('Linux AppImage blocked');
-  expect(result.stderr).toContain('tests/linux/browser-parity.mjs');
-  expect(result.stderr).toContain('tests/linux/fedora-appimage.sh');
+  expect(result.status).toBe(0);
+  expect(result.stdout).toBe('');
 });
 
 test('hook symlinks and missing hooks cannot enable preflight', () => {

@@ -213,18 +213,14 @@ ux-setup: ## Install project-local browser dependencies and cached Chromium
 linux-debug: linux ## Build Linux binary and launch the Xvfb/xdotool debug harness
 	WOMPRAT_BIN=$(BIN_LINUX) bash scripts/linux-debug.sh
 
-linux-gui: | $(DIST_DIR) $(TMP_DIR) ## Build the development WebKitGTK shell (not browser-parity complete)
-	@mkdir -p $(TMP_DIR)/pcshim
-	@printf 'Name: webkit2gtk-4.0 (shim)\nDescription: shim -> 4.1\nVersion: 0\nRequires: webkit2gtk-4.1\n' > $(TMP_DIR)/pcshim/webkit2gtk-4.0.pc
-	CGO_ENABLED=1 PKG_CONFIG=pkg-config \
-		PKG_CONFIG_PATH="$(TMP_DIR)/pcshim$${PKG_CONFIG_PATH:+:$$PKG_CONFIG_PATH}" \
-		GOOS=linux GOARCH=amd64 GOAMD64=v1 $(GO) build -tags webkitgui -ldflags="$(LDFLAGS)" -o $(DIST_DIR)/$(APP)-linux-gui ./$(CMD_DIR)
+linux-gui: | $(DIST_DIR) ## Build native GTK/WebKitGTK 4.1 browser-tab host
+	CGO_ENABLED=1 GOOS=linux GOARCH=amd64 GOAMD64=v1 $(GO) build -tags webkitgui -ldflags="$(LDFLAGS)" -o $(DIST_DIR)/$(APP)-linux-gui ./$(CMD_DIR)
 	@ls -lh $(DIST_DIR)/$(APP)-linux-gui
 
 linux-release-check: ## Refuse Linux release until packaging and parity/Fedora test hooks exist
 	bash scripts/linux-release.sh --check
 
-linux-appimage: ## Build, parity-test and Fedora-44-test a release AppImage (currently blocked)
+linux-appimage: ## Build and require parity/Fedora-44 acceptance before publishing assets
 	VERSION='$(VERSION)' COMMIT='$(COMMIT)' bash scripts/linux-release.sh
 
 darwin: | $(DIST_DIR) ## Build Darwin ARM64 binary (for compile sanity only; app runtime is Windows-focused)

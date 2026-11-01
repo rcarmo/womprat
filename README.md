@@ -277,7 +277,7 @@ make ux-test
 
 The release workflow executes the WebView2 COM regression tests on a Windows runner before it builds and publishes Windows ARM64 and AMD64 binaries.
 
-Linux AppImage acceptance also runs on main pushes, pull requests and releases. It is currently blocked by the missing Linux browser host and parity/Fedora 44 test hooks. `make linux-appimage` refuses to package the single-WebView development shim. Once implemented, Linux acceptance must pass before an AppImage and separate Linux checksums can be added to a release. Windows jobs remain independent. See [Linux AppImage CI contracts](docs/linux-appimage-ci.md).
+Linux AppImage acceptance also runs on main pushes, pull requests and releases. The native GTK/WebKitGTK 4.1 host keeps the shell separate from browser content tabs and uses Womprat's tailnet proxy for browsing. `make linux-gui` builds that host; `make linux-appimage` packages it and requires Fedora 44 acceptance before staging release assets. Normal-user sandbox checks, exact-package network canaries and profile analysis must pass before release. An AppImage is not yet accepted or published. Windows jobs remain independent. See [Linux AppImage CI contracts](docs/linux-appimage-ci.md).
 
 ## Repository layout
 

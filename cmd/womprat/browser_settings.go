@@ -58,11 +58,27 @@ func (a *App) handleBrowserData(w http.ResponseWriter, r *http.Request) {
 		Cookies:        listCookieDomains(),
 		Passwords:      listSavedPasswords(),
 	}
+	if a.linuxCookieDomains != nil {
+		cookies, err := a.linuxCookieDomains()
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		data.Cookies = cookies
+	}
 	writeJSON(w, http.StatusOK, data)
 }
 
 func (a *App) handleClearCache(w http.ResponseWriter, r *http.Request) {
 	if !requirePOST(w, r) {
+		return
+	}
+	if a.clearLinuxBrowserData != nil {
+		if err := a.clearLinuxBrowserData(0, ""); err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 		return
 	}
 	// WebView2 cache is in the DataPath directory
@@ -90,6 +106,14 @@ func (a *App) handleClearCookies(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if a.clearLinuxBrowserData != nil {
+		if err := a.clearLinuxBrowserData(1, body.Domain); err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+		return
+	}
 	if body.Domain != "" {
 		// Clear cookies for specific domain
 		if err := deleteCookiesForDomain(body.Domain); err != nil {
@@ -139,6 +163,14 @@ func (a *App) handleClearPasswords(w http.ResponseWriter, r *http.Request) {
 
 func (a *App) handleClearAll(w http.ResponseWriter, r *http.Request) {
 	if !requirePOST(w, r) {
+		return
+	}
+	if a.clearLinuxBrowserData != nil {
+		if err := a.clearLinuxBrowserData(2, ""); err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 		return
 	}
 	// Nuclear option: remove browser-local cache/cookies/password stores.

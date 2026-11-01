@@ -8,7 +8,7 @@ import (
 )
 
 func TestBrowserURLBarSyncsFragmentNavigations(t *testing.T) {
-	native := readFileForRegression(t, "native_content_windows.go")
+	native := readFileForRegression(t, "browser_bridge.go") + readFileForRegression(t, "native_content_windows.go")
 	// The in-page bridge must report the live URL on same-document navigations
 	// (fragment/hash and SPA pushState/popstate), which do not fire
 	// NavigationCompleted.
@@ -1190,7 +1190,7 @@ func TestURLBarNavigatesInPlaceAndSyncsLiveURL(t *testing.T) {
 
 func TestBrowserUXAuditFixesArePresent(t *testing.T) {
 	s := readFileForRegression(t, "frontend/index.html")
-	native := readFileForRegression(t, "native_content_windows.go")
+	native := readFileForRegression(t, "native_content_windows.go") + readFileForRegression(t, "browser_bridge.go")
 	chromium := readFileForRegression(t, "../../internal/go-webview2/pkg/edge/chromium.go")
 	gui := readFileForRegression(t, "gui_windows.go")
 	linuxGUI := readFileForRegression(t, "gui_linux.go")
@@ -1211,7 +1211,7 @@ func TestBrowserUXAuditFixesArePresent(t *testing.T) {
 	if !strings.Contains(native, "v.edge.Reload()") || strings.Contains(native, `v.edge.Eval("location.reload()")`) {
 		t.Fatal("browser reload must use native WebView2 reload")
 	}
-	if !strings.Contains(linuxGUI, `func(tabID, beforeID string) { app.reorderTab(tabID, beforeID) }`) {
+	if !strings.Contains(linuxGUI, `m.app.reorderTab(arg(0), arg(1))`) {
 		t.Fatal("Linux reorder binding must use the same id-relative contract")
 	}
 	for _, want := range []string{
@@ -1538,7 +1538,7 @@ func TestShellHasNoEmptyCatchBlocks(t *testing.T) {
 }
 
 func TestNativeWebViewBridgeHasNoEmptyCatchBlocks(t *testing.T) {
-	s := readFileForRegression(t, "native_content_windows.go")
+	s := readFileForRegression(t, "browser_bridge.go")
 	for _, forbidden := range []string{"catch(e){}", "catch (e) {}"} {
 		if strings.Contains(s, forbidden) {
 			t.Fatalf("native WebView bridge must not contain empty catch block %q", forbidden)

@@ -543,6 +543,7 @@ window.wompratSetNavState = function(tabId, canBack, canForward) {
   navAvailability = { tabId, back: !!canBack, forward: !!canForward };
   if (tabId === state.activeTab) updateNavButtonsUI();
 };
+window.setTabLoading = setTabLoading;
 function setTabLoading(tabId, loading) {
   if (!tabId) return;
   const had = loadingTabs.has(tabId);
@@ -1612,6 +1613,7 @@ function installRDPPanelState(root) {
   sync();
 }
 
+window.activateTab = activateTab;
 function activateTab(id, options = {}) {
   const tab = state.tabs.find(t => t.id === id);
   if (!tab) return;

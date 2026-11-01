@@ -100,39 +100,41 @@ type browserContentManager interface {
 }
 
 type App struct {
-	configSaveMu      sync.Mutex // acquire before mu for snapshot/save/commit
-	tsStartMu         sync.Mutex // serialize tsnet startup and replacement
-	tsRetryMu         sync.Mutex
-	tsRetrying        bool
-	tsRetryCancel     context.CancelFunc
-	tsRetryDone       chan struct{}
-	tsRetryInterval   time.Duration
-	exitRetryMu       sync.Mutex
-	exitRetryCancel   context.CancelFunc
-	exitRetryDone     chan struct{}
-	exitRetryInterval time.Duration
-	tsRetryStart      func(context.Context) error
-	exitNodeApply     func(context.Context, string) error
-	exitNodeState     func(context.Context) (bool, error)
-	mu                sync.Mutex
-	config            *AppConfig
-	tsServer          *tsnet.Server
-	tsLastError       string
-	exitNodeActive    bool
-	tabs              []Tab
-	activeTab         string
-	sshConns          map[string]*ssh.Client
-	pendingAuth       map[string]*pendingSSH
-	sessionToken      string
-	locked            bool
-	webview           shellWebView
-	contentViews      browserContentManager
-	downloadTicketMu  sync.Mutex
-	downloadTickets   map[string]downloadTicket
-	dispatch          func(func())
-	serverPort        int
-	lastCloseAt       time.Time
-	lastCloseTab      string
+	configSaveMu          sync.Mutex // acquire before mu for snapshot/save/commit
+	tsStartMu             sync.Mutex // serialize tsnet startup and replacement
+	tsRetryMu             sync.Mutex
+	tsRetrying            bool
+	tsRetryCancel         context.CancelFunc
+	tsRetryDone           chan struct{}
+	tsRetryInterval       time.Duration
+	exitRetryMu           sync.Mutex
+	exitRetryCancel       context.CancelFunc
+	exitRetryDone         chan struct{}
+	exitRetryInterval     time.Duration
+	tsRetryStart          func(context.Context) error
+	exitNodeApply         func(context.Context, string) error
+	exitNodeState         func(context.Context) (bool, error)
+	mu                    sync.Mutex
+	config                *AppConfig
+	tsServer              *tsnet.Server
+	tsLastError           string
+	exitNodeActive        bool
+	tabs                  []Tab
+	activeTab             string
+	sshConns              map[string]*ssh.Client
+	pendingAuth           map[string]*pendingSSH
+	sessionToken          string
+	locked                bool
+	webview               shellWebView
+	contentViews          browserContentManager
+	clearLinuxBrowserData func(int, string) error
+	linuxCookieDomains    func() ([]CookieDomain, error)
+	downloadTicketMu      sync.Mutex
+	downloadTickets       map[string]downloadTicket
+	dispatch              func(func())
+	serverPort            int
+	lastCloseAt           time.Time
+	lastCloseTab          string
 }
 
 func main() {
@@ -1170,7 +1172,13 @@ func (a *App) serveFrontend(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		// Internal shell pages may frame only other local shell pages (settings).
 		// External web content must be direct WebView navigation, never iframe.
-		w.Header().Set("Content-Security-Policy", "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; connect-src 'self' ws: http://127.0.0.1:*; frame-src 'self' http://127.0.0.1:*; img-src 'self' data: blob: http: https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'unsafe-eval'")
+		csp := "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; connect-src 'self' ws: http://127.0.0.1:*; frame-src 'self' http://127.0.0.1:*; img-src 'self' data: blob: http: https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'unsafe-eval'"
+		if runtime.GOOS == "linux" {
+			// Shell networking is direct loopback. Do not fetch remote favicons or
+			// resources outside the isolated content proxy.
+			csp = fmt.Sprintf("default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; connect-src 'self' ws://127.0.0.1:%d; frame-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'unsafe-eval'", a.serverPort)
+		}
+		w.Header().Set("Content-Security-Policy", csp)
 		content := strings.Replace(string(data), "</head>",
 			fmt.Sprintf(`<script>window.__SESSION_TOKEN="%s";window.__PORT=%d;</script></head>`, a.sessionToken, a.serverPort), 1)
 		w.Write([]byte(content))
