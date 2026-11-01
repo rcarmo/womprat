@@ -12,11 +12,11 @@ mkdir -p "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$profiles"
 # Deliberately set the debug env override: shipping build must ignore it.
 WOMPRAT_DIRECT=1 APPIMAGE_EXTRACT_AND_RUN=1 dbus-run-session -- "$image" > "$WOMPRAT_RUN_DIR/release-gui.log" 2>&1 &
 pid=$!
-cleanup(){ kill "$pid" 2>/dev/null||true;wait "$pid" 2>/dev/null||true;}
+cleanup(){ local status=$?;if [[ $status != 0 ]];then for log in "$WOMPRAT_RUN_DIR"/{release,fixture,heap,cpu}-gui.log;do [[ ! -f $log ]]||tail -60 "$log" >&2;done;fi;kill "$pid" 2>/dev/null||true;wait "$pid" 2>/dev/null||true;}
 trap cleanup EXIT INT TERM
 for _ in $(seq 1 100);do grep -q '^WOMPRAT_SHELL_URL=' "$WOMPRAT_RUN_DIR/release-gui.log" && break;sleep .1;done
 # Validate release renders a native window and embedded authenticated UI.
-xdotool search --name Womprat >/dev/null
+xdotool search --name Womprat >/dev/null || { cat "$WOMPRAT_RUN_DIR/release-gui.log" >&2;exit 1; }
 bun tests/linux/release-smoke.mjs "$WOMPRAT_RUN_DIR/release-gui.log"
 # Close via the window manager path, not SIGKILL.
 window=$(xdotool search --name Womprat | tail -1)

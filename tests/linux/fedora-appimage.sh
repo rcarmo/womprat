@@ -19,7 +19,17 @@ mkdir -p "$stage/tmp" "$stage/home" "$stage/source" "$profiles"
 chmod 1777 "$stage/tmp"
 tar --exclude=.git --exclude=evidence --exclude=dist --exclude=.tmp --exclude=coverage.out --exclude=./womprat --exclude='*.exe' --exclude='*.syso' --exclude=node_modules -cf - . | tar -xf - -C "$stage/source"
 name="womprat-fedora-$(basename "$stage")"
-cleanup(){ docker rm -f "$name" >/dev/null 2>&1||true; }
+step='container setup'
+cleanup(){
+  local status=$?
+  if [[ $status != 0 ]];then
+    printf 'Fedora acceptance failed at %s (exit %s)\n' "$step" "$status" >&2
+    for log in "$stage"/{install,build-deps,xvfb,release-gui,fixture-gui,heap-gui,cpu-gui}.log;do
+      if [[ -f $log ]];then printf '\n=== %s ===\n' "$(basename "$log")" >&2;tail -60 "$log" >&2;fi
+    done
+  fi
+  docker rm -f "$name" >/dev/null 2>&1||true
+}
 trap cleanup EXIT INT TERM
 # User namespaces inside WebKit's bubblewrap sandbox need namespace capability
 # in the outer disposable container. The GUI itself runs as an ordinary user.
@@ -31,7 +41,9 @@ docker run --detach --name "$name" --privileged \
  --env PROJECT_TMP_ROOT="$WOMPRAT_TMP_ROOT" --env WOMPRAT_RUN_DIR="$stage" \
  --env HOME="$stage/home" --env WOMPRAT_SOURCE_COMMIT="$(git rev-parse HEAD)" --env PATH="$(go env GOROOT)/bin:/usr/local/bin:/usr/bin:/bin" \
  registry.fedoraproject.org/fedora:44 sleep infinity >/dev/null
+step='Fedora runtime dependency installation'
 docker exec "$name" bash -c 'dnf install -y --setopt=cachedir="$WOMPRAT_RUN_DIR/dnf-cache" --setopt=logdir="$WOMPRAT_RUN_DIR/dnf-logs" xorg-x11-server-Xvfb xdotool dbus-x11 bubblewrap xdg-dbus-proxy libX11 libXext libXrender libXrandr libXcursor libXi libXfixes libXinerama libstdc++ libgcc fontconfig freetype dejavu-sans-fonts mesa-libGL mesa-libEGL procps-ng curl' > "$stage/install.log" 2>&1
+step='normal user setup'
 docker exec "$name" bash -c 'useradd -u "$1" -M womprat-ci;chown "$1:$2" "$WOMPRAT_RUN_DIR/tmp"' sh "$(id -u)" "$(id -g)"
 docker exec --user "$(id -u):$(id -g)" "$name" bash -c '
  set -euo pipefail
@@ -54,8 +66,11 @@ cat "$stage/preflight.log"
 # Native release startup must work with the sandbox enabled for a normal user.
 # A host that forbids UID namespace maps is a real blocker, never a green skip.
 docker exec --user "$(id -u):$(id -g)" "$name" bwrap --ro-bind / / /bin/true || { echo 'Fedora normal-user sandbox namespace creation failed; acceptance blocked' >&2;exit 1; }
+step='native build/profiling dependency installation'
 # Install build dependencies only after the exact AppImage's runtime audit,
 # so they cannot hide packaging omissions.
 docker exec "$name" bash -c 'dnf install -y --setopt=cachedir="$WOMPRAT_RUN_DIR/dnf-cache" --setopt=logdir="$WOMPRAT_RUN_DIR/dnf-logs" gcc gcc-c++ pkgconf-pkg-config gtk3-devel webkit2gtk4.1-devel git perf heaptrack' > "$stage/build-deps.log" 2>&1
+step='Xvfb startup'
 docker exec "$name" bash -c 'Xvfb :91 -screen 0 1200x800x24 -nolisten tcp > "$WOMPRAT_RUN_DIR/xvfb.log" 2>&1 & sleep 1'
+step='native release/fixture acceptance'
 docker exec --user "$(id -u):$(id -g)" --env DISPLAY=:91 "$name" bash "$stage/source/tests/linux/fedora-native-run.sh" "$image" "$profiles"

@@ -237,7 +237,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
   </div>
   <div class="section">
     <h3>Saved Passwords</h3>
-    <p style="color:var(--dim);font-size:.82rem;margin-bottom:.6rem">WebView2 stores saved passwords in its encrypted profile. womprat can clear that store but does not enumerate credentials.</p>
+    <p id="browser-password-description" style="color:var(--dim);font-size:.82rem;margin-bottom:.6rem">WebView2 stores saved passwords in its encrypted profile. womprat can clear that store but does not enumerate credentials.</p>
     <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer;text-transform:none;font-size:.85rem">
       <input type="checkbox" id="save-passwords" checked style="accent-color:var(--accent)">
       Offer to save passwords for web forms
@@ -651,8 +651,11 @@ async function loadBrowserSettings() {
   try {
     const data = await fetchJSON('/api/settings/browser', {});
     document.getElementById('cache-size').textContent = data.cacheSize || '0 KB';
-    document.getElementById('save-passwords').checked = data.savePasswords !== false;
-  document.getElementById('search-provider').value = data.searchProvider || 'duckduckgo';
+    const passwordToggle = document.getElementById('save-passwords');
+    passwordToggle.disabled = data.passwordSavingSupported === false;
+    passwordToggle.checked = !passwordToggle.disabled && data.savePasswords !== false;
+    if (passwordToggle.disabled) document.getElementById('browser-password-description').textContent = 'Native WebKit password saving is not implemented. SSH credentials and browser cookies are managed separately.';
+    document.getElementById('search-provider').value = data.searchProvider || 'duckduckgo';
     const ct = document.getElementById('cookies-table');
     ct.textContent = '';
     if (data.cookies?.length) {

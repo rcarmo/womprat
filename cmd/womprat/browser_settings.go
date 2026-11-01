@@ -8,17 +8,19 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	_ "modernc.org/sqlite"
 )
 
 type BrowserData struct {
-	CacheSize      string          `json:"cacheSize"`
-	SavePasswords  bool            `json:"savePasswords"`
-	SearchProvider string          `json:"searchProvider"`
-	Cookies        []CookieDomain  `json:"cookies"`
-	Passwords      []SavedPassword `json:"passwords"`
+	CacheSize               string          `json:"cacheSize"`
+	SavePasswords           bool            `json:"savePasswords"`
+	SearchProvider          string          `json:"searchProvider"`
+	Cookies                 []CookieDomain  `json:"cookies"`
+	Passwords               []SavedPassword `json:"passwords"`
+	PasswordSavingSupported bool            `json:"passwordSavingSupported"`
 }
 
 type CookieDomain struct {
@@ -52,11 +54,12 @@ func (a *App) handleBrowserData(w http.ResponseWriter, r *http.Request) {
 	searchProvider := normalizeSearchProvider(a.config.SearchProvider)
 	a.mu.Unlock()
 	data := BrowserData{
-		CacheSize:      getCacheSize(),
-		SavePasswords:  savePasswords,
-		SearchProvider: searchProvider,
-		Cookies:        listCookieDomains(),
-		Passwords:      listSavedPasswords(),
+		CacheSize:               getCacheSize(),
+		SavePasswords:           savePasswords,
+		SearchProvider:          searchProvider,
+		Cookies:                 listCookieDomains(),
+		Passwords:               listSavedPasswords(),
+		PasswordSavingSupported: runtime.GOOS == "windows",
 	}
 	if a.linuxCookieDomains != nil {
 		cookies, err := a.linuxCookieDomains()
@@ -196,6 +199,10 @@ func (a *App) handleSavePasswordsToggle(w http.ResponseWriter, r *http.Request) 
 	a.mu.Lock()
 	cfg := cloneConfig(a.config)
 	a.mu.Unlock()
+	if a.clearLinuxBrowserData != nil && body.Enabled {
+		http.Error(w, "Native WebKit browser password saving is not implemented", http.StatusNotImplemented)
+		return
+	}
 	cfg.SavePasswords = body.Enabled
 	if err := SaveConfig(cfg); err != nil {
 		http.Error(w, err.Error(), 500)

@@ -1388,6 +1388,12 @@ func (a *App) handleAbout(w http.ResponseWriter, r *http.Request) {
 		"cookieBackend":        "WebView2 SQLite cookie store",
 		"logPath":              logFilePath(),
 	}
+	if runtime.GOOS == "linux" {
+		info["webview2"] = "WebKitGTK 4.1"
+		info["webviewProxyMode"] = "Isolated content context through Womprat HTTP/CONNECT proxy"
+		info["cookieBackend"] = "WebKit native persistent cookie manager"
+		info["downloadInterception"] = "Native downloads and <a download> through managed tailnet downloader"
+	}
 	writeJSON(w, http.StatusOK, info)
 }
 
