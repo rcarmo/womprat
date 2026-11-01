@@ -80,10 +80,10 @@ func (m *linuxContentManager) Get(id string) browserContentView {
 func (m *linuxContentManager) Show(id string)    { m.call(id, "", 5) }
 func (m *linuxContentManager) HideAll()          { m.call("", "", 7) }
 func (m *linuxContentManager) Destroy(id string) { delete(m.views, id); m.call(id, "", 8) }
-func (v *linuxContentView) Navigate(url string)  { v.manager.call(v.id, url, 1) }
-func (v *linuxContentView) GoBack()              { v.manager.call(v.id, "", 2) }
-func (v *linuxContentView) GoForward()           { v.manager.call(v.id, "", 3) }
-func (v *linuxContentView) Reload()              { v.manager.call(v.id, "", 4) }
+func (v *linuxContentView) Navigate(url string)  { v.certificate.clear(); v.manager.call(v.id, url, 1) }
+func (v *linuxContentView) GoBack()              { v.certificate.clear(); v.manager.call(v.id, "", 2) }
+func (v *linuxContentView) GoForward()           { v.certificate.clear(); v.manager.call(v.id, "", 3) }
+func (v *linuxContentView) Reload()              { v.certificate.clear(); v.manager.call(v.id, "", 4) }
 func (v *linuxContentView) Show()                { v.manager.Show(v.id) }
 func (v *linuxContentView) Hide()                { v.manager.call(v.id, "", 6) }
 func (v *linuxContentView) Destroy()             { v.manager.Destroy(v.id) }
