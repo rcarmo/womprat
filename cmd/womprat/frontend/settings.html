@@ -119,7 +119,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
     <p style="color:var(--dim);font-size:.82rem;margin-bottom:.8rem">How should womprat protect your stored secrets?</p>
     <div class="option selected" data-unlock="dpapi">
       <input type="radio" name="unlock" value="dpapi" checked>
-      <div><div class="option-label">Transparent (DPAPI)</div><div class="option-desc">No prompt — secrets protected by your Windows login</div></div>
+      <div><div id="transparent-label" class="option-label">Transparent (DPAPI)</div><div id="transparent-description" class="option-desc">No prompt — secrets protected by your Windows login</div></div>
     </div>
     <div class="option" data-unlock="master">
       <input type="radio" name="unlock" value="master">
@@ -1092,6 +1092,10 @@ async function runDiagnostics() {
 async function loadAbout() {
   try {
     const about = await fetchJSON('/api/about', {});
+    if (String(about.platform || '').startsWith('linux/')) {
+      document.getElementById('transparent-label').textContent = 'Transparent (local key)';
+      document.getElementById('transparent-description').textContent = 'AES-GCM encrypted state with a private key file in your local Womprat configuration.';
+    }
     setText('about-version', about.version);
     setText('about-commit', about.commit);
     setText('about-platform', about.platform);

@@ -439,6 +439,8 @@ WompratGTK *womprat_gtk_new(uintptr_t handle, const char *shell,
   g_object_unref(local);
   webkit_settings_set_enable_developer_extras(
       webkit_web_view_get_settings(h->shell), debug);
+  if(g_strcmp0(g_getenv("LIBGL_ALWAYS_SOFTWARE"),"1")==0)
+    webkit_settings_set_hardware_acceleration_policy(webkit_web_view_get_settings(h->shell),WEBKIT_HARDWARE_ACCELERATION_POLICY_NEVER);
   h->window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
   gtk_window_set_title(GTK_WINDOW(h->window), "Womprat");
   gtk_window_set_default_size(GTK_WINDOW(h->window), 1200, 800);
@@ -492,6 +494,8 @@ void womprat_gtk_tab(WompratGTK *h, const char *id, const char *url, int op) {
     g_object_unref(manager);
     webkit_settings_set_enable_developer_extras(
         webkit_web_view_get_settings(t->view), h->debug);
+    if(g_strcmp0(g_getenv("LIBGL_ALWAYS_SOFTWARE"),"1")==0)
+      webkit_settings_set_hardware_acceleration_policy(webkit_web_view_get_settings(t->view),WEBKIT_HARDWARE_ACCELERATION_POLICY_NEVER);
     webkit_settings_set_enable_webrtc(webkit_web_view_get_settings(t->view),
                                       FALSE);
     g_signal_connect(t->view,"key-press-event",G_CALLBACK(browser_key),t);
