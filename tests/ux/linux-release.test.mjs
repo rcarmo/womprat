@@ -64,6 +64,29 @@ test('release assets cannot be staged before both acceptance hooks pass', () => 
   expect(script).toContain('set -euo pipefail');
 });
 
+test('AppImage helper relocation preserves offsets and fails on unknown WebKit layout', () => {
+  const root=mkdtempSync(join(process.env.WOMPRAT_RUN_DIR,'webkit-relocate-'));
+  try {
+    const old='/usr/lib/x86_64-linux-gnu/webkit2gtk-4.1';
+    const file=join(root,'libwebkit.so');
+    const original=Buffer.concat([Buffer.from('fixture-prefix'),Buffer.from(old+'\0'),Buffer.from('fixture-tail')]);
+    writeFileSync(file,original);
+    const result=spawnSync(process.execPath,['scripts/relocate-webkit.mjs',file],{encoding:'utf8'});
+    expect(result.status).toBe(0);
+    const relocated=readFileSync(file);
+    expect(relocated.length).toBe(original.length);
+    expect(relocated.subarray(0,14).toString()).toBe('fixture-prefix');
+    expect(relocated.subarray(-12).toString()).toBe('fixture-tail');
+    expect(relocated.includes(Buffer.from('/opt/womprat/usr/lib/webkit2gtk-4.1\0'))).toBe(true);
+    expect(spawnSync(process.execPath,['scripts/relocate-webkit.mjs',file]).status).not.toBe(0);
+    writeFileSync(file,Buffer.concat([original,original]));
+    expect(spawnSync(process.execPath,['scripts/relocate-webkit.mjs',file]).status).not.toBe(0);
+  } finally {rmSync(root,{recursive:true,force:true})}
+  const launcher=readFileSync('scripts/appimage-apprun.sh','utf8');
+  expect(launcher).toContain('--ro-bind "$APPDIR" /opt/womprat');
+  expect(launcher).not.toContain('WEBKIT_DISABLE_SANDBOX');
+});
+
 test('CI wires main/PR/release parity gates and separate accepted checksums', () => {
   expect(linux).toContain('branches: [main]');
   expect(linux).toContain('pull_request:');
