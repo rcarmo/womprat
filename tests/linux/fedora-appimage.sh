@@ -71,6 +71,9 @@ step='native build/profiling dependency installation'
 # so they cannot hide packaging omissions.
 docker exec "$name" bash -c 'dnf install -y --setopt=cachedir="$WOMPRAT_RUN_DIR/dnf-cache" --setopt=logdir="$WOMPRAT_RUN_DIR/dnf-logs" gcc gcc-c++ pkgconf-pkg-config gtk3-devel webkit2gtk4.1-devel git perf heaptrack' > "$stage/build-deps.log" 2>&1
 step='Xvfb startup'
-docker exec "$name" bash -c 'Xvfb :91 -screen 0 1200x800x24 -nolisten tcp > "$WOMPRAT_RUN_DIR/xvfb.log" 2>&1 & sleep 1'
+# Package installation may reset /tmp ownership. Restore the owned mount only
+# after that job is idle, and start the display under the acceptance UID.
+docker exec "$name" chown "$(id -u):$(id -g)" "$stage/tmp"
+docker exec --user "$(id -u):$(id -g)" "$name" bash -c 'Xvfb :91 -screen 0 1200x800x24 -nolisten tcp > "$WOMPRAT_RUN_DIR/xvfb.log" 2>&1 & sleep 1'
 step='native release/fixture acceptance'
 docker exec --user "$(id -u):$(id -g)" --env DISPLAY=:91 "$name" bash "$stage/source/tests/linux/fedora-native-run.sh" "$image" "$profiles"

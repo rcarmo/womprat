@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # Runs inside Fedora as a non-root user. Exact release has no test bridge;
 # separate test-tagged binary supplies functional fixtures and Go captures.
-set -euo pipefail
+set -Eeuo pipefail
+trap 'status=$?;printf "Native runner failed at line %s: %s (exit %s)\\n" "$LINENO" "$BASH_COMMAND" "$status" >&2' ERR
 image=$1 profiles=$2
 cd "$WOMPRAT_RUN_DIR/source"
 source scripts/paths.sh
+printf 'PASS native runner paths initialised: %s\n' "$WOMPRAT_RUN_DIR"
 [[ $(id -u) != 0 ]] || { echo 'Native acceptance must run as normal user' >&2;exit 1; }
 export XDG_CONFIG_HOME="$HOME/.config" XDG_DATA_HOME="$HOME/.local/share"
 mkdir -p "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$profiles"
