@@ -27,6 +27,7 @@ docker run --detach --name "$name" --privileged \
  --mount "type=bind,src=$WOMPRAT_TMP_ROOT,dst=$WOMPRAT_TMP_ROOT" \
  --mount "type=bind,src=$stage/tmp,dst=/tmp" \
  --mount "type=bind,src=$(command -v bun),dst=/usr/local/bin/bun,readonly" \
+ --mount "type=bind,src=$(go env GOROOT),dst=$(go env GOROOT),readonly" \
  --env PROJECT_TMP_ROOT="$WOMPRAT_TMP_ROOT" --env WOMPRAT_RUN_DIR="$stage" \
  --env HOME="$stage/home" --env WOMPRAT_SOURCE_COMMIT="$(git rev-parse HEAD)" --env PATH="$(go env GOROOT)/bin:/usr/local/bin:/usr/bin:/bin" \
  registry.fedoraproject.org/fedora:44 sleep infinity >/dev/null

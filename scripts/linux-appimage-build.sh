@@ -35,6 +35,7 @@ docker run --detach --name "$name" \
   --mount "type=bind,src=$WOMPRAT_TMP_ROOT,dst=$WOMPRAT_TMP_ROOT" \
   --mount "type=bind,src=$stage/tmp,dst=/tmp" \
   --mount "type=bind,src=$bun,dst=/usr/local/bin/bun,readonly" \
+  --mount "type=bind,src=$goroot,dst=$goroot,readonly" \
   --env PROJECT_TMP_ROOT="$WOMPRAT_TMP_ROOT" --env WOMPRAT_RUN_DIR="$stage" \
   --env HOME="$stage/home" --env PATH="$goroot/bin:/usr/local/bin:/usr/bin:/bin" \
   --env VERSION --env COMMIT \
