@@ -100,7 +100,10 @@ func (m *linuxContentManager) dispatch(fn func()) {
 
 //export goWompratClosed
 func goWompratClosed(handle C.uintptr_t) {
-	m := cgo.Handle(handle).Value().(*linuxContentManager)
+	cgo.Handle(handle).Value().(*linuxContentManager).closeQueue()
+}
+
+func (m *linuxContentManager) closeQueue() {
 	m.queueMu.Lock()
 	m.closed = true
 	m.queue = nil
@@ -109,7 +112,10 @@ func goWompratClosed(handle C.uintptr_t) {
 
 //export goWompratDispatch
 func goWompratDispatch(handle C.uintptr_t) {
-	m := cgo.Handle(handle).Value().(*linuxContentManager)
+	cgo.Handle(handle).Value().(*linuxContentManager).drainQueue()
+}
+
+func (m *linuxContentManager) drainQueue() {
 	m.queueMu.Lock()
 	if m.closed {
 		m.queueMu.Unlock()
@@ -471,10 +477,7 @@ func runGUI(app *App, shellURL string) {
 	installLinuxGUIAcceptance(m)
 	fmt.Printf("WOMPRAT_SHELL_URL=%s\nWOMPRAT_TOKEN=%s\n", shellURL, app.sessionToken)
 	C.womprat_gtk_run(m.host)
-	m.queueMu.Lock()
-	m.closed = true
-	m.queue = nil
-	m.queueMu.Unlock()
+	m.closeQueue()
 	// Keep the closed dispatcher installed so late workers cannot execute GTK
 	// operations synchronously after the host has been destroyed.
 }

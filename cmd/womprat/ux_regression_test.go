@@ -951,8 +951,8 @@ func TestShellModuleHasLocalBindingsForWindowEntrypoints(t *testing.T) {
 func TestSettingsActivationIsResilient(t *testing.T) {
 	s := readFileForRegression(t, "frontend/index.html")
 	for _, want := range []string{
-		"window.openSettings = function()",
-		"if (window.womprat_openSettings) { try { window.womprat_openSettings(); } catch (err) { console.warn('native settings open failed', err); } }",
+		"window.openSettings = function(options = {})",
+		"if (!options.skipNative && window.womprat_openSettings) { try { window.womprat_openSettings(); } catch (err) { console.warn('native settings open failed', err); } }",
 		"activateTab(tabId, { skipNative: true });",
 		"window.showBrowserTab = function",
 		"setBrowserStatus(id, `Loading ${navUrl}…`)",

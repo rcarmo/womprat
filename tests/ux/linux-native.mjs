@@ -117,5 +117,21 @@ if(process.env.WOMPRAT_GUI_FIXTURES==='1'){
  assert(clear.ok,'native cookie-domain deletion completes');
  const after=await fetch(new URL('/api/settings/browser',origin),{headers:{'X-Session-Token':token}});
  assert(!(await after.json()).cookies.some(c=>c.domain==='127.0.0.1'),'native domain cookies removed');
+ // A saved browser tab is registered before selection; native switch lazily
+ // recreates its content view instead of treating it as a new shell document.
+ const restored='browser-native-restored';
+ await query(`womprat_registerLocalTab(${JSON.stringify(JSON.stringify({id:restored,type:'browser',title:'Restored fixture',url:page}))});"register"`);
+ await query(`womprat_getTabs().then(value=>{const t=JSON.parse(value).tabs.find(t=>t.id===${JSON.stringify(restored)});window.showBrowserTab(t.id,t.url)});"restore"`);
+ let restoredPage=false;for(let i=0;i<60;i++){if(await query('document.title',restored)==='Native first'){restoredPage=true;break}await Bun.sleep(100)}
+ assert(restoredPage,'registered saved tab lazily restores native content');
+ await query('const link=document.createElement("a");link.href="settings:";document.body.append(link);link.click();"settings"',restored);
+ await wait('String(document.querySelector("#tab-list .tab.active")?.dataset.tabId==="settings")');
+ assert(await query('location.href')===origin,'special settings URL dispatches to shell without navigating content');
+ await query(`womprat_switchTab(${JSON.stringify(restored)});"switch"`);
+ await wait(`String(document.querySelector('#tab-list .tab.active')?.dataset.tabId===${JSON.stringify(restored)})`);
+ await query('document.title="Closing fixture";location.href="'+new URL('page?name=closing',url).href+'";"navigating"',restored);
+ await query(`window.closeTab(${JSON.stringify(restored)});"close"`);
+ await wait(`String(!document.querySelector('[data-tab-id="${restored}"]'))`);
+ assert(await query('location.href')===origin,'close during navigation leaves shell and other tabs alive');
  console.log('Fixture direct dialing is guittest-only. Live tailnet/TLS/download parity still requires acceptance.');
 }else console.log('Native offline smoke only: successful tailnet navigation/download/TLS parity is not established.');

@@ -641,7 +641,8 @@ func (a *App) openSettingsTab() {
 	a.activeTab = tab.ID
 	a.mu.Unlock()
 	a.hideBrowserContentOnUI()
-	a.evalShell("window.activateTab(%s,{skipNative:true})", jsString(tab.ID))
+	// Native special links can open settings before the shell has a tab node.
+	a.evalShell("window.openSettings({skipNative:true})")
 }
 
 func (a *App) newVNCTab(raw string) {

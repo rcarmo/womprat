@@ -2013,14 +2013,14 @@ window.navigateTab = function(id) {
   navigateFromBar();
 };
 
-window.openSettings = function() {
+window.openSettings = function(options = {}) {
   const tabId = 'settings';
   if (!state.tabs.find(t => t.id === tabId)) {
     state.tabs.push({ id: tabId, type: 'settings', title: 'Settings', url: 'settings:' });
   }
   renderTabs();
   // Tell the native host to hide browser views and restore the full-height shell.
-  if (window.womprat_openSettings) { try { window.womprat_openSettings(); } catch (err) { console.warn('native settings open failed', err); } }
+  if (!options.skipNative && window.womprat_openSettings) { try { window.womprat_openSettings(); } catch (err) { console.warn('native settings open failed', err); } }
   // Render the settings panel locally regardless of native timing.
   activateTab(tabId, { skipNative: true });
 };

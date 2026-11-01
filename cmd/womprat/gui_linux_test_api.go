@@ -9,6 +9,7 @@ package main
 import "C"
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"image"
@@ -28,15 +29,21 @@ func installLinuxGUITest(m *linuxContentManager) {
 	if os.Getenv("WOMPRAT_GUI_FIXTURES") == "1" {
 		// guittest-only fixture path. It does not enable release direct dialing.
 		allowDirectDial = true
+		// Immutable fixture: encode once, rather than distort allocation
+		// profiles with PNG compression on each icon request.
+		icon := image.NewRGBA(image.Rect(0, 0, 16, 16))
+		for y := 0; y < 16; y++ {
+			for x := 0; x < 16; x++ {
+				icon.SetRGBA(x, y, color.RGBA{R: 80, G: 160, B: 240, A: 255})
+			}
+		}
+		var iconPNG bytes.Buffer
+		if err := png.Encode(&iconPNG, icon); err != nil {
+			panic(err)
+		}
 		mux.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "image/png")
-			icon := image.NewRGBA(image.Rect(0, 0, 16, 16))
-			for y := 0; y < 16; y++ {
-				for x := 0; x < 16; x++ {
-					icon.SetRGBA(x, y, color.RGBA{R: 80, G: 160, B: 240, A: 255})
-				}
-			}
-			png.Encode(w, icon)
+			w.Write(iconPNG.Bytes())
 		})
 		mux.HandleFunc("/page", func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "text/html")
