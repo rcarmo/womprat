@@ -42,7 +42,7 @@ docker run --detach --name "$name" --privileged \
  --env HOME="$stage/home" --env WOMPRAT_SOURCE_COMMIT="$(git rev-parse HEAD)" --env PATH="$(go env GOROOT)/bin:/usr/local/bin:/usr/bin:/bin" \
  registry.fedoraproject.org/fedora:44 sleep infinity >/dev/null
 step='Fedora runtime dependency installation'
-docker exec "$name" bash -c 'dnf install -y --setopt=cachedir="$WOMPRAT_RUN_DIR/dnf-cache" --setopt=logdir="$WOMPRAT_RUN_DIR/dnf-logs" xorg-x11-server-Xvfb xdotool dbus-x11 bubblewrap xdg-dbus-proxy libX11 libXext libXrender libXrandr libXcursor libXi libXfixes libXinerama libstdc++ libgcc fontconfig freetype dejavu-sans-fonts mesa-libGL mesa-libEGL procps-ng curl' > "$stage/install.log" 2>&1
+docker exec "$name" bash -c 'dnf install -y --setopt=cachedir="$WOMPRAT_RUN_DIR/dnf-cache" --setopt=logdir="$WOMPRAT_RUN_DIR/dnf-logs" xorg-x11-server-Xvfb xdotool dbus-x11 bubblewrap xdg-dbus-proxy libX11 libXext libXrender libXrandr libXcursor libXi libXfixes libXinerama libstdc++ libgcc fontconfig freetype dejavu-sans-fonts mesa-libGL mesa-libEGL egl-utils procps-ng curl' > "$stage/install.log" 2>&1
 step='normal user setup'
 docker exec "$name" bash -c 'useradd -u "$1" -M womprat-ci;chown "$1:$2" "$WOMPRAT_RUN_DIR/tmp"' sh "$(id -u)" "$(id -g)"
 docker exec --user "$(id -u):$(id -g)" "$name" bash -c '

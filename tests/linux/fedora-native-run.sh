@@ -13,6 +13,14 @@ export XDG_CONFIG_HOME="$HOME/.config" XDG_DATA_HOME="$HOME/.local/share"
 # This does not disable sandboxing or alter network/certificate checks.
 export LIBGL_ALWAYS_SOFTWARE=1 WEBKIT_DISABLE_DMABUF_RENDERER=1
 mkdir -p "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$profiles"
+# Diagnose host EGL and the packaged ABI boundary before browser startup.
+root="$WOMPRAT_RUN_DIR/extracted/squashfs-root"
+for mode in host bundled;do
+ if [[ $mode == host ]];then eglinfo -B > "$WOMPRAT_RUN_DIR/egl-$mode.log" 2>&1 || true;
+ else LD_LIBRARY_PATH="$root/usr/lib" eglinfo -B > "$WOMPRAT_RUN_DIR/egl-$mode.log" 2>&1 || true;fi
+ printf '\nEGL %s probe:\n' "$mode"
+ grep -E 'failed|error|Error|EGL vendor|EGL version|EGL driver|undefined|symbol' "$WOMPRAT_RUN_DIR/egl-$mode.log" | head -25 || true
+done
 # Exact AppImage execution uses the runtime extraction fallback. No FUSE needed.
 # Deliberately set the debug env override: shipping build must ignore it.
 WOMPRAT_DIRECT=1 APPIMAGE_EXTRACT_AND_RUN=1 dbus-run-session -- "$image" > "$WOMPRAT_RUN_DIR/release-gui.log" 2>&1 &
