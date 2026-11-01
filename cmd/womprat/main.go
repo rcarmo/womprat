@@ -395,14 +395,16 @@ func (a *App) switchTab(tabID string) {
 		return
 	}
 	a.mu.Lock()
-	var tab *Tab
+	var tab Tab
+	found := false
 	for i := range a.tabs {
 		if a.tabs[i].ID == tabID {
-			tab = &a.tabs[i]
+			tab = a.tabs[i]
+			found = true
 			break
 		}
 	}
-	if tab == nil {
+	if !found {
 		a.mu.Unlock()
 		return
 	}
@@ -411,7 +413,7 @@ func (a *App) switchTab(tabID string) {
 
 	switch tab.Type {
 	case "browser":
-		if isBlankBrowserTab(*tab) {
+		if isBlankBrowserTab(tab) {
 			a.showFullShellOnUI()
 			a.evalShell("window.activateTab(%s,{skipNative:true})", jsString(tabID))
 			return

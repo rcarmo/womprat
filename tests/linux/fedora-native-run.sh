@@ -18,7 +18,7 @@ cleanup(){ local status=$?;if [[ $status != 0 ]];then for log in "$WOMPRAT_RUN_D
 trap cleanup EXIT INT TERM
 for _ in $(seq 1 100);do grep -q '^WOMPRAT_SHELL_URL=' "$WOMPRAT_RUN_DIR/release-gui.log" && break;sleep .1;done
 # Validate release renders a native window and embedded authenticated UI.
-if ! xdotool search --name Womprat >/dev/null;then
+if ! xdotool search --name Womprat >/dev/null || ! grep -q '^WOMPRAT_SHELL_URL=' "$WOMPRAT_RUN_DIR/release-gui.log";then
  cat "$WOMPRAT_RUN_DIR/release-gui.log" >&2
  # Reproduce the failed exact extracted payload in the same private namespace.
  # No debug or sandbox bypass; retain only the diagnostic backtrace for analysis.
@@ -27,6 +27,7 @@ if ! xdotool search --name Womprat >/dev/null;then
  export GSETTINGS_SCHEMA_DIR="$root/usr/share/glib-2.0/schemas"
  export XDG_DATA_DIRS="$root/usr/share:${XDG_DATA_DIRS:-/usr/share}"
  /usr/bin/bwrap --bind / / --tmpfs /opt --ro-bind "$root" /opt/womprat --chdir /opt/womprat dbus-run-session -- gdb -q -batch -ex 'handle SIGUSR1 nostop noprint pass' -ex 'handle SIGUSR2 nostop noprint pass' -ex run -ex 'thread apply all bt 12' --args /opt/womprat/usr/bin/womprat > "$WOMPRAT_RUN_DIR/native-crash.txt" 2>&1 || true
+ head -100 "$WOMPRAT_RUN_DIR/native-crash.txt" >&2
  tail -100 "$WOMPRAT_RUN_DIR/native-crash.txt" >&2
  exit 1
 fi
