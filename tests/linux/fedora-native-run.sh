@@ -88,10 +88,12 @@ echo 'STAGE GTK-linked Go contract profiles'
 CGO_ENABLED=1 timeout --kill-after=5 300 bash scripts/test-profile.sh linux-gui . ./cmd/womprat -tags=webkitgui
 cp -a "$(cat "$WOMPRAT_RUN_DIR/latest-evidence")" "$profiles/"
 # Run the equivalent native fixture workload with C/C++ allocation capture.
-# heaptrack's preload is inherited by WebKit helpers; captures are transient.
+# Capture the GTK host; sandboxed WebKit helpers may scrub LD_PRELOAD.
+# Record only: heaptrack otherwise opens its GUI and keeps CI waiting after
+# the application has exited. Analyze with heaptrack_print, never a GUI.
 mkdir -p "$profiles/webkit-heap"
 echo 'STAGE native heaptrack fixtures'
-WOMPRAT_GUI_FIXTURES=1 timeout --kill-after=5 180 dbus-run-session -- heaptrack -o "$profiles/webkit-heap/allocations" "$WOMPRAT_RUN_DIR/gui-acceptance" > "$WOMPRAT_RUN_DIR/heap-gui.log" 2>&1 &
+WOMPRAT_GUI_FIXTURES=1 timeout --kill-after=5 180 dbus-run-session -- heaptrack --record-only -o "$profiles/webkit-heap/allocations" "$WOMPRAT_RUN_DIR/gui-acceptance" > "$WOMPRAT_RUN_DIR/heap-gui.log" 2>&1 &
 pid=$!
 trap cleanup EXIT INT TERM
 for _ in $(seq 1 100);do grep -q '^WOMPRAT_GUI_TEST_URL=' "$WOMPRAT_RUN_DIR/heap-gui.log" && break;sleep .1;done
@@ -99,10 +101,13 @@ WOMPRAT_GUI_FIXTURES=1 bun tests/ux/linux-native.mjs "$WOMPRAT_RUN_DIR/heap-gui.
 bun -e 'const log=await Bun.file(process.argv[1]).text();const url=log.match(/^WOMPRAT_GUI_TEST_URL=(.+)$/m)[1],token=log.match(/^WOMPRAT_TOKEN=(.+)$/m)[1];await fetch(new URL("quit",url),{headers:{"X-Session-Token":token}})' "$WOMPRAT_RUN_DIR/heap-gui.log"
 wait "$pid"
 trap - EXIT INT TERM
-find "$profiles/webkit-heap" -name '*.gz' -print -quit | grep -q . || { echo 'Missing native allocation capture';exit 1; }
+capture=$(find "$profiles/webkit-heap" -type f \( -name '*.gz' -o -name '*.zst' \) -size +0c -print -quit)
+[[ -n $capture ]] || { echo 'Missing native allocation capture';exit 1; }
+heaptrack_print -f "$capture" > "$profiles/webkit-heap/summary.txt"
+grep -q 'calls to allocation functions:' "$profiles/webkit-heap/summary.txt"
 # CPU captures include the parent and inherited browser process tree.
 echo 'STAGE inherited native CPU fixtures'
-timeout --kill-after=5 180 perf record --inherit -e cpu-clock -F 99 -g -o "$profiles/webkit-cpu.data" -- env WOMPRAT_GUI_FIXTURES=1 dbus-run-session -- "$WOMPRAT_RUN_DIR/gui-acceptance" > "$WOMPRAT_RUN_DIR/cpu-gui.log" 2>&1 &
+timeout --kill-after=5 180 perf record --inherit -e cpu-clock -F 99 --call-graph dwarf,8192 -o "$profiles/webkit-cpu.data" -- env WOMPRAT_GUI_FIXTURES=1 dbus-run-session -- "$WOMPRAT_RUN_DIR/gui-acceptance" > "$WOMPRAT_RUN_DIR/cpu-gui.log" 2>&1 &
 pid=$!
 trap cleanup EXIT INT TERM
 for _ in $(seq 1 100);do grep -q '^WOMPRAT_GUI_TEST_URL=' "$WOMPRAT_RUN_DIR/cpu-gui.log" && break;sleep .1;done

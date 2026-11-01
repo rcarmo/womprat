@@ -35,15 +35,24 @@ func TestServeFrontendStreamsAssetsAndRejectsDirectories(t *testing.T) {
 			t.Fatal("missing/directory was served", path, w.Code)
 		}
 	}
-	for _, token := range []string{"session-one", "session-two"} {
-		a.sessionToken = token
-		w := httptest.NewRecorder()
-		a.serveFrontend(w, httptest.NewRequest(http.MethodGet, "/", nil))
-		if !strings.Contains(w.Body.String(), `window.__SESSION_TOKEN="`+token+`"`) {
-			t.Fatal("HTML used stale session token")
+	for _, page := range []string{"/", "/settings.html"} {
+		name, _ := frontendAssetPath(page)
+		original, err := frontendFS.ReadFile(name)
+		if err != nil {
+			t.Fatal(err)
 		}
-		if w.Header().Get("Content-Security-Policy") == "" {
-			t.Fatal("CSP lost")
+		for _, token := range []string{"session-one", "session-two"} {
+			a.sessionToken = token
+			w := httptest.NewRecorder()
+			a.serveFrontend(w, httptest.NewRequest(http.MethodGet, page, nil))
+			injection := `<script>window.__SESSION_TOKEN="` + token + `";window.__PORT=1234;</script>`
+			want := strings.Replace(string(original), "</head>", injection+"</head>", 1)
+			if w.Code != http.StatusOK || w.Body.String() != want {
+				t.Fatal("HTML payload changed or used stale session token", page)
+			}
+			if w.Header().Get("Content-Security-Policy") == "" {
+				t.Fatal("CSP lost")
+			}
 		}
 	}
 }
@@ -53,6 +62,17 @@ type discardFrontendResponse struct{ header http.Header }
 func (w discardFrontendResponse) Header() http.Header         { return w.header }
 func (w discardFrontendResponse) WriteHeader(int)             {}
 func (w discardFrontendResponse) Write(p []byte) (int, error) { return io.Discard.Write(p) }
+
+func BenchmarkServeFrontendHTML(b *testing.B) {
+	a := &App{sessionToken: "benchmark-session", serverPort: 1234}
+	r := httptest.NewRequest(http.MethodGet, "/", nil)
+	w := discardFrontendResponse{header: make(http.Header)}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for range b.N {
+		a.serveFrontend(w, r)
+	}
+}
 
 func BenchmarkServeFrontendAsset(b *testing.B) {
 	a := &App{}

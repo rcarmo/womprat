@@ -101,3 +101,12 @@ test('CI wires main/PR/release parity gates and separate accepted checksums', ()
   expect(linux).not.toContain('continue-on-error');
   expect(readFileSync('Makefile', 'utf8').split('linux-gui:')[1].split('darwin:')[0]).not.toContain('main.debugBuild=1');
 });
+
+// Record-only profiling must not start a GUI after the app exits.
+test("native profiler is noninteractive and accepts Fedora compression", () => {
+ const runner=readFileSync("tests/linux/fedora-native-run.sh","utf8");
+ expect(runner).toContain("heaptrack --record-only -o");
+ expect(runner).toContain("-name '*.zst'");
+ expect(runner).toContain("heaptrack_print -f");
+ expect(runner).toContain("--call-graph dwarf,8192");
+});

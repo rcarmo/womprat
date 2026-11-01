@@ -1166,7 +1166,10 @@ func (a *App) serveFrontend(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if strings.HasSuffix(path, ".html") {
-		data, err := io.ReadAll(asset)
+		// embed.ReadFile makes one bounded copy; io.ReadAll repeatedly grows
+		// its buffer for large shell pages. Stream the token insertion below
+		// rather than allocating another full-page string and response copy.
+		data, err := frontendFS.ReadFile(path)
 		if err != nil {
 			http.Error(w, "Could not read shell page", http.StatusInternalServerError)
 			return
@@ -1181,9 +1184,13 @@ func (a *App) serveFrontend(w http.ResponseWriter, r *http.Request) {
 			csp = fmt.Sprintf("default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; connect-src 'self' ws://127.0.0.1:%d; frame-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'unsafe-eval'", a.serverPort)
 		}
 		w.Header().Set("Content-Security-Policy", csp)
-		content := strings.Replace(string(data), "</head>",
-			fmt.Sprintf(`<script>window.__SESSION_TOKEN="%s";window.__PORT=%d;</script></head>`, a.sessionToken, a.serverPort), 1)
-		w.Write([]byte(content))
+		if head := bytes.Index(data, []byte("</head>")); head >= 0 {
+			w.Write(data[:head])
+			fmt.Fprintf(w, `<script>window.__SESSION_TOKEN="%s";window.__PORT=%d;</script>`, a.sessionToken, a.serverPort)
+			w.Write(data[head:])
+		} else {
+			w.Write(data)
+		}
 		return
 	}
 	if strings.HasSuffix(path, ".js") || strings.HasSuffix(path, ".mjs") {
