@@ -33,9 +33,10 @@ for mode in host bundled;do
 done
 # Exact AppImage execution uses the runtime extraction fallback. No FUSE needed.
 # Deliberately set the debug env override: shipping build must ignore it.
-WOMPRAT_DIRECT=1 APPIMAGE_EXTRACT_AND_RUN=1 dbus-run-session -- "$image" > "$WOMPRAT_RUN_DIR/release-gui.log" 2>&1 &
+echo 'STAGE exact AppImage startup'
+WOMPRAT_DIRECT=1 APPIMAGE_EXTRACT_AND_RUN=1 timeout --kill-after=5 180 dbus-run-session -- "$image" > "$WOMPRAT_RUN_DIR/release-gui.log" 2>&1 &
 pid=$!
-cleanup(){ local status=$?;if [[ $status != 0 ]];then for log in "$WOMPRAT_RUN_DIR"/{release,fixture,heap,cpu}-gui.log;do [[ ! -f $log ]]||tail -60 "$log" >&2;done;fi;kill "$pid" 2>/dev/null||true;wait "$pid" 2>/dev/null||true;}
+cleanup(){ local status=$?;if [[ $status != 0 ]];then ps -ef >&2;for log in "$WOMPRAT_RUN_DIR"/{release,fixture,heap,cpu}-gui.log;do [[ ! -f $log ]]||tail -60 "$log" >&2;done;fi;kill "$pid" 2>/dev/null||true;timeout 10 tail --pid="$pid" -f /dev/null 2>/dev/null||true;kill -KILL "$pid" 2>/dev/null||true;wait "$pid" 2>/dev/null||true;}
 trap cleanup EXIT INT TERM
 for _ in $(seq 1 100);do grep -q '^WOMPRAT_GUI_READY=1' "$WOMPRAT_RUN_DIR/release-gui.log" && break;sleep .1;done
 # Validate release renders a native window and embedded authenticated UI.
@@ -63,10 +64,12 @@ wait "$pid"
 trap - EXIT INT TERM
 
 # Build native functional tests with backend profiling; never bundle this binary.
-CGO_ENABLED=1 go build -tags webkitgui,guittest,profile -o "$WOMPRAT_RUN_DIR/gui-acceptance" ./cmd/womprat
+echo 'STAGE build native fixture/profile binary'
+CGO_ENABLED=1 timeout --kill-after=5 300 go build -tags webkitgui,guittest,profile -o "$WOMPRAT_RUN_DIR/gui-acceptance" ./cmd/womprat
 export WOMPRAT_PROFILE_DIR="$profiles/native"
 mkdir -p "$WOMPRAT_PROFILE_DIR"
-WOMPRAT_GUI_FIXTURES=1 dbus-run-session -- "$WOMPRAT_RUN_DIR/gui-acceptance" > "$WOMPRAT_RUN_DIR/fixture-gui.log" 2>&1 &
+echo 'STAGE native functional fixtures'
+WOMPRAT_GUI_FIXTURES=1 timeout --kill-after=5 180 dbus-run-session -- "$WOMPRAT_RUN_DIR/gui-acceptance" > "$WOMPRAT_RUN_DIR/fixture-gui.log" 2>&1 &
 pid=$!
 trap cleanup EXIT INT TERM
 for _ in $(seq 1 100);do grep -q '^WOMPRAT_GUI_TEST_URL=' "$WOMPRAT_RUN_DIR/fixture-gui.log" && break;sleep .1;done
@@ -81,12 +84,14 @@ done
 cp "$WOMPRAT_RUN_DIR/gui-acceptance" "$profiles/native/matching-binary"
 # Root contract tests also run under the GTK-linked toolchain; copy complete
 # transient inputs to the advertised analysis directory, not release assets.
-CGO_ENABLED=1 bash scripts/test-profile.sh linux-gui . ./cmd/womprat -tags=webkitgui
+echo 'STAGE GTK-linked Go contract profiles'
+CGO_ENABLED=1 timeout --kill-after=5 300 bash scripts/test-profile.sh linux-gui . ./cmd/womprat -tags=webkitgui
 cp -a "$(cat "$WOMPRAT_RUN_DIR/latest-evidence")" "$profiles/"
 # Run the equivalent native fixture workload with C/C++ allocation capture.
 # heaptrack's preload is inherited by WebKit helpers; captures are transient.
 mkdir -p "$profiles/webkit-heap"
-WOMPRAT_GUI_FIXTURES=1 dbus-run-session -- heaptrack -o "$profiles/webkit-heap/allocations" "$WOMPRAT_RUN_DIR/gui-acceptance" > "$WOMPRAT_RUN_DIR/heap-gui.log" 2>&1 &
+echo 'STAGE native heaptrack fixtures'
+WOMPRAT_GUI_FIXTURES=1 timeout --kill-after=5 180 dbus-run-session -- heaptrack -o "$profiles/webkit-heap/allocations" "$WOMPRAT_RUN_DIR/gui-acceptance" > "$WOMPRAT_RUN_DIR/heap-gui.log" 2>&1 &
 pid=$!
 trap cleanup EXIT INT TERM
 for _ in $(seq 1 100);do grep -q '^WOMPRAT_GUI_TEST_URL=' "$WOMPRAT_RUN_DIR/heap-gui.log" && break;sleep .1;done
@@ -96,7 +101,8 @@ wait "$pid"
 trap - EXIT INT TERM
 find "$profiles/webkit-heap" -name '*.gz' -print -quit | grep -q . || { echo 'Missing native allocation capture';exit 1; }
 # CPU captures include the parent and inherited browser process tree.
-perf record --inherit -e cpu-clock -F 99 -g -o "$profiles/webkit-cpu.data" -- env WOMPRAT_GUI_FIXTURES=1 dbus-run-session -- "$WOMPRAT_RUN_DIR/gui-acceptance" > "$WOMPRAT_RUN_DIR/cpu-gui.log" 2>&1 &
+echo 'STAGE inherited native CPU fixtures'
+timeout --kill-after=5 180 perf record --inherit -e cpu-clock -F 99 -g -o "$profiles/webkit-cpu.data" -- env WOMPRAT_GUI_FIXTURES=1 dbus-run-session -- "$WOMPRAT_RUN_DIR/gui-acceptance" > "$WOMPRAT_RUN_DIR/cpu-gui.log" 2>&1 &
 pid=$!
 trap cleanup EXIT INT TERM
 for _ in $(seq 1 100);do grep -q '^WOMPRAT_GUI_TEST_URL=' "$WOMPRAT_RUN_DIR/cpu-gui.log" && break;sleep .1;done
