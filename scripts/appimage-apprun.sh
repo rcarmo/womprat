@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 APPDIR="$(cd -- "$(dirname -- "$(readlink -f -- "$0")")" && pwd)"
+# Stable helper path lives only in this process's private mount namespace.
+# WebKit's inner sandbox cannot mount /proc/self/cwd symlink paths. No files
+# are installed under the host /opt, and its own sandbox stays enabled.
+if [[ ${WOMPRAT_HEADLESS:-} != 1 && $APPDIR != /opt/womprat ]]; then
+  test -x /usr/bin/bwrap && test -x /usr/bin/xdg-dbus-proxy || { echo 'Install bubblewrap and xdg-dbus-proxy to run the WebKit sandbox.' >&2; exit 1; }
+  exec /usr/bin/bwrap --bind / / --ro-bind "$APPDIR" /opt/womprat --chdir /opt/womprat /opt/womprat/AppRun "$@"
+fi
 export APPDIR
 export LD_LIBRARY_PATH="$APPDIR/usr/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 export XDG_DATA_DIRS="$APPDIR/usr/share:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"

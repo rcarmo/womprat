@@ -64,7 +64,7 @@ while IFS= read -r module; do
 done < <(go list -m -f '{{.Dir}}' all)
 # WebKit release builds ignore developer-only WEBKIT_EXEC_PATH. Relocate the
 # fixed process-directory string without changing ELF offsets or code. The
-# replacement resolves within AppDir from the launcher's working directory.
+# replacement resolves in the launcher's private mount namespace.
 bun scripts/relocate-webkit.mjs "$appdir/usr/lib/libwebkit2gtk-4.1.so.0"
 rm -f "$appdir/AppRun"
 cp scripts/appimage-apprun.sh "$appdir/AppRun"
