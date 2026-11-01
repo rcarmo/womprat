@@ -17,7 +17,15 @@ try{
  if(result===0||reached)throw Error('Release direct-dial override escaped to host canary');
  // Exercise actual browser UI, not only the SOCKS server. A local destination
  // must still use the content proxy; WebKit localhost bypass would hit canary.
- for(const key of ['ctrl+t','ctrl+l'])if(spawnSync('xdotool',['key','--clearmodifiers',key]).status!==0)throw Error('Native keyboard input failed');
+ const windows=spawnSync('xdotool',['search','--onlyvisible','--name','^Womprat$'],{encoding:'utf8'});
+ const window=windows.stdout.trim().split('\n').at(-1);
+ if(windows.status!==0||!window)throw Error('Native host window missing');
+ if(spawnSync('xdotool',['windowfocus','--sync',window]).status!==0)throw Error('Native host focus failed');
+ await Bun.sleep(500);
+ for(const key of ['ctrl+t','ctrl+l']){
+  if(spawnSync('xdotool',['key','--clearmodifiers',key]).status!==0)throw Error('Native keyboard input failed');
+  await Bun.sleep(250);
+ }
  const target=`http://127.0.0.1:${port}/canary`;
  if(spawnSync('xdotool',['type','--clearmodifiers',target]).status!==0)throw Error('Address input failed');
  if(spawnSync('xdotool',['key','Return']).status!==0)throw Error('Address submit failed');
