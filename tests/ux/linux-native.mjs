@@ -11,6 +11,7 @@ async function query(script,tab=''){
 }
 const assert=(ok,message)=>{if(!ok)throw Error(message);console.log('PASS '+message)};
 async function wait(script){for(let i=0;i<60;i++){if(await query(script)==='true')return;await Bun.sleep(100)}throw Error('native wait timed out: '+script)}
+await wait('String(location.href.startsWith("http://127.0.0.1:") && typeof window.womprat_newBrowser === "function" && typeof window.showBrowserTab === "function")');
 const origin=await query('location.href');assert(origin.startsWith('http://127.0.0.1:'),'shell remains on local origin');
 const baseline=Number(await query('String(document.querySelectorAll("#tab-list .tab").length)'));
 await query('womprat_newBrowser("https://example.com/one");"requested"');

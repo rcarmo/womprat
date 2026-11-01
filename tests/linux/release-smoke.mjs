@@ -18,8 +18,16 @@ try{
  // Exercise actual browser UI, not only the SOCKS server. A local destination
  // must still use the content proxy; WebKit localhost bypass would hit canary.
  for(const key of ['ctrl+t','ctrl+l'])if(spawnSync('xdotool',['key','--clearmodifiers',key]).status!==0)throw Error('Native keyboard input failed');
- if(spawnSync('xdotool',['type','--clearmodifiers',`http://127.0.0.1:${port}/canary`]).status!==0)throw Error('Address input failed');
+ const target=`http://127.0.0.1:${port}/canary`;
+ if(spawnSync('xdotool',['type','--clearmodifiers',target]).status!==0)throw Error('Address input failed');
  if(spawnSync('xdotool',['key','Return']).status!==0)throw Error('Address submit failed');
+ let submitted=false;
+ for(let i=0;i<60;i++){
+  const r=await fetch(new URL('/api/settings/browser/history',url),{headers:{'X-Session-Token':token}});
+  if(r.ok&&(await r.json()).history.includes(target)){submitted=true;break}
+  await Bun.sleep(100);
+ }
+ if(!submitted)throw Error('Native canary was not submitted through address bar; network assertion would be vacuous');
  await Bun.sleep(2000);
  if(reached)throw Error('Native browser bypassed tailnet proxy for loopback canary');
 }finally{await new Promise(r=>canary.close(r))}
