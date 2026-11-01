@@ -17,9 +17,11 @@ mkdir -p "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$profiles"
 root="$WOMPRAT_RUN_DIR/extracted/squashfs-root"
 for mode in host bundled;do
  if [[ $mode == host ]];then eglinfo -B > "$WOMPRAT_RUN_DIR/egl-$mode.log" 2>&1 || true;
- else LD_LIBRARY_PATH="$root/usr/lib" eglinfo -B > "$WOMPRAT_RUN_DIR/egl-$mode.log" 2>&1 || true;fi
+ else LD_LIBRARY_PATH="$root/usr/lib" EGL_LOG_LEVEL=debug LIBGL_DEBUG=verbose eglinfo -B > "$WOMPRAT_RUN_DIR/egl-$mode.log" 2>&1 || true;fi
  printf '\nEGL %s probe:\n' "$mode"
- grep -E 'failed|error|Error|EGL vendor|EGL version|EGL driver|undefined|symbol' "$WOMPRAT_RUN_DIR/egl-$mode.log" | head -25 || true
+ grep -E 'failed|error|Error|EGL vendor|EGL version|EGL driver|undefined|symbol|not found|GLIBC|dri|dlopen' "$WOMPRAT_RUN_DIR/egl-$mode.log" | head -55 || true
+ mkdir -p "$profiles/diagnostic"
+ cp "$WOMPRAT_RUN_DIR/egl-$mode.log" "$profiles/diagnostic/"
 done
 # Exact AppImage execution uses the runtime extraction fallback. No FUSE needed.
 # Deliberately set the debug env override: shipping build must ignore it.
