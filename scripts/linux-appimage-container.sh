@@ -50,6 +50,10 @@ while IFS= read -r -d '' elf; do
     [[ -e $appdir/usr/lib/$library ]] || cp -L "$path" "$appdir/usr/lib/$library"
   done < <(ldd "$elf" 2>/dev/null | awk '/=> \// {print $1, $3}')
 done < <(find "$appdir/usr" -type f \( -name '*.so*' -o -name WebKitWebProcess -o -name WebKitNetworkProcess -o -name WebKitGPUProcess -o -name gst-plugin-scanner -o -name xdg-dbus-proxy -o -name womprat \) -print0)
+# linuxdeploy may already have copied driver-facing libraries before the
+# dependency pass. They must ALL stay on the host graphics ABI, including the
+# EGL/GLVND dispatch libraries, rather than mixing Debian and Fedora Mesa.
+find "$appdir/usr/lib" -maxdepth 1 \( -name 'libEGL*' -o -name 'libGL*' -o -name 'libGLES*' -o -name 'libOpenGL*' -o -name 'libglapi*' -o -name 'libgbm*' -o -name 'libdrm*' -o -name 'libvulkan*' -o -name 'libwayland-*' \) -delete
 if [[ -d /usr/share/alsa ]]; then cp -a /usr/share/alsa "$appdir/usr/share/"; fi
 mkdir -p "$appdir/usr/share/doc/womprat"
 cp README.md "$appdir/usr/share/doc/womprat/README.md"
