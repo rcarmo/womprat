@@ -69,7 +69,7 @@ test('AppImage helper relocation preserves offsets and fails on unknown WebKit l
   try {
     const old='/usr/lib/x86_64-linux-gnu/webkit2gtk-4.1';
     const file=join(root,'libwebkit.so');
-    const original=Buffer.concat([Buffer.from('fixture-prefix'),Buffer.from(old+'\0'),Buffer.from('fixture-tail')]);
+    const original=Buffer.concat([Buffer.from('fixture-prefix'),Buffer.from(old+'\0'),Buffer.from(old+'/injected-bundle/\0'),Buffer.from('fixture-tail')]);
     writeFileSync(file,original);
     const result=spawnSync(process.execPath,['scripts/relocate-webkit.mjs',file],{encoding:'utf8'});
     expect(result.status).toBe(0);
@@ -78,6 +78,7 @@ test('AppImage helper relocation preserves offsets and fails on unknown WebKit l
     expect(relocated.subarray(0,14).toString()).toBe('fixture-prefix');
     expect(relocated.subarray(-12).toString()).toBe('fixture-tail');
     expect(relocated.includes(Buffer.from('/opt/womprat/usr/lib/webkit2gtk-4.1\0'))).toBe(true);
+    expect(relocated.includes(Buffer.from('/opt/womprat/usr/lib/webkit2gtk-4.1/injected-bundle/\0'))).toBe(true);
     expect(spawnSync(process.execPath,['scripts/relocate-webkit.mjs',file]).status).not.toBe(0);
     writeFileSync(file,Buffer.concat([original,original]));
     expect(spawnSync(process.execPath,['scripts/relocate-webkit.mjs',file]).status).not.toBe(0);

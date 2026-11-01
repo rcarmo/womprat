@@ -9,6 +9,9 @@ source scripts/paths.sh
 printf 'PASS native runner paths initialised: %s\n' "$WOMPRAT_RUN_DIR"
 [[ $(id -u) != 0 ]] || { echo 'Native acceptance must run as normal user' >&2;exit 1; }
 export XDG_CONFIG_HOME="$HOME/.config" XDG_DATA_HOME="$HOME/.local/share"
+# Xvfb has no DRI device; use software rendering for this acceptance display.
+# This does not disable sandboxing or alter network/certificate checks.
+export LIBGL_ALWAYS_SOFTWARE=1 WEBKIT_DISABLE_DMABUF_RENDERER=1
 mkdir -p "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$profiles"
 # Exact AppImage execution uses the runtime extraction fallback. No FUSE needed.
 # Deliberately set the debug env override: shipping build must ignore it.
@@ -26,7 +29,7 @@ if ! xdotool search --name Womprat >/dev/null || ! grep -q '^WOMPRAT_GUI_READY=1
  printf 'Capturing packaged native backtrace\n' >&2
  # Keep host gdb/dbus tools on host libraries. Inject bundle environment into
  # the inferior only, so debugger dependencies cannot mask the target crash.
- timeout 45 dbus-run-session -- /usr/bin/bwrap --bind / / --dev-bind /dev /dev --tmpfs /opt --ro-bind "$root" /opt/womprat --ro-bind "$root/usr/bin/xdg-dbus-proxy" /usr/bin/xdg-dbus-proxy --chdir /opt/womprat gdb -q -batch -ex 'set environment LD_LIBRARY_PATH /opt/womprat/usr/lib' -ex 'set environment GSETTINGS_SCHEMA_DIR /opt/womprat/usr/share/glib-2.0/schemas' -ex 'set environment GDK_BACKEND x11' -ex 'handle SIGUSR1 nostop noprint pass' -ex 'handle SIGUSR2 nostop noprint pass' -ex run -ex 'bt 30' -ex 'info sharedlibrary' --args /opt/womprat/usr/bin/womprat > "$WOMPRAT_RUN_DIR/native-crash.txt" 2>&1 || true
+ timeout 45 dbus-run-session -- /usr/bin/bwrap --bind / / --dev-bind /dev /dev --tmpfs /opt --ro-bind "$root" /opt/womprat --ro-bind "$root/usr/bin/xdg-dbus-proxy" /usr/bin/xdg-dbus-proxy --chdir /opt/womprat gdb -q -batch -ex 'set environment LD_LIBRARY_PATH /opt/womprat/usr/lib' -ex 'set environment GSETTINGS_SCHEMA_DIR /opt/womprat/usr/share/glib-2.0/schemas' -ex 'set environment GDK_BACKEND x11' -ex 'set environment LIBGL_ALWAYS_SOFTWARE 1' -ex 'set environment WEBKIT_DISABLE_DMABUF_RENDERER 1' -ex 'handle SIGUSR1 nostop noprint pass' -ex 'handle SIGUSR2 nostop noprint pass' -ex run -ex 'bt 30' -ex 'info sharedlibrary' --args /opt/womprat/usr/bin/womprat > "$WOMPRAT_RUN_DIR/native-crash.txt" 2>&1 || true
  mkdir -p "$profiles/diagnostic"
  cp "$WOMPRAT_RUN_DIR/native-crash.txt" "$profiles/diagnostic/"
  head -100 "$WOMPRAT_RUN_DIR/native-crash.txt" >&2
