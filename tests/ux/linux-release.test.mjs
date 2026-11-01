@@ -119,3 +119,8 @@ test('CPU collector privilege is not inherited by the GUI', () => {
  expect(native).toContain('[[ $(id -u) != 0 ]]');
  expect(container).not.toContain('sysctl -w');
 });
+
+test('native app links use the existing shell panel routing', () => {
+ expect(readFileSync('cmd/womprat/gui_linux.go','utf8')).toContain('window.wompratOpenSpecialURL(%s)');
+ expect(readFileSync('cmd/womprat/frontend/index.html','utf8')).toContain('window.wompratOpenSpecialURL = openSpecialURL');
+});

@@ -1,6 +1,6 @@
 # Linux AppImage acceptance
 
-Linux AppImage CI is wired into main pushes, pull requests, manual validation and the release workflow. The GTK/WebKitGTK 4.1 host now keeps the shell and browser views separate. Native fixtures cover create/switch/close/reorder, popup/link navigation, back, managed HttpOnly-cookie downloads, TLS consent and cookie deletion. AppImage hooks build on Debian 12, audit dependencies without host GTK/WebKit, and run normal-user Fedora 44 acceptance. `make linux-release-check` checks hook presence only. Full release acceptance is still incomplete: normal-user sandbox startup is blocked on the development host by UID namespace permissions; packaged runtime and CPU/allocation analysis must pass in CI.
+Linux AppImage CI is wired into main pushes, pull requests, manual validation and the release workflow. The GTK/WebKitGTK 4.1 host now keeps the shell and browser views separate. Native fixtures cover create/switch/close/reorder, popup/link navigation, back, managed HttpOnly-cookie downloads, TLS consent and cookie deletion. AppImage hooks build on Debian 12, audit dependencies without host GTK/WebKit, and run normal-user Fedora 44 acceptance. `make linux-release-check` checks hook presence only. The full pipeline passed on Fedora 44 for the first candidate; final 0.4.6 verification is tracked in [the native run report](linux-acceptance-2026-11-01.md). The development host still forbids normal-user UID maps, so local container tests do not replace Fedora CI. Live authenticated tailnet checks are separate from synthetic fixtures.
 
 Windows jobs remain independent. A failed Linux gate makes the overall release run fail and withholds Linux assets; Windows publication can still finish. Existing releases and tags are unchanged.
 
@@ -11,7 +11,7 @@ Windows jobs remain independent. A failed Linux gate makes the overall release r
 | Hook | Invocation | Required behaviour |
 | --- | --- | --- |
 | `scripts/linux-appimage-build.sh` | `--output <absolute AppImage path>` | Build normal release flags, bundle native GUI/WebKit helpers and required dependencies, desktop metadata, icon and licence notices. Never substitute the headless server or enable debug direct dialing. `VERSION` and `COMMIT` are environment values. |
-| `tests/linux/browser-parity.mjs` | `--appimage <path> --profiles <dir> --require-release` | Exercise the packaged GUI and the browser/network contracts below; fail on unsupported or skipped requirements. |
+| `tests/linux/browser-parity.mjs` | `--appimage <path> --profiles <dir> --require-release` | Validate the actual AppImage format and run the dependency/release-flag preflight; the Fedora hook below executes the native workload. |
 | `tests/linux/fedora-appimage.sh` | `--appimage <path> --profiles <dir> --fedora-version 44` | Run the same package as a normal user on Fedora 44, without host GTK/WebKit packages masking missing dependencies; test launch and browser acceptance, extraction fallback, shutdown and clean isolated state. |
 
 Hook presence is an implementation preflight, not functional acceptance. Both test hooks must return success before assets reach `build/dist` or CI's `linux-appimage-release` artifact. Do not add placeholder hooks, green smoke-only tests, environment bypasses, `continue-on-error` or unconditional uploads to enable publication.
@@ -43,4 +43,4 @@ Transient `linux-appimage-profiles` artifacts have one-day retention for current
 
 ## Publication
 
-The release workflow adds `Womprat-<version>-x86_64.AppImage` and `LINUX-SHA256SUMS.txt` only after Linux acceptance and the Windows release job succeed. `validate_only=true` builds/tests without publishing. The Linux publisher rechecks the accepted checksum artifact. No current AppImage is accepted or published.
+The release workflow adds `Womprat-<version>-x86_64.AppImage` and `LINUX-SHA256SUMS.txt` only after Linux acceptance and the Windows release job succeed. `validate_only=true` builds/tests without publishing. The Linux publisher rechecks the accepted checksum artifact. A revision-specific CI candidate has passed; no Linux version has been publicly published. Final version/checksum and live-validation status are recorded in the native run report.

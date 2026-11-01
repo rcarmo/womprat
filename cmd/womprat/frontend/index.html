@@ -822,6 +822,9 @@ function openSpecialURL(url) {
   if (target.scheme === 'vnc' || target.scheme === 'rdp') return callNativeCustomViewer(target, text, { id: replaceTabId });
   return false;
 }
+// Native browser policy routes app links through the same validated shell
+// path as address entry, including terminal and remote-display panel creation.
+window.wompratOpenSpecialURL = openSpecialURL;
 function saveURLHistory(url) {
   try {
     const normalized = normalizeHistoryURL(url);

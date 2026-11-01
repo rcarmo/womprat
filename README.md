@@ -2,7 +2,7 @@
 
 ![womprat icon](docs/icon-256.png)
 
-`womprat` is a single-binary Windows client for SSH terminals, web applications, VNC desktops and RDP desktops on a Tailscale network. It runs its own `tsnet` node, so it does not install a machine-wide VPN service or change the host network stack.
+`womprat` is a desktop client for SSH terminals, web applications, VNC desktops and RDP desktops on a Tailscale network. It runs its own `tsnet` node, so it does not install a machine-wide VPN service or change the host network stack.
 
 Windows ARM64 is the primary target. Windows AMD64 is also built and released. Download either binary and its checksums from [GitHub Releases](https://github.com/rcarmo/womprat/releases/latest).
 
@@ -197,7 +197,7 @@ Womprat is an application client, not a machine-wide VPN. It does not advertise 
 
 Current limits include:
 
-* Windows is the supported desktop runtime; Linux targets exist for development and automated tests;
+* Linux x86-64 uses GTK/WebKitGTK instead of WebView2; its AppImage has Fedora 44 CI checks, but live tailnet validation is separate. Linux browser password saving is not implemented;
 * upstream DNS supports TCP to IP-addressed nameservers and HTTP DNS messages to an IP-addressed exit-node PeerAPI; HTTPS/hostname upstreams and automatic alternate-server retries are not implemented;
 * Recent is derived from saved session tabs, not a complete browsing history; at most 100 dismissal keys are retained;
 * browser cookies are inherited only for same-origin downloads initiated by a native browser tab; cross-origin and direct API downloads are cookie-free;
@@ -277,7 +277,7 @@ make ux-test
 
 The release workflow executes the WebView2 COM regression tests on a Windows runner before it builds and publishes Windows ARM64 and AMD64 binaries.
 
-Linux AppImage acceptance also runs on main pushes, pull requests and releases. The native GTK/WebKitGTK 4.1 host keeps the shell separate from browser content tabs and uses Womprat's tailnet proxy for browsing. `make linux-gui` builds that host; `make linux-appimage` packages it and requires Fedora 44 acceptance before staging release assets. Normal-user sandbox checks, exact-package network canaries and profile analysis must pass before release. An AppImage is not yet accepted or published. Windows jobs remain independent. See [Linux AppImage CI contracts](docs/linux-appimage-ci.md).
+Linux AppImage acceptance also runs on main pushes, pull requests and releases. The native GTK/WebKitGTK 4.1 host keeps the shell separate from browser content tabs and uses Womprat's tailnet proxy for browsing. `make linux-gui` builds that host; `make linux-appimage` packages it and requires Fedora 44 acceptance before staging release assets. Normal-user sandbox checks, exact-package network canaries and profile analysis must pass before release. The full Fedora pipeline has passed for a candidate; final 0.4.6 package verification is in progress and no Linux release is published. Windows jobs remain independent. See [Linux AppImage CI contracts](docs/linux-appimage-ci.md) and [native test results](docs/linux-acceptance-2026-11-01.md).
 
 ## Repository layout
 

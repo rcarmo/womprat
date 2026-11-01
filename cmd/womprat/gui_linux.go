@@ -171,7 +171,11 @@ func goWompratEvent(handle C.uintptr_t, id *C.char, event C.int, uri, detail *C.
 		m.shell.Eval(fmt.Sprintf("window.wompratNavigationDone(%s,%s,%t,0,%s)", jsString(tab), jsString(url), ok != 0, jsString(message)))
 	case 4:
 		m.dispatch(func() {
-			if !m.app.openSpecialURL(text) {
+			// Special links need the shell's terminal/remote-panel creation,
+			// not only an entry in the native tab manager.
+			if _, err := parseCustomURL(text); err == nil || strings.EqualFold(text, "settings:") {
+				m.shell.Eval(fmt.Sprintf("window.wompratOpenSpecialURL(%s)", jsString(text)))
+			} else {
 				m.app.newBrowserTab(text)
 			}
 		})

@@ -127,6 +127,18 @@ if(process.env.WOMPRAT_GUI_FIXTURES==='1'){
  await query('const link=document.createElement("a");link.href="settings:";document.body.append(link);link.click();"settings"',restored);
  await wait('String(document.querySelector("#tab-list .tab.active")?.dataset.tabId==="settings")');
  assert(await query('location.href')===origin,'special settings URL dispatches to shell without navigating content');
+ for(const scheme of ['vnc','rdp']){
+  await query(`womprat_switchTab(${JSON.stringify(restored)});"switch"`);
+  await wait(`String(document.querySelector('#tab-list .tab.active')?.dataset.tabId===${JSON.stringify(restored)})`);
+  await query(`(()=>{const a=document.createElement('a');a.href='${scheme}://127.0.0.1:1';document.body.append(a);a.click();return "remote"})()`,restored);
+  await wait(`String(!!document.querySelector('.${scheme}-panel'))`);
+  assert(await query(`String(!!document.querySelector('.${scheme}-panel'))`)==='true',`native ${scheme} link creates shell remote-display panel`);
+ }
+ await query(`womprat_switchTab(${JSON.stringify(restored)});"switch"`);
+ await wait(`String(document.querySelector('#tab-list .tab.active')?.dataset.tabId===${JSON.stringify(restored)})`);
+ await query(`(()=>{const a=document.createElement('a');a.href='ssh://test@127.0.0.1:1';document.body.append(a);a.click();return "ssh"})()`,restored);
+ await wait('String(!!document.querySelector(".term-container"))');
+ assert(await query('String(!!document.querySelector(".term-container"))')==='true','native ssh link creates shell terminal panel');
  await query(`womprat_switchTab(${JSON.stringify(restored)});"switch"`);
  await wait(`String(document.querySelector('#tab-list .tab.active')?.dataset.tabId===${JSON.stringify(restored)})`);
  await query('document.title="Closing fixture";location.href="'+new URL('page?name=closing',url).href+'";"navigating"',restored);
