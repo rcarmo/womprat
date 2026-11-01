@@ -11,6 +11,9 @@ import "C"
 import (
 	"encoding/json"
 	"fmt"
+	"image"
+	"image/color"
+	"image/png"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -25,10 +28,20 @@ func installLinuxGUITest(m *linuxContentManager) {
 	if os.Getenv("WOMPRAT_GUI_FIXTURES") == "1" {
 		// guittest-only fixture path. It does not enable release direct dialing.
 		allowDirectDial = true
+		mux.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "image/png")
+			icon := image.NewRGBA(image.Rect(0, 0, 16, 16))
+			for y := 0; y < 16; y++ {
+				for x := 0; x < 16; x++ {
+					icon.SetRGBA(x, y, color.RGBA{R: 80, G: 160, B: 240, A: 255})
+				}
+			}
+			png.Encode(w, icon)
+		})
 		mux.HandleFunc("/page", func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "text/html")
 			http.SetCookie(w, &http.Cookie{Name: "native", Value: "fixture", Path: "/", HttpOnly: true})
-			fmt.Fprintf(w, `<!doctype html><title>Native %s</title><p id="content">Native fixture %s</p><a id="next" href="/page?name=next">Next</a><a id="popup" target="_blank" href="/page?name=popup">Popup</a><a id="download" download href="/download">Download</a>`, r.URL.Query().Get("name"), r.URL.Query().Get("name"))
+			fmt.Fprintf(w, `<!doctype html><title>Native %s</title><link rel="icon" href="/favicon.ico"><p id="content">Native fixture %s</p><a id="next" href="/page?name=next">Next</a><a id="popup" target="_blank" href="/page?name=popup">Popup</a><a id="download" download href="/download">Download</a>`, r.URL.Query().Get("name"), r.URL.Query().Get("name"))
 		})
 		mux.HandleFunc("/download", func(w http.ResponseWriter, r *http.Request) {
 			cookie, err := r.Cookie("native")

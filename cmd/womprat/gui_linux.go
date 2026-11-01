@@ -119,6 +119,14 @@ func goWompratDispatch(handle C.uintptr_t) {
 	m.queue = nil
 	m.queueMu.Unlock()
 	for _, fn := range work {
+		// A queued close may destroy the shell while this batch is draining.
+		// Do not run later operations against destroyed GTK widgets.
+		m.queueMu.Lock()
+		closed := m.closed
+		m.queueMu.Unlock()
+		if closed {
+			return
+		}
 		fn()
 	}
 }
@@ -180,6 +188,10 @@ func goWompratEvent(handle C.uintptr_t, id *C.char, event C.int, uri, detail *C.
 		}
 		prompt := m.views[tab].certificate.pending
 		m.shell.Eval(fmt.Sprintf("window.wompratCertificatePrompt(%s,%s,%s);window.wompratNavigationDone(%s,%s,false,0,%s)", jsString(tab), jsString(prompt.Token), jsString(prompt.URL), jsString(tab), jsString(url), jsString("TLS certificate validation failed. Consent applies to this host/certificate for this browser session.")))
+	case 7:
+		if icon := sanitizeFaviconURL(text); strings.HasPrefix(icon, "data:image/png;base64,") {
+			m.shell.Eval(fmt.Sprintf("window.wompratSetTabMeta(%s,\"\",%s)", jsString(tab), jsString(icon)))
+		}
 	case 6:
 		if ok == 0 {
 			m.shell.Eval(fmt.Sprintf("window.wompratDownloadError(%s)", jsString("Could not retrieve browser cookies")))
@@ -238,6 +250,11 @@ func goWompratMessage(handle C.uintptr_t, id, raw *C.char) {
 			return
 		}
 		title, icon := parseTitleMessage(message)
+		// Remote favicon URLs must never reach the direct-loopback shell.
+		// Native WebKit favicon pixels arrive separately through event 7.
+		if !strings.HasPrefix(icon, "data:image/") {
+			icon = ""
+		}
 		url := parseURLMessage(message)
 		m.shell.Eval(fmt.Sprintf("window.wompratSetTabMeta(%s,%s,%s)", jsString(tab), jsString(title), jsString(icon)))
 		if url != "" {

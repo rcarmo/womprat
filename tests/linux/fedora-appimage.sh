@@ -70,7 +70,12 @@ docker exec --user "$(id -u):$(id -g)" "$name" bwrap --ro-bind / / /bin/true || 
 step='native build/profiling dependency installation'
 # Install build dependencies only after the exact AppImage's runtime audit,
 # so they cannot hide packaging omissions.
-docker exec "$name" bash -c 'dnf install -y --setopt=cachedir="$WOMPRAT_RUN_DIR/dnf-cache" --setopt=logdir="$WOMPRAT_RUN_DIR/dnf-logs" gcc gcc-c++ pkgconf-pkg-config gtk3-devel webkit2gtk4.1-devel git perf heaptrack hostname gdb' > "$stage/build-deps.log" 2>&1
+docker exec "$name" bash -c 'dnf install -y --setopt=cachedir="$WOMPRAT_RUN_DIR/dnf-cache" --setopt=logdir="$WOMPRAT_RUN_DIR/dnf-logs" gcc gcc-c++ pkgconf-pkg-config gtk3-devel webkit2gtk4.1-devel git perf libcap heaptrack hostname gdb' > "$stage/build-deps.log" 2>&1
+# The host denies perf_event_open to ordinary users (paranoid=4). Give only
+# the collector CAP_PERFMON; exec of the unprivileged application drops it.
+# Do not change host sysctls or run the GUI as root to obtain a profile.
+step='CPU collector capability setup'
+docker exec "$name" setcap cap_perfmon=ep /usr/bin/perf
 step='Xvfb startup'
 # Package installation may reset /tmp ownership. Restore the owned mount only
 # after that job is idle, and start the display under the acceptance UID.

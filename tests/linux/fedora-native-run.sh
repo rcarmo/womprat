@@ -107,7 +107,9 @@ heaptrack_print -f "$capture" > "$profiles/webkit-heap/summary.txt"
 grep -q 'calls to allocation functions:' "$profiles/webkit-heap/summary.txt"
 # CPU captures include the parent and inherited browser process tree.
 echo 'STAGE inherited native CPU fixtures'
-timeout --kill-after=5 180 perf record --inherit -e cpu-clock -F 99 --call-graph dwarf,8192 -o "$profiles/webkit-cpu.data" -- env WOMPRAT_GUI_FIXTURES=1 dbus-run-session -- "$WOMPRAT_RUN_DIR/gui-acceptance" > "$WOMPRAT_RUN_DIR/cpu-gui.log" 2>&1 &
+# Expansion belongs in the unprivileged child, not this shell.
+# shellcheck disable=SC2016
+timeout --kill-after=5 180 perf record --inherit -e cpu-clock -F 99 --call-graph dwarf,8192 -o "$profiles/webkit-cpu.data" -- env WOMPRAT_GUI_FIXTURES=1 dbus-run-session -- bash -c '[[ $(id -u) != 0 ]] && grep -qE "^CapEff:[[:space:]]+0+$" /proc/self/status && exec "$1"' sh "$WOMPRAT_RUN_DIR/gui-acceptance" > "$WOMPRAT_RUN_DIR/cpu-gui.log" 2>&1 &
 pid=$!
 trap cleanup EXIT INT TERM
 for _ in $(seq 1 100);do grep -q '^WOMPRAT_GUI_TEST_URL=' "$WOMPRAT_RUN_DIR/cpu-gui.log" && break;sleep .1;done

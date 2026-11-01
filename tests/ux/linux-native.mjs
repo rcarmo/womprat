@@ -1,6 +1,7 @@
 // Native GTK development acceptance. Requires the guittest-only authenticated
 // query endpoint; never shipped or enabled by a release build.
 import {readFileSync} from 'node:fs';
+import {spawnSync} from 'node:child_process';
 const log=readFileSync(process.argv[2],'utf8');
 const url=log.match(/^WOMPRAT_GUI_TEST_URL=(.+)$/m)?.[1];
 const token=log.match(/^WOMPRAT_TOKEN=(.+)$/m)?.[1];
@@ -38,6 +39,25 @@ if(process.env.WOMPRAT_GUI_FIXTURES==='1'){
  const id=JSON.parse(await query('JSON.stringify(Array.from(document.querySelectorAll("#tab-list .tab")).map(t=>t.dataset.tabId))')).at(-1);
  for(let i=0;i<60;i++){if(await query('document.title',id)==='Native first')break;await Bun.sleep(100)}
  assert(await query('document.title',id)==='Native first','separate content view loads fixture through proxy');
+ await wait(`String(document.querySelector('[data-tab-id="${id}"] img')?.src.startsWith('data:image/png;base64,'))`);
+ assert(await query(`String(document.querySelector('[data-tab-id="${id}"] img').src.length<=2048)`)==='true','native favicon reaches shell as bounded inline pixels');
+ const native=(...args)=>{const r=spawnSync('xdotool',args,{encoding:'utf8'});if(r.status!==0)throw Error('Native input: '+r.stderr);return r.stdout.trim()};
+ const window=native('search','--onlyvisible','--name','^Womprat$').split('\n').at(-1);
+ native('windowfocus','--sync',window);
+ await query('document.body.tabIndex=0;document.body.focus();"focused"',id);
+ const initialWidth=Number(await query('String(innerWidth)',id));
+ native('key','--clearmodifiers','ctrl+plus');
+ for(let i=0;i<30&&Number(await query('String(innerWidth)',id))>=initialWidth;i++)await Bun.sleep(100);
+ assert(Number(await query('String(innerWidth)',id))<initialWidth,'native content zoom changes viewport');
+ native('key','--clearmodifiers','ctrl+0');
+ for(let i=0;i<30&&Math.abs(Number(await query('String(innerWidth)',id))-initialWidth)>1;i++)await Bun.sleep(100);
+ assert(Math.abs(Number(await query('String(innerWidth)',id))-initialWidth)<=1,'native zoom reset restores viewport');
+ native('windowsize',window,'1000','700');
+ for(let i=0;i<30&&Number(await query('String(innerWidth)',id))>=initialWidth;i++)await Bun.sleep(100);
+ assert(Number(await query('String(innerWidth)',id))<initialWidth,'native content resizes with GTK host');
+ native('key','--clearmodifiers','ctrl+l');
+ await wait('String(document.activeElement?.id==="url-input")');
+ assert(await query('String(document.activeElement?.id==="url-input")')==='true','native Ctrl+L transfers focus to shell address bar');
  await query('document.getElementById("next").click();"click"',id);
  for(let i=0;i<60;i++){if(await query('document.title',id)==='Native next')break;await Bun.sleep(100)}
  assert(await query('document.title',id)==='Native next','in-page link navigation stays in content tab');
@@ -70,6 +90,13 @@ if(process.env.WOMPRAT_GUI_FIXTURES==='1'){
  const response=await query('womprat_getTabs().then(value=>window.__nativeTabs=JSON.parse(value));"request"');
  await wait(`String(window.__nativeTabs?.tabs?.[0]?.id===${JSON.stringify(id)})`);
  assert(response==='request','native reorder updates authoritative stable-ID order');
+ await query(`womprat_switchTab(${JSON.stringify(second)});"switch"`);
+ await wait(`String(document.querySelector('#tab-list .tab.active')?.dataset.tabId===${JSON.stringify(second)})`);
+ await query('document.title="Inactive native title";"title"',id);
+ await wait(`String(document.querySelector('[data-tab-id="${id}"] .tab-title')?.textContent==='Inactive native title')`);
+ assert(await query(`String(document.querySelector('#tab-list .tab.active')?.dataset.tabId===${JSON.stringify(second)})`)==='true','inactive title updates do not activate content tab');
+ await query(`womprat_switchTab(${JSON.stringify(id)});"switch"`);
+ await wait(`String(document.querySelector('#tab-list .tab.active')?.dataset.tabId===${JSON.stringify(id)})`);
  await query('document.getElementById("download").click();"download"',id);
  let completed=false;for(let i=0;i<80;i++){const r=await fetch(new URL('/api/download/status',origin),{headers:{'X-Session-Token':token}});const status=await r.json();if(status.status==='complete'){completed=true;break}if(status.status==='error')throw Error('managed download: '+status.error);await Bun.sleep(100)}
  assert(completed,'managed download receives native HttpOnly cookie');

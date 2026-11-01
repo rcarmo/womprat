@@ -248,6 +248,40 @@ static gboolean failed(WebKitWebView *v, WebKitLoadEvent event, const char *uri,
 static void title_changed(GObject *v, GParamSpec *param, gpointer p) {
   report(p, 2, NULL, 1);
 }
+static cairo_status_t favicon_bytes(void *p, const unsigned char *data,
+                                    unsigned int length) {
+  GByteArray *bytes = p;
+  // 1500 PNG bytes fit within the shared 2048-byte inline favicon limit.
+  if (length > 1500 || bytes->len > 1500 - length)
+    return CAIRO_STATUS_WRITE_ERROR;
+  g_byte_array_append(bytes, data, length);
+  return CAIRO_STATUS_SUCCESS;
+}
+static void favicon_changed(GObject *view, GParamSpec *param, gpointer p) {
+  cairo_surface_t *source = webkit_web_view_get_favicon(WEBKIT_WEB_VIEW(view));
+  if (!source || cairo_surface_get_type(source) != CAIRO_SURFACE_TYPE_IMAGE)
+    return;
+  int width = cairo_image_surface_get_width(source),
+      height = cairo_image_surface_get_height(source);
+  if (width <= 0 || height <= 0)
+    return;
+  cairo_surface_t *icon = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 16, 16);
+  cairo_t *cr = cairo_create(icon);
+  cairo_scale(cr, 16.0 / width, 16.0 / height);
+  cairo_set_source_surface(cr, source, 0, 0);
+  cairo_paint(cr);
+  cairo_destroy(cr);
+  GByteArray *bytes = g_byte_array_new();
+  if (cairo_surface_write_to_png_stream(icon, favicon_bytes, bytes) == CAIRO_STATUS_SUCCESS) {
+    char *base64 = g_base64_encode(bytes->data, bytes->len);
+    char *uri = g_strconcat("data:image/png;base64,", base64, NULL);
+    report(p, 7, uri, 1);
+    g_free(uri);
+    g_free(base64);
+  }
+  g_byte_array_unref(bytes);
+  cairo_surface_destroy(icon);
+}
 static gboolean policy(WebKitWebView *v, WebKitPolicyDecision *decision,
                        WebKitPolicyDecisionType kind, gpointer p) {
   BrowserTab *t = p;
@@ -405,6 +439,11 @@ WompratGTK *womprat_gtk_new(uintptr_t handle, const char *shell,
       data, WEBKIT_NETWORK_PROXY_MODE_CUSTOM, settings);
   webkit_network_proxy_settings_free(settings);
   h->content = webkit_web_context_new_with_website_data_manager(data);
+  // Let WebKit fetch icons through the same fail-closed content proxy. Only
+  // bounded inline pixels cross into the loopback shell, never a remote URL.
+  char *favicons = g_build_filename(profile, "favicons", NULL);
+  webkit_web_context_set_favicon_database_directory(h->content, favicons);
+  g_free(favicons);
   char *cookie_path = g_build_filename(profile, "cookies.sqlite", NULL);
   webkit_cookie_manager_set_persistent_storage(webkit_web_context_get_cookie_manager(h->content),cookie_path,WEBKIT_COOKIE_PERSISTENT_STORAGE_SQLITE);
   g_free(cookie_path);
@@ -506,6 +545,7 @@ void womprat_gtk_tab(WompratGTK *h, const char *id, const char *url, int op) {
     g_signal_connect(t->view, "load-changed", G_CALLBACK(load), t);
     g_signal_connect(t->view, "load-failed", G_CALLBACK(failed), t);
     g_signal_connect(t->view, "notify::title", G_CALLBACK(title_changed), t);
+    g_signal_connect(t->view, "notify::favicon", G_CALLBACK(favicon_changed), t);
     g_signal_connect(t->view, "decide-policy", G_CALLBACK(policy), t);
     g_signal_connect(t->view, "web-process-terminated", G_CALLBACK(terminated),
                      t);

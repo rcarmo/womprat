@@ -110,3 +110,12 @@ test("native profiler is noninteractive and accepts Fedora compression", () => {
  expect(runner).toContain("heaptrack_print -f");
  expect(runner).toContain("--call-graph dwarf,8192");
 });
+
+test('CPU collector privilege is not inherited by the GUI', () => {
+ const container=readFileSync('tests/linux/fedora-appimage.sh','utf8');
+ const native=readFileSync('tests/linux/fedora-native-run.sh','utf8');
+ expect(container).toContain('setcap cap_perfmon=ep /usr/bin/perf');
+ expect(native).toContain('^CapEff:[[:space:]]+0+$');
+ expect(native).toContain('[[ $(id -u) != 0 ]]');
+ expect(container).not.toContain('sysctl -w');
+});
