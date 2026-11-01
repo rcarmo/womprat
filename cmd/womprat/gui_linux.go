@@ -279,6 +279,8 @@ func goWompratMessage(handle C.uintptr_t, id, raw *C.char) {
 		}
 		var result any
 		switch request.Name {
+		case "shellReady":
+			fmt.Println("WOMPRAT_GUI_READY=1")
 		case "getTabs":
 			m.app.mu.Lock()
 			result = jsString(map[string]any{"tabs": m.app.tabs, "activeTab": m.app.activeTab, "port": m.app.serverPort, "token": m.app.sessionToken})
@@ -362,7 +364,7 @@ func goWompratMessage(handle C.uintptr_t, id, raw *C.char) {
 const linuxShellBridgeJS = `(function(){
 let sequence=0;const pending=new Map();
 window.__wompratResolve=function(id,value){const resolve=pending.get(id);if(resolve){pending.delete(id);resolve(value)}};
-for(const name of ['getTabs','getNetworkState','newBrowser','navigate','switchTab','closeTab','reorderTab','forgetTab','registerLocalTab','newTerminal','newVNC','newRDP','openSettings','goHome','clearActiveTab','updateTitle','setChromeHeight','focusShell','browserBack','browserForward','browserReload','proceedCertificate']){
+for(const name of ['shellReady','getTabs','getNetworkState','newBrowser','navigate','switchTab','closeTab','reorderTab','forgetTab','registerLocalTab','newTerminal','newVNC','newRDP','openSettings','goHome','clearActiveTab','updateTitle','setChromeHeight','focusShell','browserBack','browserForward','browserReload','proceedCertificate']){
 window['womprat_'+name]=function(...args){return new Promise(resolve=>{const id=++sequence;pending.set(id,resolve);window.__wompratNativeSend(JSON.stringify({id,name,args}))})};
 }
 })();`

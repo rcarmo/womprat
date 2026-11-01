@@ -52,6 +52,11 @@ if(process.env.WOMPRAT_GUI_FIXTURES==='1'){
  let reloaded=false;for(let i=0;i<60;i++){if(await query('String(window.__reloadMarker===undefined)',id)==='true'){reloaded=true;break}await Bun.sleep(100)}
  assert(reloaded,'native reload replaces document state');
  assert(await query('location.href')===origin,'successful content keeps authenticated shell');
+ const shellCSP=await fetch(origin);assert(!shellCSP.headers.get('content-security-policy').includes('img-src \'self\' data: blob: http:'),'shell resources cannot bypass content proxy');
+ assert(await query('typeof womprat_getTabs',id)==='undefined','content cannot invoke privileged shell bridge');
+ const beforeForbidden=await query('location.href',id);
+ await query('location.href="file:///etc/passwd";"blocked"',id);await Bun.sleep(200);
+ assert(await query('location.href',id)===beforeForbidden,'native policy blocks file navigation');
  const prePopup=Number(await query('String(document.querySelectorAll("#tab-list .tab").length)'));
  await query('document.getElementById("popup").click();"popup"',id);
  await wait(`String(document.querySelectorAll("#tab-list .tab").length>${prePopup})`);

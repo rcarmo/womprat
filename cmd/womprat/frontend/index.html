@@ -2003,6 +2003,7 @@ window.wompratSyncTabURL = function(tabId, url) {
 
 installShellControlHandlers();
 installBrowserHotkeys();
+window.womprat_shellReady?.();
 // Load local history through the authenticated settings API even in a fresh
 // shell that has not configured a Tailscale key yet.
 loadPersistedAddressHistory();
