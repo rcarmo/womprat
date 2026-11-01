@@ -62,7 +62,7 @@ BIN_DARWIN:= $(DIST_DIR)/$(APP)-darwin-arm64
 
 .PHONY: help all setup doctor deps tidy download patch verify test vet compile-windows frontend-check \
         resources resources-arm64 resources-amd64 icon icon-check windows windows-arm64 \
-        windows-amd64 windows-intel intel linux linux-debug linux-gui ux-test darwin sha256 release release-intel dist \
+        windows-amd64 windows-intel intel linux linux-debug linux-gui linux-release-check linux-appimage ux-test darwin sha256 release release-intel dist \
         clean clean-generated clean-dist dev run status
 
 .DEFAULT_GOAL := help
@@ -149,7 +149,7 @@ compile-windows: resources ## Compile Windows arm64 and amd64 in isolated source
 
 .PHONY: frontend-test
 frontend-test: ## Run server-independent frontend and portable-path regressions
-	$(BUN_PROFILE) frontend test tests/ux/address-history.test.mjs tests/ux/certificate-banner.test.mjs tests/ux/paths.test.mjs tests/ux/rdp-resize.test.mjs tests/ux/terminal-controls.test.mjs tests/ux/frontend-state.test.mjs tests/ux/vnc-lifecycle.test.mjs
+	$(BUN_PROFILE) frontend test tests/ux/linux-release.test.mjs tests/ux/address-history.test.mjs tests/ux/certificate-banner.test.mjs tests/ux/paths.test.mjs tests/ux/rdp-resize.test.mjs tests/ux/terminal-controls.test.mjs tests/ux/frontend-state.test.mjs tests/ux/vnc-lifecycle.test.mjs
 
 verify: frontend-check frontend-test test vet compile-windows ## Run all non-interactive checks
 
@@ -213,13 +213,19 @@ ux-setup: ## Install project-local browser dependencies and cached Chromium
 linux-debug: linux ## Build Linux binary and launch the Xvfb/xdotool debug harness
 	WOMPRAT_BIN=$(BIN_LINUX) bash scripts/linux-debug.sh
 
-linux-gui: | $(DIST_DIR) $(TMP_DIR) ## Build the Linux WebKitGTK GUI app (needs libgtk-3-dev + libwebkit2gtk-4.1-dev)
+linux-gui: | $(DIST_DIR) $(TMP_DIR) ## Build the development WebKitGTK shell (not browser-parity complete)
 	@mkdir -p $(TMP_DIR)/pcshim
 	@printf 'Name: webkit2gtk-4.0 (shim)\nDescription: shim -> 4.1\nVersion: 0\nRequires: webkit2gtk-4.1\n' > $(TMP_DIR)/pcshim/webkit2gtk-4.0.pc
-	CGO_ENABLED=1 PKG_CONFIG=/usr/bin/pkg-config \
-		PKG_CONFIG_PATH=$(TMP_DIR)/pcshim:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig \
-		GOOS=linux GOARCH=amd64 $(GO) build -tags webkitgui -ldflags="$(LDFLAGS) -X main.debugBuild=1" -o $(DIST_DIR)/$(APP)-linux-gui ./$(CMD_DIR)
+	CGO_ENABLED=1 PKG_CONFIG=pkg-config \
+		PKG_CONFIG_PATH="$(TMP_DIR)/pcshim$${PKG_CONFIG_PATH:+:$$PKG_CONFIG_PATH}" \
+		GOOS=linux GOARCH=amd64 GOAMD64=v1 $(GO) build -tags webkitgui -ldflags="$(LDFLAGS)" -o $(DIST_DIR)/$(APP)-linux-gui ./$(CMD_DIR)
 	@ls -lh $(DIST_DIR)/$(APP)-linux-gui
+
+linux-release-check: ## Refuse Linux release until packaging and parity/Fedora test hooks exist
+	bash scripts/linux-release.sh --check
+
+linux-appimage: ## Build, parity-test and Fedora-44-test a release AppImage (currently blocked)
+	VERSION='$(VERSION)' COMMIT='$(COMMIT)' bash scripts/linux-release.sh
 
 darwin: | $(DIST_DIR) ## Build Darwin ARM64 binary (for compile sanity only; app runtime is Windows-focused)
 	GOOS=darwin GOARCH=arm64 $(GO) build $(GOFLAGS) -ldflags="$(LDFLAGS)" -o $(BIN_DARWIN) ./$(CMD_DIR)

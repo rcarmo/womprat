@@ -27,6 +27,41 @@ defaults:
     shell: bash
 
 jobs:
+  linux-appimage:
+    name: Validate Linux browser parity and AppImage
+    uses: ./.github/workflows/linux-appimage.yml
+    with:
+      version: ${{ inputs.version || '' }}
+
+  publish-linux:
+    name: Add validated AppImage to release
+    needs: [linux-appimage, build-release]
+    if: ${{ !inputs.validate_only }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Initialise project run paths
+        run: |
+          source scripts/paths.sh
+          echo "WOMPRAT_DIST=$WOMPRAT_BUILD_DIR/dist" >> "$GITHUB_ENV"
+      - uses: actions/download-artifact@v4
+        with:
+          name: linux-appimage-release
+          path: ${{ env.WOMPRAT_DIST }}
+      - name: Verify accepted artifact checksums
+        run: |
+          source scripts/paths.sh
+          cd "$WOMPRAT_BUILD_DIR/dist"
+          sha256sum --check LINUX-SHA256SUMS.txt
+      - name: Publish accepted Linux assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('manual-{0}', github.run_number) }}
+          files: |
+            ${{ env.WOMPRAT_DIST }}/Womprat-*-x86_64.AppImage
+            ${{ env.WOMPRAT_DIST }}/LINUX-SHA256SUMS.txt
+          fail_on_unmatched_files: true
+
   windows-tests:
     name: Execute Windows COM regression tests
     runs-on: windows-latest
@@ -105,10 +140,12 @@ jobs:
             exit 1
           fi
           commit="$(git rev-parse --short HEAD)"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "commit=$commit" >> "$GITHUB_OUTPUT"
-          echo "release_name=$release_name" >> "$GITHUB_OUTPUT"
-          echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
+          {
+            echo "version=$version"
+            echo "commit=$commit"
+            echo "release_name=$release_name"
+            echo "prerelease=$prerelease"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Initialise project run paths
         run: |

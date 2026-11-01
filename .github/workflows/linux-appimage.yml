@@ -1,0 +1,76 @@
+name: Linux AppImage acceptance
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to embed (defaults to Makefile)
+        required: false
+        type: string
+  workflow_call:
+    inputs:
+      version:
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  linux-appimage:
+    name: Browser parity and Fedora 44 AppImage
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Initialise project run paths
+        run: |
+          source scripts/paths.sh
+          echo "WOMPRAT_RUN_DIR=$WOMPRAT_RUN_DIR" >> "$GITHUB_ENV"
+          echo "WOMPRAT_DIST=$WOMPRAT_BUILD_DIR/dist" >> "$GITHUB_ENV"
+      - name: Reject incomplete Linux browser port
+        run: make linux-release-check
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27.3'
+          cache: false
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Build and accept AppImage
+        id: acceptance
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          if [[ "$GITHUB_REF_TYPE" == tag ]]; then
+            version="${GITHUB_REF_NAME#v}"
+          else
+            version="${INPUT_VERSION:-$(awk '/^VERSION[[:space:]]/ {print $3; exit}' Makefile)}"
+          fi
+          make linux-appimage VERSION="$version" COMMIT="$(git rev-parse --short HEAD)"
+      - name: Upload accepted Linux release assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-appimage-release
+          path: |
+            ${{ env.WOMPRAT_DIST }}/Womprat-*-x86_64.AppImage
+            ${{ env.WOMPRAT_DIST }}/LINUX-SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 1
+      - name: Upload transient Linux GUI profiles
+        if: ${{ always() && steps.acceptance.outcome != 'skipped' && steps.acceptance.outcome != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-appimage-profiles
+          path: ${{ env.WOMPRAT_RUN_DIR }}/linux-release-*/profiles/
+          retention-days: 1
+          if-no-files-found: error

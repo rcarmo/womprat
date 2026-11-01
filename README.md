@@ -275,7 +275,9 @@ make ux-test
 
 `tests/ux/ux.mjs` drives the shell in Chromium and covers downloads, tabs, Settings, DNS form layout and copying, persistent Recent removal, SSH routing, VNC `None`, VNC password reconnect and RDP panel creation. It uses debug direct dialing and does not verify authenticated tailnet DNS. `tests/ux/real-remotes.mjs` checks non-uniform framebuffer pixels and resized RDP geometry against real servers. See [`tests/ux/README.md`](tests/ux/README.md) for setup and test boundaries.
 
-The release workflow executes the WebView2 COM regression tests on a Windows runner before it builds and publishes ARM64 and AMD64 binaries.
+The release workflow executes the WebView2 COM regression tests on a Windows runner before it builds and publishes Windows ARM64 and AMD64 binaries.
+
+Linux AppImage acceptance also runs on main pushes, pull requests and releases. It is currently blocked by the missing Linux browser host and parity/Fedora 44 test hooks. `make linux-appimage` refuses to package the single-WebView development shim. Once implemented, Linux acceptance must pass before an AppImage and separate Linux checksums can be added to a release. Windows jobs remain independent. See [Linux AppImage CI contracts](docs/linux-appimage-ci.md).
 
 ## Repository layout
 

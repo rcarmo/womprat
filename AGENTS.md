@@ -81,5 +81,23 @@ config or authenticated tailnet state. The debug script requires an existing
 display: Xvfb creates host `/tmp` sockets regardless of `TMPDIR`, so starting it
 requires a user-approved exception or separately managed display.
 
+## Linux AppImage CI/CD
+
+`make linux-release-check` and `make linux-appimage` orchestrate the Linux release
+contract in `docs/linux-appimage-ci.md`. Current browser-parity/packaging/Fedora
+hooks are unimplemented, so CI intentionally fails before building or publishing
+Linux assets. Do not replace this failure with the single-WebView development
+shim, a headless server, skipped assertions or sandbox/network bypasses.
+
+Linux acceptance runs on main/PR/manual and is reused by the release workflow.
+Windows jobs are independent; Linux publication requires both acceptance and the
+Windows release job. The normal `linux-gui` build no longer enables debug direct
+dialing. Build/test hooks must source the project paths, put staging and isolated
+homes/display sockets below the resolved run directory, and use `cache/<tool>`
+for package/tool caches and `build/dist` for accepted assets. Container CI must
+work without this host's `/workspace` or shared Makefile. Profiles are transient
+analysis artifacts, never release assets; analyse and dispose after use. Cleanup
+must not remove active jobs or intentional release assets.
+
 Preserve persisted exit-node routing and tailnet-only DNS. Synthetic tests and
 Wine do not establish native Windows ARM64 acceptance. Never overwrite a release.
