@@ -32,6 +32,8 @@ export PATH="$stage/tools:$PATH"
 # The launcher sets LD_LIBRARY_PATH; no rpath rewrite of the Go executable is
 # needed. Preserve its build-info section, which patchelf otherwise invalidates.
 cp "$stage/womprat-unmodified" "$appdir/usr/bin/womprat"
+# The sandbox helper must match bundled GLib, not the Fedora host GLib ABI.
+cp /usr/bin/xdg-dbus-proxy "$appdir/usr/bin/xdg-dbus-proxy"
 cp -a /usr/lib/x86_64-linux-gnu/webkit2gtk-4.1 "$appdir/usr/lib/"
 cp -a /usr/lib/x86_64-linux-gnu/gstreamer-1.0 "$appdir/usr/lib/"
 mkdir -p "$appdir/usr/libexec/gstreamer-1.0"
@@ -47,7 +49,7 @@ while IFS= read -r -d '' elf; do
     esac
     [[ -e $appdir/usr/lib/$library ]] || cp -L "$path" "$appdir/usr/lib/$library"
   done < <(ldd "$elf" 2>/dev/null | awk '/=> \// {print $1, $3}')
-done < <(find "$appdir/usr" -type f \( -name '*.so*' -o -name WebKitWebProcess -o -name WebKitNetworkProcess -o -name WebKitGPUProcess -o -name gst-plugin-scanner -o -name womprat \) -print0)
+done < <(find "$appdir/usr" -type f \( -name '*.so*' -o -name WebKitWebProcess -o -name WebKitNetworkProcess -o -name WebKitGPUProcess -o -name gst-plugin-scanner -o -name xdg-dbus-proxy -o -name womprat \) -print0)
 if [[ -d /usr/share/alsa ]]; then cp -a /usr/share/alsa "$appdir/usr/share/"; fi
 mkdir -p "$appdir/usr/share/doc/womprat"
 cp README.md "$appdir/usr/share/doc/womprat/README.md"
