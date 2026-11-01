@@ -22,7 +22,8 @@ fetch() {
   printf '%s  %s\n' "$hash" "$cache/$name" | sha256sum --check --status || { echo "Tool integrity mismatch: $name" >&2; exit 1; }
   cp "$cache/$name" "$stage/tools/$name"
 }
-fetch https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage linuxdeploy.AppImage d900b99faf8656aa613038dafbd2cc23ca7f90794a9a00c9546f0ab572af94dd
+fetch https://github.com/linuxdeploy/linuxdeploy/releases/download/1-alpha-20251107-1/linuxdeploy-x86_64.AppImage linuxdeploy-20251107.AppImage c20cd71e3a4e3b80c3483cef793cda3f4e990aca14014d23c544ca3ce1270b4d
+mv "$stage/tools/linuxdeploy-20251107.AppImage" "$stage/tools/linuxdeploy.AppImage"
 fetch https://github.com/AppImage/type2-runtime/releases/download/continuous/runtime-x86_64 runtime-x86_64 617aa77314d57c8b8e4fae9c3f0b35af7b30d5529cb69e98f64f92510ed98a46
 fetch https://raw.githubusercontent.com/linuxdeploy/linuxdeploy-plugin-gtk/master/linuxdeploy-plugin-gtk.sh linuxdeploy-plugin-gtk.sh b0f4cbc684a0103a9651f0955b635eaea0096b3a66c0f5a2c2aa337960375171
 chmod +x "$stage/tools/"*
