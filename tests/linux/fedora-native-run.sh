@@ -26,7 +26,7 @@ if ! xdotool search --name Womprat >/dev/null || ! grep -q '^WOMPRAT_SHELL_URL='
  printf 'Capturing packaged native backtrace\n' >&2
  # Keep host gdb/dbus tools on host libraries. Inject bundle environment into
  # the inferior only, so debugger dependencies cannot mask the target crash.
- timeout 45 /usr/bin/bwrap --bind / / --tmpfs /opt --ro-bind "$root" /opt/womprat --chdir /opt/womprat dbus-run-session -- gdb -q -batch -ex 'set environment LD_LIBRARY_PATH /opt/womprat/usr/lib' -ex 'set environment GSETTINGS_SCHEMA_DIR /opt/womprat/usr/share/glib-2.0/schemas' -ex 'set environment GDK_BACKEND x11' -ex 'handle SIGUSR1 nostop noprint pass' -ex 'handle SIGUSR2 nostop noprint pass' -ex run -ex 'bt 30' -ex 'info sharedlibrary' --args /opt/womprat/usr/bin/womprat > "$WOMPRAT_RUN_DIR/native-crash.txt" 2>&1 || true
+ timeout 45 dbus-run-session -- /usr/bin/bwrap --bind / / --dev-bind /dev /dev --tmpfs /opt --ro-bind "$root" /opt/womprat --chdir /opt/womprat gdb -q -batch -ex 'set environment LD_LIBRARY_PATH /opt/womprat/usr/lib' -ex 'set environment GSETTINGS_SCHEMA_DIR /opt/womprat/usr/share/glib-2.0/schemas' -ex 'set environment GDK_BACKEND x11' -ex 'handle SIGUSR1 nostop noprint pass' -ex 'handle SIGUSR2 nostop noprint pass' -ex run -ex 'bt 30' -ex 'info sharedlibrary' --args /opt/womprat/usr/bin/womprat > "$WOMPRAT_RUN_DIR/native-crash.txt" 2>&1 || true
  mkdir -p "$profiles/diagnostic"
  cp "$WOMPRAT_RUN_DIR/native-crash.txt" "$profiles/diagnostic/"
  head -100 "$WOMPRAT_RUN_DIR/native-crash.txt" >&2
