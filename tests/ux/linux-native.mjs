@@ -43,6 +43,13 @@ if(process.env.WOMPRAT_GUI_FIXTURES==='1'){
  await query('womprat_browserBack();"back"');
  for(let i=0;i<60;i++){if(await query('document.title',id)==='Native first')break;await Bun.sleep(100)}
  assert(await query('document.title',id)==='Native first','native back returns to prior document');
+ await query('womprat_browserForward();"forward"');
+ for(let i=0;i<60;i++){if(await query('document.title',id)==='Native next')break;await Bun.sleep(100)}
+ assert(await query('document.title',id)==='Native next','native forward restores subsequent document');
+ await query('window.__reloadMarker=true;"marker"',id);
+ await query('womprat_browserReload();"reload"');
+ let reloaded=false;for(let i=0;i<60;i++){if(await query('String(window.__reloadMarker===undefined)',id)==='true'){reloaded=true;break}await Bun.sleep(100)}
+ assert(reloaded,'native reload replaces document state');
  assert(await query('location.href')===origin,'successful content keeps authenticated shell');
  const prePopup=Number(await query('String(document.querySelectorAll("#tab-list .tab").length)'));
  await query('document.getElementById("popup").click();"popup"',id);
@@ -60,6 +67,8 @@ if(process.env.WOMPRAT_GUI_FIXTURES==='1'){
  await query('document.getElementById("download").click();"download"',id);
  let completed=false;for(let i=0;i<80;i++){const r=await fetch(new URL('/api/download/status',origin),{headers:{'X-Session-Token':token}});const status=await r.json();if(status.status==='complete'){completed=true;break}if(status.status==='error')throw Error('managed download: '+status.error);await Bun.sleep(100)}
  assert(completed,'managed download receives native HttpOnly cookie');
+ const status=await (await fetch(new URL('/api/download/status',origin),{headers:{'X-Session-Token':token}})).json();
+ assert(readFileSync(status.path,'utf8')==='native managed download fixture','download content is complete');
  const tls=log.match(/^WOMPRAT_GUI_TLS_URL=(.+)$/m)?.[1];if(!tls)throw Error('TLS fixture missing');
  const beforeTLS=Number(await query('String(document.querySelectorAll("#tab-list .tab").length)'));
  await query(`womprat_newBrowser(${JSON.stringify(tls+'/page?name=tls')});"tls"`);

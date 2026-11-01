@@ -24,7 +24,7 @@ cleanup(){
   local status=$?
   if [[ $status != 0 ]];then
     printf 'Fedora acceptance failed at %s (exit %s)\n' "$step" "$status" >&2
-    for log in "$stage"/{install,build-deps,xvfb,release-gui,fixture-gui,heap-gui,cpu-gui}.log;do
+    for log in "$stage"/{install,build-deps,xvfb,release-gui,fixture-gui,heap-gui,cpu-gui}.log "$stage/native-crash.txt";do
       if [[ -f $log ]];then printf '\n=== %s ===\n' "$(basename "$log")" >&2;tail -60 "$log" >&2;fi
     done
   fi

@@ -23,12 +23,14 @@ if ! xdotool search --name Womprat >/dev/null || ! grep -q '^WOMPRAT_SHELL_URL='
  # Reproduce the failed exact extracted payload in the same private namespace.
  # No debug or sandbox bypass; retain only the diagnostic backtrace for analysis.
  root="$WOMPRAT_RUN_DIR/extracted/squashfs-root"
- export LD_LIBRARY_PATH="$root/usr/lib"
- export GSETTINGS_SCHEMA_DIR="$root/usr/share/glib-2.0/schemas"
- export XDG_DATA_DIRS="$root/usr/share:${XDG_DATA_DIRS:-/usr/share}"
- /usr/bin/bwrap --bind / / --tmpfs /opt --ro-bind "$root" /opt/womprat --chdir /opt/womprat dbus-run-session -- gdb -q -batch -ex 'handle SIGUSR1 nostop noprint pass' -ex 'handle SIGUSR2 nostop noprint pass' -ex run -ex 'thread apply all bt 12' --args /opt/womprat/usr/bin/womprat > "$WOMPRAT_RUN_DIR/native-crash.txt" 2>&1 || true
+ printf 'Capturing packaged native backtrace\n' >&2
+ # Keep host gdb/dbus tools on host libraries. Inject bundle environment into
+ # the inferior only, so debugger dependencies cannot mask the target crash.
+ timeout 45 /usr/bin/bwrap --bind / / --tmpfs /opt --ro-bind "$root" /opt/womprat --chdir /opt/womprat dbus-run-session -- gdb -q -batch -ex 'set environment LD_LIBRARY_PATH /opt/womprat/usr/lib' -ex 'set environment GSETTINGS_SCHEMA_DIR /opt/womprat/usr/share/glib-2.0/schemas' -ex 'set environment GDK_BACKEND x11' -ex 'handle SIGUSR1 nostop noprint pass' -ex 'handle SIGUSR2 nostop noprint pass' -ex run -ex 'bt 30' -ex 'info sharedlibrary' --args /opt/womprat/usr/bin/womprat > "$WOMPRAT_RUN_DIR/native-crash.txt" 2>&1 || true
+ mkdir -p "$profiles/diagnostic"
+ cp "$WOMPRAT_RUN_DIR/native-crash.txt" "$profiles/diagnostic/"
  head -100 "$WOMPRAT_RUN_DIR/native-crash.txt" >&2
- tail -100 "$WOMPRAT_RUN_DIR/native-crash.txt" >&2
+ tail -40 "$WOMPRAT_RUN_DIR/native-crash.txt" >&2
  exit 1
 fi
 bun tests/linux/release-smoke.mjs "$WOMPRAT_RUN_DIR/release-gui.log"
