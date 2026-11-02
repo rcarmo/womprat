@@ -181,3 +181,20 @@ test('post-auth hydration loads appearance before tabs exactly once', async () =
   await Promise.all([hydrate(), hydrate()]);
   expect(events).toEqual(['appearance','history','recent','tabs']);
 });
+
+test('native hydration selects restored browser and remote tabs without recreating IDs', async () => {
+ const begin=source.indexOf('async function hydrateNativeTabs()');
+ const end=source.indexOf('// Save tabs on changes',begin);
+ const events=[];
+ for(const type of ['browser','vnc','rdp','terminal']){
+  const tab={id:'restored-'+type,type,url:'https://example.test/',host:'example.test',port:22};
+  const state={tabs:[],activeTab:null};
+  const hydrate=Function('window','state','location','validTabID','sanitizeTabForSave','renderTabs','updateHomeVisibility','openTerminal','activateTab',`${source.slice(begin,end)};return hydrateNativeTabs`)(
+   {womprat_getTabs:async()=>JSON.stringify({tabs:[tab],activeTab:tab.id})},state,{search:''},()=>true,t=>t,()=>{},()=>{},
+   async(_host,_title,_user,_port,options)=>events.push(['terminal',options.id]),id=>events.push([type,id]));
+  await hydrate();
+  expect(state.tabs.map(t=>t.id)).toEqual([tab.id]);
+  expect(state.activeTab).toBe(tab.id);
+ }
+ expect(events).toEqual(['browser','vnc','rdp','terminal'].map(t=>[t,'restored-'+t]));
+});

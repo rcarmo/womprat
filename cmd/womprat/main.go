@@ -125,6 +125,7 @@ type App struct {
 	pendingAuth           map[string]*pendingSSH
 	sessionToken          string
 	locked                bool
+	sessionRestored       bool
 	webview               shellWebView
 	contentViews          browserContentManager
 	clearLinuxBrowserData func(int, string) error
@@ -387,6 +388,28 @@ func (a *App) persistOpenTabs() {
 	a.mu.Lock()
 	a.config.OpenTabs = saved
 	a.mu.Unlock()
+}
+
+// Called by the authenticated shell after its unlock gate. Restore into the
+// existing tab list once; content views remain lazy until a tab is selected.
+func (a *App) shellTabs() string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.locked {
+		return jsString(map[string]any{"tabs": []Tab{}, "activeTab": ""})
+	}
+	if !a.sessionRestored {
+		a.sessionRestored = true
+		if a.config.RestoreTabs && len(a.tabs) == 0 {
+			for _, saved := range sanitizeSavedTabs(a.config.OpenTabs) {
+				a.tabs = append(a.tabs, Tab{ID: newTabID(saved.Type), Type: saved.Type, Title: saved.Title, URL: saved.URL, Favicon: saved.Favicon, Host: saved.Host, User: saved.User, Port: saved.Port})
+			}
+			if len(a.tabs) > 0 {
+				a.activeTab = a.tabs[0].ID
+			}
+		}
+	}
+	return jsString(map[string]any{"tabs": a.tabs, "activeTab": a.activeTab, "port": a.serverPort, "token": a.sessionToken})
 }
 
 func (a *App) switchTab(tabID string) {

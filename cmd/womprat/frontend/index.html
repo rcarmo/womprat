@@ -998,9 +998,11 @@ async function checkAuth() {
       showUnlock();
       return;
     }
+    // A missing/disconnected tailnet identity must not discard the local
+    // session. The master-password gate above, not connectivity, protects it.
+    await hydrateShellAfterAuth();
     if (data.hasKey) {
       document.getElementById('setup').classList.add('hidden');
-      await hydrateShellAfterAuth();
       return;
     }
     document.getElementById('setup').classList.remove('hidden');
@@ -2168,16 +2170,16 @@ async function hydrateNativeTabs() {
       return clean ? { ...clean, id: String(t.id) } : null;
     }).filter(Boolean);
     const requested = new URLSearchParams(location.search).get('tab') || '';
-    const target = localTabs.find(t => t.id === requested && (t.type === 'terminal' || t.type === 'settings'));
+    const target = localTabs.find(t => t.id === requested && (t.type === 'terminal' || t.type === 'settings'))
+      || localTabs.find(t => t.id === native.activeTab);
     state.tabs = localTabs;
     state.activeTab = target ? target.id : null;
     renderTabs();
     updateHomeVisibility();
     if (target?.type === 'terminal') {
       await openTerminal(target.host, target.title || target.host, target.user || 'root', target.port || 22, { id: target.id, skipRegister: true });
-    } else if (target?.type === 'settings') {
-      if (!state.tabs.find(t => t.id === 'settings')) state.tabs.push(target);
-      activateTab('settings');
+    } else if (target) {
+      activateTab(target.id);
     }
   } catch (err) { console.warn('native tab hydration failed', err); }
 }

@@ -63,6 +63,9 @@ cc tests/linux/close-window.c -lX11 -o "$WOMPRAT_RUN_DIR/close-window"
 wait "$pid"
 trap - EXIT INT TERM
 
+echo 'STAGE exact AppImage process-restart sessions'
+timeout --kill-after=5 150 bun tests/linux/session-restart.mjs "$image" "$WOMPRAT_RUN_DIR/close-window"
+
 # Build native functional tests with backend profiling; never bundle this binary.
 echo 'STAGE build native fixture/profile binary'
 CGO_ENABLED=1 timeout --kill-after=5 300 go build -tags webkitgui,guittest,profile -o "$WOMPRAT_RUN_DIR/gui-acceptance" ./cmd/womprat

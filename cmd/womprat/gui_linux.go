@@ -309,9 +309,7 @@ func goWompratMessage(handle C.uintptr_t, id, raw *C.char) {
 		case "shellReady":
 			fmt.Println("WOMPRAT_GUI_READY=1")
 		case "getTabs":
-			m.app.mu.Lock()
-			result = jsString(map[string]any{"tabs": m.app.tabs, "activeTab": m.app.activeTab, "port": m.app.serverPort, "token": m.app.sessionToken})
-			m.app.mu.Unlock()
+			result = m.app.shellTabs()
 		case "getNetworkState":
 			m.app.mu.Lock()
 			result = jsString(map[string]any{"exitNode": m.app.config.ExitNode, "exitActive": m.app.exitNodeActive, "tsConnected": m.app.tsServer != nil})

@@ -228,11 +228,7 @@ func runGUI(app *App, shellURL string) {
 		log.Printf("gui: native content manager ready (host=0x%x shellChild=0x%x dataPath=%q)", host, shellChild, webviewDataPath())
 	}
 
-	w.Bind("womprat_getTabs", func() string {
-		app.mu.Lock()
-		defer app.mu.Unlock()
-		return jsString(map[string]interface{}{"tabs": app.tabs, "activeTab": app.activeTab, "port": app.serverPort, "token": app.sessionToken})
-	})
+	w.Bind("womprat_getTabs", app.shellTabs)
 	w.Bind("womprat_getNetworkState", func() string {
 		app.mu.Lock()
 		defer app.mu.Unlock()
