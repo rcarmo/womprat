@@ -2,13 +2,13 @@
 # Disposable Fedora acceptance container only. Never run on the host: this
 # deliberately changes /opt between empty-directory and Atomic symlink layouts.
 set -euo pipefail
-[[ $(id -u) == 0 && -f /.dockerenv && $# == 2 && $1 != 0 ]] || exit 2
+[[ $(id -u) == 0 && -f /.dockerenv && $# == 2 && $1 != 0 ]] || { echo 'Layout test requires root in Docker and a non-root acceptance UID/GID' >&2;exit 2; }
 uid=$1 gid=$2
 user=$(getent passwd "$uid" | cut -d: -f1)
-[[ -n $user && -d /opt && ! -L /opt && -z $(ls -A /opt) ]] || exit 2
+[[ -n $user && -d /opt && ! -L /opt && -z $(ls -A /opt) ]] || { echo 'Layout test requires an existing acceptance user and empty directory /opt' >&2;ls -ld /opt >&2;ls -A /opt >&2;exit 2; }
 # Parent already resolved/owns these paths as the acceptance UID. This root
 # container helper must not rerun that UID's ownership resolver as root.
-[[ $WOMPRAT_RUN_DIR == "$PROJECT_TMP_ROOT"/runs/* && ! -L $WOMPRAT_RUN_DIR && $(stat -c %u "$WOMPRAT_RUN_DIR") == "$uid" ]] || exit 2
+[[ $WOMPRAT_RUN_DIR == "$PROJECT_TMP_ROOT"/runs/* && ! -L $WOMPRAT_RUN_DIR && $(stat -c %u "$WOMPRAT_RUN_DIR") == "$uid" ]] || { echo 'Layout test run path is not owned by the acceptance UID' >&2;printf 'root=%s run=%s uid=%s\n' "$PROJECT_TMP_ROOT" "$WOMPRAT_RUN_DIR" "$uid" >&2;ls -ld "$WOMPRAT_RUN_DIR" >&2;exit 2; }
 fixture=$(mktemp -d "$WOMPRAT_RUN_DIR/apprun-layout-XXXXXXXX")
 cleanup(){
  local status=$?
