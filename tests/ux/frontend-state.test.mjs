@@ -189,7 +189,7 @@ test('native hydration selects restored browser and remote tabs without recreati
  for(const type of ['browser','vnc','rdp','terminal']){
   const tab={id:'restored-'+type,type,url:'https://example.test/',host:'example.test',port:22};
   const state={tabs:[],activeTab:null};
-  const hydrate=Function('window','state','location','validTabID','sanitizeTabForSave','renderTabs','updateHomeVisibility','openTerminal','activateTab',`${source.slice(begin,end)};return hydrateNativeTabs`)(
+  const hydrate=Function('window','state','location','validTabID','sanitizeTabForSave','renderTabs','updateHomeVisibility','openTerminal','activateTab',`let startupClosedTabIDs=new Set();${source.slice(begin,end)};return hydrateNativeTabs`)(
    {womprat_getTabs:async()=>JSON.stringify({tabs:[tab],activeTab:tab.id})},state,{search:''},()=>true,t=>t,()=>{},()=>{},
    async(_host,_title,_user,_port,options)=>events.push(['terminal',options.id]),id=>events.push([type,id]));
   await hydrate();
@@ -218,7 +218,7 @@ test('late startup tab snapshot cannot erase a newly opened tab or its current U
  let reply;
  const live={id:'live',type:'browser',url:'https://new.example/'};
  const state={tabs:[],activeTab:null},activated=[];
- const hydrate=Function('window','state','location','validTabID','sanitizeTabForSave','renderTabs','updateHomeVisibility','openTerminal','activateTab',`${source.slice(begin,end)};return hydrateNativeTabs`)(
+ const hydrate=Function('window','state','location','validTabID','sanitizeTabForSave','renderTabs','updateHomeVisibility','openTerminal','activateTab',`let startupClosedTabIDs=new Set();${source.slice(begin,end)};return hydrateNativeTabs`)(
   {womprat_getTabs:()=>new Promise(resolve=>reply=resolve)},state,{search:''},()=>true,t=>t,()=>{},()=>{},async()=>{},id=>activated.push(id));
  const pending=hydrate();state.tabs=[live];state.activeTab='live';
  reply(JSON.stringify({tabs:[{id:'saved',type:'browser',url:'https://saved.example/'},{...live,url:'https://stale.example/'}],activeTab:'saved'}));
@@ -226,4 +226,19 @@ test('late startup tab snapshot cannot erase a newly opened tab or its current U
  expect(state.tabs.map(t=>t.id)).toEqual(['saved','live']);
  expect(state.tabs[1].url).toBe('https://new.example/');
  expect(state.activeTab).toBe('live');expect(activated).toEqual(['live']);
+});
+
+test('late startup tab snapshot cannot resurrect a closed tab', async () => {
+ const begin=source.indexOf('async function hydrateNativeTabs()');
+ const end=source.indexOf('// Save tabs on changes',begin);
+ let reply;
+ const state={tabs:[],activeTab:null},activated=[];
+ const helpers=Function('window','state','location','validTabID','sanitizeTabForSave','renderTabs','updateHomeVisibility','openTerminal','activateTab',`let startupClosedTabIDs=new Set();${source.slice(begin,end)};return {hydrateNativeTabs,close:id=>{startupClosedTabIDs.add(id);state.tabs=state.tabs.filter(t=>t.id!==id)},closed:()=>startupClosedTabIDs}`)(
+  {womprat_getTabs:()=>new Promise(resolve=>reply=resolve)},state,{search:''},()=>true,t=>t,()=>{},()=>{},async()=>{},id=>activated.push(id));
+ const pending=helpers.hydrateNativeTabs();
+ helpers.close('closed');
+ reply(JSON.stringify({tabs:[{id:'closed',type:'browser',url:'https://closed.example/'}],activeTab:'closed'}));
+ await pending;
+ expect(state.tabs).toEqual([]);expect(activated).toEqual([]);expect(helpers.closed()).toBe(null);
+ expect(source).toContain('startupClosedTabIDs?.add(id)');
 });

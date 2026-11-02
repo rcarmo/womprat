@@ -342,6 +342,8 @@ function applyStaticIcons(root = document) {
 }
 
 const state = { tabs: [], activeTab: null };
+// Discard closed records from a late startup snapshot, then release the set.
+let startupClosedTabIDs = new Set();
 const terminalSessions = new Map();
 const failedFavicons = new Set();
 const DEFAULT_TERMINAL_FONT_SIZE = 14;
@@ -1361,6 +1363,7 @@ window.closeTab = function(id, e) {
   e?.stopPropagation?.();
   loadingTabs.delete(id);
   const closingActive = state.activeTab === id;
+  startupClosedTabIDs?.add(id);
   const closing = state.tabs.find(t => t.id === id);
   state.tabs = state.tabs.filter(t => t.id !== id);
   const terminalSession = terminalSessions.get(id);
@@ -2174,7 +2177,8 @@ async function hydrateNativeTabs() {
     // selected a tab. Keep those live shell records and selection rather than
     // replacing them with an older startup snapshot.
     const liveIDs = new Set(state.tabs.map(t => t.id));
-    const merged = [...localTabs.filter(t => !liveIDs.has(t.id)), ...state.tabs];
+    const merged = [...localTabs.filter(t => !liveIDs.has(t.id) && !startupClosedTabIDs?.has(t.id)), ...state.tabs];
+    startupClosedTabIDs = null;
     const target = merged.find(t => t.id === state.activeTab)
       || merged.find(t => t.id === requested && (t.type === 'terminal' || t.type === 'settings'))
       || merged.find(t => t.id === native.activeTab);
