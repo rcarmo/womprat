@@ -54,3 +54,21 @@ Replacement package settings verified: Go 1.27.3, version 0.4.6 / commit a8da46a
 ```
 
 This supersedes the earlier candidate download. Live tailnet access remains the only external release check: the host's system tailscaled is running, but Womprat has no saved auth credential or tsnet identity and no approved test auth key. The host daemon cannot stand in for Womprat's embedded route. No credentials were copied or host-network fallback enabled.
+
+## Symlinked /opt launch fix (2 November, evening)
+
+Rui's desktop failed before GUI startup with `bwrap: Can't mount on symlink destination /opt`. The launcher mounted directly over `/opt`; Fedora Atomic layouts can link it to `/var/opt`. AppRun now resolves the real mount directory and compares its own canonical path against that directory when deciding whether to re-exec. WebKit retains the fixed `/opt/womprat` helper path through the symlink. Mounts are namespace-local and sandboxing stays enabled. No changes to the user's filesystem are required.
+
+Fedora run [41528447480](https://github.com/rcarmo/womprat/actions/runs/41528447480), source `f7ae68273e62988949541ab4a623f5a4e4a6380d`, passed normal-user launcher tests with directory, absolute-symlink and relative-symlink `/opt`, preserving arguments and reaching the payload once. The complete shipping AppImage startup/network canary, enabled/disabled/master-locked restart tests, all 34 native checks, Go contracts and native profiles then passed with `/opt -> var/opt`. CI mounts Go at `/usr/local/go`, outside the filesystem layout under test. Local root-only diagnosis reproduced the old launcher failure exactly; it was not used as normal-user acceptance.
+
+The preceding full native run also exposed closed tabs returning from a late startup snapshot. Startup hydration now excludes IDs closed while that snapshot was in flight, then releases the temporary set. A frontend regression covers that race; 55 Bun tests, full Go tests, frontend bundle checks, shellcheck and actionlint passed locally.
+
+Profile review: native Go 730ms sampled CPU over 3.23s, 8413KiB allocated / 32690 objects; GTK-linked contracts 340ms over 5.98s, 15015KiB / 38247 objects. Native perf recorded 210 samples, zero lost; loader relocation ~40.5% cumulative dominates the short startup workload, with renderer/JSC stacks included. GTK host heaptrack: 258560 allocation calls, 25144 temporary, 4.42MB peak heap, 223.15MB peak RSS including overhead. Persistence/profiler initialisation and one-time fixture PNG generation remain the main Go allocations; no new material outlier relative to the preceding equivalent 34-check workload. This launcher fix makes no performance-improvement claim. Renderer allocation and steady-state coverage limits are unchanged. Reviewed raw captures, matching binaries, extracted payload, failed/probe logs and remote transient profiles were deleted after analysis.
+
+The replacement package embeds Go 1.27.3, version 0.4.6 / commit f7ae682, linux/amd64 v1, webkitgui only; packaged AppRun matches the fixed source. Checksum after download:
+
+```text
+5445649142bae6865231adab9a66cce43cb679356af4e965f258596930fbb1fe  Womprat-0.4.6-x86_64.AppImage
+```
+
+This supersedes previous 0.4.6 test candidates. Live desktop/tailnet testing continues with Rui; no public Linux release was made.
