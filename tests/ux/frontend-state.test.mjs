@@ -198,3 +198,16 @@ test('native hydration selects restored browser and remote tabs without recreati
  }
  expect(events).toEqual(['browser','vnc','rdp','terminal'].map(t=>[t,'restored-'+t]));
 });
+
+test('offline shell restores only after the master-password gate', async () => {
+ const begin=source.indexOf('async function checkAuth()');
+ const end=source.indexOf('function showUnlock()',begin);
+ for(const locked of [false,true]){
+  const events=[];
+  const check=Function('document','fetch','showUnlock','hydrateShellAfterAuth',`${source.slice(begin,end)};return checkAuth`)(
+   {getElementById:()=>({classList:{add(){},remove(){}},textContent:''})},
+   async()=>({ok:true,json:async()=>({locked,hasKey:false})}),()=>events.push('unlock'),async()=>events.push('hydrate'));
+  await check();
+  expect(events).toEqual(locked?['unlock']:['hydrate']);
+ }
+});
