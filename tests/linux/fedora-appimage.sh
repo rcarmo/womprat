@@ -37,9 +37,9 @@ docker run --detach --name "$name" --privileged \
  --mount "type=bind,src=$WOMPRAT_TMP_ROOT,dst=$WOMPRAT_TMP_ROOT" \
  --mount "type=bind,src=$stage/tmp,dst=/tmp" \
  --mount "type=bind,src=$(command -v bun),dst=/usr/local/bin/bun,readonly" \
- --mount "type=bind,src=$(go env GOROOT),dst=$(go env GOROOT),readonly" \
+ --mount "type=bind,src=$(go env GOROOT),dst=/usr/local/go,readonly" \
  --env PROJECT_TMP_ROOT="$WOMPRAT_TMP_ROOT" --env WOMPRAT_RUN_DIR="$stage" \
- --env HOME="$stage/home" --env WOMPRAT_SOURCE_COMMIT="$(git rev-parse HEAD)" --env PATH="$(go env GOROOT)/bin:/usr/local/bin:/usr/bin:/bin" \
+ --env HOME="$stage/home" --env WOMPRAT_SOURCE_COMMIT="$(git rev-parse HEAD)" --env PATH="/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin" \
  registry.fedoraproject.org/fedora:44 sleep infinity >/dev/null
 step='Fedora runtime dependency installation'
 docker exec "$name" bash -c 'dnf install -y --setopt=cachedir="$WOMPRAT_RUN_DIR/dnf-cache" --setopt=logdir="$WOMPRAT_RUN_DIR/dnf-logs" xorg-x11-server-Xvfb xdotool dbus-x11 bubblewrap xdg-dbus-proxy libX11 libXext libXrender libXrandr libXcursor libXi libXfixes libXinerama libstdc++ libgcc fontconfig freetype dejavu-sans-fonts mesa-libGL mesa-libEGL libwayland-server libwayland-client egl-utils procps-ng curl' > "$stage/install.log" 2>&1
