@@ -25,7 +25,7 @@ defaults:
 
 jobs:
   linux-appimage:
-    name: Browser parity and Fedora 44 AppImage
+    name: Browser parity and Fedora 44 / Atomic AppImage
     # Fedora WebKit's user-namespace sandbox must work as an ordinary UID.
     # Ubuntu 24.04 host policy blocks UID maps inside the disposable container;
     # use 22.04 without changing host sysctls or disabling the WebKit sandbox.
@@ -49,6 +49,10 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
+      - name: Verify Linux release and Atomic layout gate contracts
+        run: |
+          source scripts/paths.sh
+          bun test tests/ux/linux-release.test.mjs
       - name: Build and accept AppImage
         id: acceptance
         env:

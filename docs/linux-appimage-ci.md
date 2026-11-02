@@ -14,7 +14,13 @@ Windows jobs remain independent. A failed Linux gate makes the overall release r
 | `tests/linux/browser-parity.mjs` | `--appimage <path> --profiles <dir> --require-release` | Validate the actual AppImage format and run the dependency/release-flag preflight; the Fedora hook below executes the native workload. |
 | `tests/linux/fedora-appimage.sh` | `--appimage <path> --profiles <dir> --fedora-version 44` | Run the same package as a normal user on Fedora 44, without host GTK/WebKit packages masking missing dependencies; test launch and browser acceptance, extraction fallback, shutdown and clean isolated state. |
 
-Hook presence is an implementation preflight, not functional acceptance. Both test hooks must return success before assets reach `build/dist` or CI's `linux-appimage-release` artifact. Do not add placeholder hooks, green smoke-only tests, environment bypasses, `continue-on-error` or unconditional uploads to enable publication.
+Preflight requires the launcher, layout regression, native runner, restart test, release canary and close helper as regular checked-in files as well as the three entry hooks. Missing or symlinked files block packaging. Hook presence is an implementation preflight, not functional acceptance. Both test hooks must return success before assets reach `build/dist` or CI's `linux-appimage-release` artifact. Do not add placeholder hooks, green smoke-only tests, environment bypasses, `continue-on-error` or unconditional uploads to enable publication.
+
+## Fedora Atomic layouts
+
+Main pushes, PRs, manual builds and releases use the same required job. It tests AppRun as a normal user with `/opt` as a directory, an absolute symlink to `/var/opt`, and a relative symlink to `var/opt`. Each launch must reach the payload once, preserve arguments and leave the outer filesystem unchanged. The full shipping GUI, network canary and process-restart tests then run with `/opt -> var/opt`; sandboxing stays enabled. This models the affected filesystem layout inside Fedora 44, not an installed Atomic desktop or its complete SELinux/Wayland environment.
+
+The reusable CI job executes `tests/ux/linux-release.test.mjs` before packaging to guard this test sequence and release dependency. Tag and manual releases call that job; Linux publication needs its success and rechecks `LINUX-SHA256SUMS.txt`. Windows jobs remain independent. Adding the workflow does not itself publish a release or replace live tailnet verification.
 
 ## Required browser contracts
 

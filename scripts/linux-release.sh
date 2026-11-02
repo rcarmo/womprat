@@ -12,8 +12,14 @@ fi
 
 required=(
   scripts/linux-appimage-build.sh
+  scripts/appimage-apprun.sh
   tests/linux/browser-parity.mjs
   tests/linux/fedora-appimage.sh
+  tests/linux/appimage-layout.sh
+  tests/linux/fedora-native-run.sh
+  tests/linux/session-restart.mjs
+  tests/linux/release-smoke.mjs
+  tests/linux/close-window.c
 )
 missing=0
 for hook in "${required[@]}"; do
