@@ -1,12 +1,13 @@
 // Exercise the exact shipping AppImage across fresh processes. No test bridge,
 // direct networking, user-state copy, or sandbox override is used.
 import {spawn} from 'node:child_process';
-import {mkdirSync,openSync,closeSync,readFileSync} from 'node:fs';
-import {join,resolve} from 'node:path';
+import {mkdirSync,openSync,closeSync,readFileSync,realpathSync,lstatSync} from 'node:fs';
+import {join} from 'node:path';
 const [image,closeWindow]=process.argv.slice(2);
 const root=process.env.WOMPRAT_RUN_DIR;
 if(!image||!closeWindow||!root)throw Error('AppImage, close-window helper and owned run directory required');
-if(!resolve(image).startsWith(resolve(root)+'/'))throw Error('AppImage must be run-owned');
+const projectRoot=process.env.PROJECT_TMP_ROOT;
+if(!projectRoot||!realpathSync(root).startsWith(realpathSync(projectRoot)+'/runs/')||lstatSync(image).isSymbolicLink()||!lstatSync(image).isFile()||!realpathSync(image).startsWith(realpathSync(projectRoot)+'/runs/'))throw Error('AppImage and restart state must be project-run-owned');
 const home=join(root,'restart-home');mkdirSync(home,{recursive:true});
 const saved=[{type:'browser',title:'Restore first',url:'https://restore-first.invalid/'},{type:'browser',title:'Restore second',url:'https://restore-second.invalid/'}];
 let child,exit,metadata;
