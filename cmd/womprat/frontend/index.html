@@ -2170,9 +2170,15 @@ async function hydrateNativeTabs() {
       return clean ? { ...clean, id: String(t.id) } : null;
     }).filter(Boolean);
     const requested = new URLSearchParams(location.search).get('tab') || '';
-    const target = localTabs.find(t => t.id === requested && (t.type === 'terminal' || t.type === 'settings'))
-      || localTabs.find(t => t.id === native.activeTab);
-    state.tabs = localTabs;
+    // Native replies/font loading can finish after the user has opened or
+    // selected a tab. Keep those live shell records and selection rather than
+    // replacing them with an older startup snapshot.
+    const liveIDs = new Set(state.tabs.map(t => t.id));
+    const merged = [...localTabs.filter(t => !liveIDs.has(t.id)), ...state.tabs];
+    const target = merged.find(t => t.id === state.activeTab)
+      || merged.find(t => t.id === requested && (t.type === 'terminal' || t.type === 'settings'))
+      || merged.find(t => t.id === native.activeTab);
+    state.tabs = merged;
     state.activeTab = target ? target.id : null;
     renderTabs();
     updateHomeVisibility();

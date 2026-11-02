@@ -211,3 +211,19 @@ test('offline shell restores only after the master-password gate', async () => {
   expect(events).toEqual(locked?['unlock']:['hydrate']);
  }
 });
+
+test('late startup tab snapshot cannot erase a newly opened tab or its current URL', async () => {
+ const begin=source.indexOf('async function hydrateNativeTabs()');
+ const end=source.indexOf('// Save tabs on changes',begin);
+ let reply;
+ const live={id:'live',type:'browser',url:'https://new.example/'};
+ const state={tabs:[],activeTab:null},activated=[];
+ const hydrate=Function('window','state','location','validTabID','sanitizeTabForSave','renderTabs','updateHomeVisibility','openTerminal','activateTab',`${source.slice(begin,end)};return hydrateNativeTabs`)(
+  {womprat_getTabs:()=>new Promise(resolve=>reply=resolve)},state,{search:''},()=>true,t=>t,()=>{},()=>{},async()=>{},id=>activated.push(id));
+ const pending=hydrate();state.tabs=[live];state.activeTab='live';
+ reply(JSON.stringify({tabs:[{id:'saved',type:'browser',url:'https://saved.example/'},{...live,url:'https://stale.example/'}],activeTab:'saved'}));
+ await pending;
+ expect(state.tabs.map(t=>t.id)).toEqual(['saved','live']);
+ expect(state.tabs[1].url).toBe('https://new.example/');
+ expect(state.activeTab).toBe('live');expect(activated).toEqual(['live']);
+});
