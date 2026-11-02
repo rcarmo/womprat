@@ -72,3 +72,9 @@ The replacement package embeds Go 1.27.3, version 0.4.6 / commit f7ae682, linux/
 ```
 
 This supersedes previous 0.4.6 test candidates. Live desktop/tailnet testing continues with Rui; no public Linux release was made.
+
+## Required CI/release gate verification
+
+Source `650c0ba` makes the launcher/layout/native/restart/canary files mandatory regular-file release hooks and runs gate-contract regressions explicitly in the reusable Linux job. Main/PR/manual CI and tag/manual releases use that job; publication waits for Linux acceptance and verifies the accepted checksum. Missing or symlinked hooks fail preflight. Existing Windows independence is unchanged. No release was published by this wiring change.
+
+Run [41534023021](https://github.com/rcarmo/womprat/actions/runs/41534023021) passed the gate contracts, normal-user directory/absolute/relative-symlink AppRun checks, full symlinked-/opt shipping GUI and restart workload, all 34 native checks, Go contracts and profiles. Local verification passed 56 Bun tests, shellcheck, actionlint and release preflight. Native Go: 910ms CPU samples over 3.62s, 8612KiB allocated / 33866 objects. Contract tests: 440ms over 5.52s, 15228KiB / 38801 objects; PBKDF2 ~38.6% cumulative CPU retained. Native perf: 287 samples, zero lost, relocation ~37.6% cumulative with renderer stacks. GTK host allocations: 260265 calls, 25507 temporary, 4.42MB peak heap, 220.42MB RSS including profiler overhead. Same startup/security/persistence/fixture costs as the prior equivalent workload; no material new outlier. No performance gain claimed for CI-only changes; renderer allocation and steady-state limits remain unchanged. Raw captures, matching binaries, disposable logs and the remote transient profile artifact deleted after review.
