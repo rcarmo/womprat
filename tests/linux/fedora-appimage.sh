@@ -76,6 +76,14 @@ docker exec "$name" bash -c 'dnf install -y --setopt=cachedir="$WOMPRAT_RUN_DIR/
 # Do not change host sysctls or run the GUI as root to obtain a profile.
 step='CPU collector capability setup'
 docker exec "$name" setcap cap_perfmon=ep /usr/bin/perf
+step='AppRun directory and symlink layout regression'
+# Stub only the payload to isolate mount/exec/recursion. The complete shipping
+# AppImage and native WebKit workload below still run as the ordinary user.
+docker exec "$name" bash "$stage/source/tests/linux/appimage-layout.sh" "$(id -u)" "$(id -g)"
+step='Fedora Atomic /opt layout'
+# Model Atomic desktops inside this disposable container only. Keep the
+# symlink for the complete shipping GUI/restart/sandbox acceptance below.
+docker exec "$name" bash -c 'test -d /opt && test ! -L /opt && test -z "$(ls -A /opt)";rmdir /opt;ln -s var/opt /opt'
 step='Xvfb startup'
 # Package installation may reset /tmp ownership. Restore the owned mount only
 # after that job is idle, and start the display under the acceptance UID.

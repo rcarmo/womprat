@@ -4,9 +4,13 @@ APPDIR="$(cd -- "$(dirname -- "$(readlink -f -- "$0")")" && pwd)"
 # Stable helper path lives only in this process's private mount namespace.
 # WebKit's inner sandbox cannot mount /proc/self/cwd symlink paths. No files
 # are installed under the host /opt, and its own sandbox stays enabled.
-if [[ ${WOMPRAT_HEADLESS:-} != 1 && $APPDIR != /opt/womprat ]]; then
+# Fedora Atomic desktops link /opt to /var/opt. Bubblewrap rejects mounting
+# over a symlink: mount its resolved directory, while WebKit keeps using the
+# stable /opt/womprat helper path through that same symlink.
+opt_root=$(readlink -f -- /opt)
+if [[ ${WOMPRAT_HEADLESS:-} != 1 && $APPDIR != "$opt_root/womprat" ]]; then
   test -x /usr/bin/bwrap && test -x /usr/bin/xdg-dbus-proxy || { echo 'Install bubblewrap and xdg-dbus-proxy to run the WebKit sandbox.' >&2; exit 1; }
-  exec /usr/bin/bwrap --bind / / --dev-bind /dev /dev --tmpfs /opt --ro-bind "$APPDIR" /opt/womprat --ro-bind "$APPDIR/usr/bin/xdg-dbus-proxy" /usr/bin/xdg-dbus-proxy --chdir /opt/womprat /opt/womprat/AppRun "$@"
+  exec /usr/bin/bwrap --bind / / --dev-bind /dev /dev --tmpfs "$opt_root" --ro-bind "$APPDIR" "$opt_root/womprat" --ro-bind "$APPDIR/usr/bin/xdg-dbus-proxy" /usr/bin/xdg-dbus-proxy --chdir /opt/womprat /opt/womprat/AppRun "$@"
 fi
 export APPDIR
 export LD_LIBRARY_PATH="$APPDIR/usr/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"

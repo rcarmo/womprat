@@ -84,7 +84,10 @@ test('AppImage helper relocation preserves offsets and fails on unknown WebKit l
     expect(spawnSync(process.execPath,['scripts/relocate-webkit.mjs',file]).status).not.toBe(0);
   } finally {rmSync(root,{recursive:true,force:true})}
   const launcher=readFileSync('scripts/appimage-apprun.sh','utf8');
-  expect(launcher).toContain('--ro-bind "$APPDIR" /opt/womprat');
+  expect(launcher).toContain('opt_root=$(readlink -f -- /opt)');
+  expect(launcher).toContain('--tmpfs "$opt_root" --ro-bind "$APPDIR" "$opt_root/womprat"');
+  expect(launcher).toContain('$APPDIR != "$opt_root/womprat"');
+  expect(launcher).toContain('--chdir /opt/womprat /opt/womprat/AppRun');
   expect(launcher).not.toContain('WEBKIT_DISABLE_SANDBOX');
 });
 
