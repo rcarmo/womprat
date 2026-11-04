@@ -277,17 +277,17 @@ make ux-test
 
 The release workflow executes the WebView2 COM regression tests on a Windows runner before it builds and publishes Windows ARM64 and AMD64 binaries.
 
-Linux AppImage acceptance also runs on main pushes, pull requests and releases. The native GTK/WebKitGTK 4.1 host keeps the shell separate from browser content tabs and uses Womprat's tailnet proxy for browsing. `make linux-gui` builds that host; `make linux-appimage` packages it and requires Fedora 44 acceptance before staging release assets. Normal-user sandbox checks, exact-package network canaries and profile analysis must pass before release. The 0.4.6 candidate passes Fedora 44 CI, including the actual shipping package's offline network canary and separate native functional fixtures. Its checksum and embedded release flags are verified. Live authenticated tailnet browsing and recovery are not yet verified, so it is a test candidate, not a published Linux release. Windows jobs remain independent. See [Linux AppImage CI contracts](docs/linux-appimage-ci.md) and [native test results](docs/linux-acceptance-2026-11-01.md).
+Linux AppImage acceptance also runs on main pushes, pull requests and releases. The native GTK/WebKitGTK 4.1 host keeps the shell separate from browser content tabs and uses Womprat's tailnet proxy for browsing. `make linux-gui` builds that host; `make linux-appimage` packages it and requires Fedora 44 acceptance before staging release assets. Normal-user sandbox checks, exact-package network canaries and profile analysis must pass before release. The v0.4.5 rerelease includes the Linux AppImage after Fedora 44 CI, including the shipping package's offline network canary and separate native functional fixtures. Public checksums and embedded release flags are verified. Live authenticated tailnet browsing and recovery have not been independently verified here. Windows jobs remain independent. See [Linux AppImage CI contracts](docs/linux-appimage-ci.md) and [native test results](docs/linux-acceptance-2026-11-01.md).
 
-The Linux x86-64 candidate needs an X11 or XWayland desktop, `bubblewrap` and `xdg-dbus-proxy`. On Fedora:
+The Linux x86-64 AppImage needs an X11 or XWayland desktop, `bubblewrap` and `xdg-dbus-proxy`. On Fedora:
 
 ```bash
 sudo dnf install bubblewrap xdg-dbus-proxy
 sha256sum --check LINUX-SHA256SUMS.txt
-chmod +x Womprat-0.4.6-x86_64.AppImage
-./Womprat-0.4.6-x86_64.AppImage
+chmod +x Womprat-0.4.5-x86_64.AppImage
+./Womprat-0.4.5-x86_64.AppImage
 # If FUSE is unavailable:
-APPIMAGE_EXTRACT_AND_RUN=1 ./Womprat-0.4.6-x86_64.AppImage
+APPIMAGE_EXTRACT_AND_RUN=1 ./Womprat-0.4.5-x86_64.AppImage
 ```
 
 Run it as your normal desktop user. The WebKit sandbox stays enabled; a host that forbids user namespaces cannot run this build. GTK, WebKit and their helpers are bundled, but graphics drivers and their C++ runtime come from the host. Native Wayland, ARM64 Linux and browser password saving are not implemented. Linux state is under `${XDG_CONFIG_HOME:-$HOME/.config}/womprat`; configuration and credentials use AES-GCM with a private machine-local key file, not Windows DPAPI. The WebKit profile shares that directory and is not encrypted by Womprat.
