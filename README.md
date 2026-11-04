@@ -2,303 +2,156 @@
 
 ![womprat icon](docs/icon-256.png)
 
-`womprat` is a desktop client for SSH terminals, web applications, VNC desktops and RDP desktops on a Tailscale network. It runs its own `tsnet` node, so it does not install a machine-wide VPN service or change the host network stack.
+Womprat opens SSH terminals, web applications, VNC desktops and RDP desktops on a Tailscale network in one tabbed window. It runs its own `tsnet` node, so you do not need to install the system Tailscale client or change the machine's network routes. Closing Womprat closes that node.
 
-Windows ARM64 is the primary target. Windows AMD64 is also built and released. Download either binary and its checksums from [GitHub Releases](https://github.com/rcarmo/womprat/releases/latest).
+Windows ARM64 is the primary target. Downloads also include Windows x64 and a Linux x86-64 AppImage.
 
 ![womprat browser and SSH tabs](docs/screenshot.webp)
 
-## Application-scoped access
+## Download and run
 
-Womprat provides access to SSH hosts, internal web applications and remote desktops without installing the full Tailscale client.
+Get the application and its checksum file from [GitHub Releases][releases].
 
-The tailnet identity belongs to the application. Closing Womprat closes its Tailscale node; other applications on the machine do not gain tailnet access.
+| Platform | Download | Requirements |
+| --- | --- | --- |
+| Windows ARM64 | `womprat-windows-arm64.exe` | Microsoft Edge WebView2 runtime |
+| Windows x64 | `womprat-windows-amd64.exe` | Microsoft Edge WebView2 runtime |
+| Linux x86-64 | `Womprat-<version>-x86_64.AppImage` | X11 or XWayland, `bubblewrap`, `xdg-dbus-proxy`, user namespaces |
 
-Womprat stores its state under `%APPDATA%\womprat`. The executable can be copied between machines, but its encrypted state is tied to the Windows user account. USB-only operation is not implemented.
+Windows checksums are in `SHA256SUMS.txt`; Linux checksums are in `LINUX-SHA256SUMS.txt`. The [v0.4.5 rerelease notes][release-notes] explain why its tag and download hashes changed.
 
-## Requirements
+### Windows
 
-A Windows release needs:
+Run the executable for your architecture. Current Windows 10 and Windows 11 installations normally include WebView2; install the [WebView2 Evergreen Runtime][webview2] if it is missing. No installer or administrator access is required for Womprat itself.
 
-* Windows on ARM64 or AMD64;
-* the Microsoft Edge WebView2 runtime, which is present on current Windows 10 and Windows 11 installations;
-* a Tailscale auth key that can register the embedded node;
-* credentials for each SSH, VNC or RDP service you open.
+The executable can be copied between machines. Its encrypted settings and credentials are tied to the Windows user account and must be configured on each machine.
 
-Womprat does not require the system Tailscale client.
+### Linux
 
-## Traffic paths
-
-Womprat binds its shell, API and SOCKS listener to loopback. Application traffic follows these paths:
-
-| Feature | Route |
-| --- | --- |
-| SSH | Go SSH client -> `tsnet` -> target |
-| Browser | WebView2 -> loopback SOCKS5 -> `tsnet` -> target |
-| Managed download | Go HTTP client -> `tsnet` -> target |
-| VNC | local WebSocket bridge -> `tsnet` TCP connection -> target |
-| RDP | local WebSocket bridge -> `tsnet` TCP connection -> target |
-
-Release builds fail closed. If `tsnet` is unavailable, Womprat does not fall back to the host's normal network. `WOMPRAT_DIRECT=1` works only in binaries built with `-X main.debugBuild=1` and exists for local integration tests.
-
-Public internet access requires an active Tailscale exit node. Womprat applies the exit node selected in Settings; when no replacement is selected, it preserves the route restored from tsnet state.
-
-MagicDNS and extra address records are answered from the Tailscale network map. Other names use Tailscale's selected DNS upstream. Womprat checks for a remote peer, subnet or exit-node route, then sends supported DNS queries through its embedded TCP/IP stack with a Tailscale source address. Resolved service addresses use the same stack; IP literals skip DNS. Unsupported or unroutable destinations fail closed without host DNS or LAN fallback.
-
-With an exit node selected, a custom nameserver must have **Use with exit node** enabled in the tailnet's DNS settings. Tailscale v1.104.1 honours that policy for global and split-DNS nameservers; Womprat does not change it. For `.local` names served by [mdnsbridge](https://github.com/rcarmo/mdnsbridge), use a restricted `local` rule pointing to the bridge's Tailscale IP. See [DNS configuration and troubleshooting](docs/dns-exit-node.md) for setup, supported transports and diagnostic results.
-
-Transient Tailscale startup failures are retried every 15 seconds. Settings reports the last error and distinguishes the selected exit-node preference from the route active in the current session. An explicit reconnect or disconnect cancels the existing retry worker before changing the connection.
-
-## Address-bar search
-
-Words and phrases entered in the address bar search DuckDuckGo by default. Choose **DuckDuckGo**, **Bing** or **Google** in **Settings → Browser → Address-bar search**; the choice is saved and takes effect immediately.
-
-Web URLs, domain names, IP addresses, `localhost`, host-and-port addresses and SSH/VNC/RDP URLs navigate directly. For a single-label tailnet host, enter `http://relay` or `relay/` to distinguish it from a search. Searches use Womprat's existing network path and require a working exit node for public internet access.
-
-History suggestions appear while typing in the address bar. Use ↑/↓ then Enter, or click a suggestion; Escape dismisses them. Up to 100 submitted addresses and searches are saved in encrypted local settings. Suggestions are generated locally and remain available after restarting.
-
-## Tabs and shortcuts
-
-The tab strip contains native browser views and shell-rendered terminal, VNC, RDP and Settings panels. A new tab is an address-bar placeholder; navigating it replaces that placeholder rather than leaving an empty tab behind. Dragging a tab before or after another tab preserves the same order in shell and persisted state.
-
-Browser shortcuts:
-
-| Shortcut | Action |
-| --- | --- |
-| `Ctrl+L` or `Alt+D` | Focus the address bar |
-| `Ctrl+T` | New blank tab |
-| `Ctrl+W` | Close active browser or remote-display tab |
-| `Ctrl+Tab`, `Ctrl+PageDown` | Next tab |
-| `Ctrl+Shift+Tab`, `Ctrl+PageUp` | Previous tab |
-| `Ctrl+1` … `Ctrl+9` | Select tab |
-| `Ctrl+R` or `F5` | Reload browser tab |
-| `Alt+Left`, `Alt+Right` | Browser history |
-| `Ctrl++`, `Ctrl+-`, `Ctrl+0` | Content zoom |
-
-Terminal tabs reserve ordinary control chords for the remote shell. Shell-level tab actions use the corresponding `Ctrl+Shift` chord. `Ctrl+C` copies the current terminal selection; when there is no selection it sends ETX to interrupt the remote process. The shell WebView keeps its context menu enabled for terminal copy and paste.
-
-Open tabs can be restored on launch. Blank tabs and Settings are not persisted. Protected shell state, recent tabs and terminal appearance load after the master-password gate has been unlocked. Home shows up to 10 recent items in a responsive grid and refreshes them after each successful tab-state save. Use a card's **×** button to remove it from Recent without closing its active tab or changing session restore. Dismissals are saved in the app configuration.
-
-## SSH terminals
-
-Open an SSH tab from the address bar:
-
-```text
-ssh://user@host:22
-```
-
-SSH tabs use xterm.js and support configurable font size and these font choices:
-
-* bundled FiraCode Nerd Font Mono;
-* Cascadia Mono, if installed;
-* Consolas, if installed;
-* NSimSun/SimSun, if installed.
-
-Womprat loads the chosen font before xterm measures cells. Font changes clear the WebGL texture atlas and refit existing sessions; Cascadia and Consolas fall back to bundled FiraCode before CJK fonts if unavailable. Womprat tries the key assigned to a host first, then other stored keys. If key authentication fails, it prompts for a password.
-
-SSH host keys use trust on first use. The first key is pinned in the host profile; a later mismatch is rejected. Removing a host removes its local URL, SSH association and pinned host key. It does not delete the named private key, because other hosts may share that credential, and it does not remove a device from the Tailscale control plane.
-
-## Browser tabs and downloads
-
-HTTP and HTTPS URLs open in native WebView2 child views. Womprat synchronises the live URL, title, favicon, history availability, zoom, tab order and restore state with the shell. A navigation failure shows an error bar with **Reload**, **Settings** and **Dismiss** controls.
-
-Links using `target=_blank`, common `window.open()` calls and native WebView2 popup requests open as Womprat tabs. Popup redirection creates a new URL navigation. It does not preserve a popup POST body or opener-window JavaScript relationship.
-
-Download links handled by the shell use the managed downloader. It:
-
-* accepts HTTP and HTTPS URLs;
-* routes connections through `tsnet`;
-* writes to the current user's `Downloads` directory;
-* sanitises Windows filenames and chooses a new name instead of overwriting;
-* creates files exclusively to avoid path races;
-* removes incomplete files;
-* runs one managed download at a time.
-
-A managed download initiated by a native browser tab inherits the WebView2 cookies selected for a same-origin target, including `HttpOnly` cookies. Cookie values stay in Go memory behind a random, one-use ticket that expires after 30 seconds; they are not exposed to page or shell JavaScript, URLs, logs, status responses or files. Redirects retain cookies only on the original host. Cross-origin links and downloads started directly through the local API remain cookie-free.
-
-Settings can clear cache, one cookie domain, all cookies, saved browser passwords or all browsing data. Domain deletion matches the exact host and its subdomains; it does not use a broad suffix match.
-
-## VNC
-
-Open a VNC tab with:
-
-```text
-vnc://host:5900
-```
-
-The client supports RFB `None` and classic VNC password authentication. A password-required server opens an in-tab password dialog. The password is used for that connection and is not persisted. Reconnects use connection generations so callbacks from an old socket cannot reset a newer session.
-
-The decoder supports Raw, Hextile, CopyRect, ZRLE, RRE and CoRRE updates, plus cursor, desktop-size, extended-desktop-size, desktop-name and LastRect pseudo-encodings. Raw is offered first because it has proved more reliable across the test servers used for Womprat.
-
-VNC input includes pointer, wheel, clipboard, keypad keys, F1-F24 and Meta/OS keysyms. Active keys are released on blur, reconnect and disposal to avoid stuck modifiers.
-
-## RDP
-
-Open an RDP tab with:
-
-```text
-rdp://user@host:3389
-```
-
-Credentials are entered in the tab and are not placed in the URL. The client advertises WASM-backed NSCodec, RemoteFX, RemoteFX-Image and bitmap decoding; the negotiated set depends on the server.
-
-The initial desktop size uses the visible content viewport. If the server supports MS-RDPEDISP Display Control, later window changes request a matching remote desktop size without reconnecting. Otherwise the existing framebuffer is fitted to the viewport. Pointer coordinates independently invert horizontal and vertical CSS scaling.
-
-The compatibility query parameters `rfx=off`, `rfx=false`, `rfx=0` and `compat=1` disable the performance codec path for servers that require conservative bitmap updates.
-
-## Configuration and secrets
-
-Windows state is stored below:
-
-```text
-%APPDATA%\womprat\
-```
-
-`config.enc` contains window state, open tabs, Recent dismissals, host profiles, appearance, exit-node choice and diagnostics preferences. Credential files are stored below `creds/`. Windows encrypts both configuration and credential files with user-scoped DPAPI. They are not Windows Credential Manager entries.
-
-The WebView2 profile is stored below the same Womprat directory and uses WebView2's profile protection. Debug logs, when enabled, are written next to the executable.
-
-Unlock modes:
-
-* `dpapi` opens state for the current Windows user without another prompt;
-* `master` adds a PBKDF2-SHA256 password check before protected API access and Tailscale startup.
-
-The master password is an application gate. DPAPI remains the encryption mechanism for stored state.
-
-Configuration and credential writes use a private temporary file, flush and close it, then replace the destination. Settings changes, tab persistence and host-key pinning serialise their read/modify/write transactions.
-
-## Diagnostics
-
-Settings includes checks for:
-
-* Tailscale connectivity;
-* the local SOCKS listener;
-* public DNS and connection through SOCKS when an exit node is active.
-
-The public probe is marked `Skipped` when no exit node is active. Settings reports a configured exit node that failed to apply as degraded state.
-
-The separate **DNS lookup through Womprat** form accepts a hostname and queries A and AAAA records when you select **Look up** or press Enter. Results show the connection and exit-node state, matching DNS rule, nameserver eligibility, selected resolver, transport, peer route, response code, addresses and elapsed time. **Copy results** copies a readable report; **Technical details** exposes the same result as JSON. Reports include private hostnames and IP addresses, so review them before sharing.
-
-An `NXDOMAIN` response means the selected resolver returned “name not found”. A successful empty response means that address family has no records. A timeout or route error is a transport failure. IPv6 addresses beginning with `fe80:` are link-local and cannot be reached across the tailnet. DNS resolution and service connectivity are separate checks; neither diagnostic changes tailnet DNS settings.
-
-Debug logging is disabled by default. Enabling it writes `womprat-log.txt`, enables WebView developer tools for newly created views and shows an attached Windows console when Womprat owns that console. Disabling it closes the log file and hides only a console owned solely by the Womprat process.
-
-## Security boundaries
-
-Womprat's local HTTP server and SOCKS listener bind to loopback. API calls require a random per-process session token. The HTTP server rejects foreign `Host` headers before serving token-bearing HTML or API responses.
-
-The application grants WebView2 clipboard-read permission for the shell. Permission requests whose kind cannot be read are denied. Browser process failures are surfaced in the affected tab with reload or restart guidance.
-
-RDP currently disables certificate verification for the target RDP server. The transport is encrypted when TLS is negotiated, but Womprat does not authenticate the server certificate. Use RDP only across a trusted tailnet and verify the target independently.
-
-## Limits
-
-Womprat is an application client, not a machine-wide VPN. It does not advertise routes or expose the tailnet to other applications.
-
-Current limits include:
-
-* Linux x86-64 uses GTK/WebKitGTK instead of WebView2; its AppImage has Fedora 44 CI checks, but live tailnet validation is separate. Linux browser password saving is not implemented;
-* upstream DNS supports TCP to IP-addressed nameservers and HTTP DNS messages to an IP-addressed exit-node PeerAPI; HTTPS/hostname upstreams and automatic alternate-server retries are not implemented;
-* Recent is derived from saved session tabs, not a complete browsing history; at most 100 dismissal keys are retained;
-* browser cookies are inherited only for same-origin downloads initiated by a native browser tab; cross-origin and direct API downloads are cookie-free;
-* popup POST bodies and opener relationships are not retained;
-* VNC supports `None` and classic password authentication, not every RFB security extension;
-* RDP H.264 graphics are not implemented;
-* RDP server certificates are not verified;
-* configuration remains under `%APPDATA%`; USB-contained state is not implemented.
-
-## Build
-
-The Makefile is the supported entry point:
-
-```bash
-make doctor
-make setup
-make verify
-make windows-arm64
-make windows-amd64
-```
-
-A clean ARM64 release build:
-
-```bash
-make release
-```
-
-An Intel/AMD x64 release build:
-
-```bash
-make release-intel
-```
-
-Outputs:
-
-```text
-<project-temp-root>/build/dist/womprat-windows-arm64.exe
-<project-temp-root>/build/dist/womprat-windows-amd64.exe
-```
-
-Run `make sha256` after building to create `build/dist/SHA256SUMS.txt` under the same root. `make paths` prints the resolved locations; [AGENTS.md](AGENTS.md) documents portable overrides and cleanup rules. Both release targets use `-H windowsgui`, so they start without a console window.
-
-Build dependencies:
-
-* Go 1.27.3 (selected automatically by the project scripts);
-* Bun;
-* `llvm-windres`;
-* Python 3.
-
-`make doctor` checks the tools and required icon/manifest inputs. `make help` lists all targets.
-
-## HTTPS certificate exceptions
-
-For an untrusted, expired or hostname-mismatched HTTPS certificate, the error banner offers **Proceed anyway**. This allows that hostname and certificate for the current browser session, including other tabs sharing the browser profile. Restart Womprat to clear these exceptions. A changed certificate needs fresh approval; revoked certificates and client-certificate errors cannot be bypassed.
-
-The button appears only after WebView2 reports the certificate itself. Generic load, DNS and connection errors do not enable it. An up-to-date WebView2 runtime is required.
-
-## Tests
-
-`make verify` runs:
-
-* Bun bundle checks for the shell, Settings, VNC and RDP assets;
-* server-independent frontend behavioural tests;
-* host Go tests;
-* Windows ARM64 `go vet`;
-* Windows ARM64 and AMD64 compile checks.
-
-Additional validation used by this repository:
-
-```bash
-make test-race
-make ux-test
-# Real-server commands and credentials: tests/ux/README.md
-```
-
-`tests/ux/ux.mjs` drives the shell in Chromium and covers downloads, tabs, Settings, DNS form layout and copying, persistent Recent removal, SSH routing, VNC `None`, VNC password reconnect and RDP panel creation. It uses debug direct dialing and does not verify authenticated tailnet DNS. `tests/ux/real-remotes.mjs` checks non-uniform framebuffer pixels and resized RDP geometry against real servers. See [`tests/ux/README.md`](tests/ux/README.md) for setup and test boundaries.
-
-The release workflow executes the WebView2 COM regression tests on a Windows runner before it builds and publishes Windows ARM64 and AMD64 binaries.
-
-Linux AppImage acceptance also runs on main pushes, pull requests and releases. The native GTK/WebKitGTK 4.1 host keeps the shell separate from browser content tabs and uses Womprat's tailnet proxy for browsing. `make linux-gui` builds that host; `make linux-appimage` packages it and requires Fedora 44 acceptance before staging release assets. Normal-user sandbox checks, exact-package network canaries and profile analysis must pass before release. The v0.4.5 rerelease includes the Linux AppImage after Fedora 44 CI, including the shipping package's offline network canary and separate native functional fixtures. Public checksums and embedded release flags are verified. Live authenticated tailnet browsing and recovery have not been independently verified here. Windows jobs remain independent. See [Linux AppImage CI contracts](docs/linux-appimage-ci.md) and [native test results](docs/linux-acceptance-2026-11-01.md).
-
-The Linux x86-64 AppImage needs an X11 or XWayland desktop, `bubblewrap` and `xdg-dbus-proxy`. On Fedora:
+On Fedora, install the sandbox helpers, then verify and run the AppImage as your normal desktop user. For v0.4.5:
 
 ```bash
 sudo dnf install bubblewrap xdg-dbus-proxy
 sha256sum --check LINUX-SHA256SUMS.txt
 chmod +x Womprat-0.4.5-x86_64.AppImage
 ./Womprat-0.4.5-x86_64.AppImage
-# If FUSE is unavailable:
+```
+
+If FUSE is unavailable:
+
+```bash
 APPIMAGE_EXTRACT_AND_RUN=1 ./Womprat-0.4.5-x86_64.AppImage
 ```
 
-Run it as your normal desktop user. The WebKit sandbox stays enabled; a host that forbids user namespaces cannot run this build. GTK, WebKit and their helpers are bundled, but graphics drivers and their C++ runtime come from the host. Native Wayland, ARM64 Linux and browser password saving are not implemented. Linux state is under `${XDG_CONFIG_HOME:-$HOME/.config}/womprat`; configuration and credentials use AES-GCM with a private machine-local key file, not Windows DPAPI. The WebKit profile shares that directory and is not encrypted by Womprat.
+GTK, WebKit and their helpers are bundled; graphics drivers and their C++ runtime come from the host. The WebKit sandbox stays enabled, including on Fedora Atomic layouts where `/opt` is a symlink. A host that forbids user namespaces cannot run this build.
 
-## Repository layout
+Fedora 44 CI covers sandboxed startup, browser fixtures and restart/unlock behaviour. Live authenticated Linux tailnet browsing and exit-node recovery have not been independently verified here. Native Wayland, Linux ARM64 and Linux browser password saving are not implemented.
+
+## Connect to your tailnet
+
+Create a [Tailscale auth key][auth-keys] that can register Womprat's embedded node. Paste it into the startup auth-key field and select **Connect**, then open a service from the address bar:
 
 ```text
-cmd/womprat/              application, APIs, protocol bridges and embedded frontend
-internal/go-webview2/     local WebView2 wrapper and COM fixes
-third_party/go-rdp/       local RDP module replacement
-tests/ux/                 Playwright and frontend behavioural tests
-docs/                     DNS guide, security notes, release notes and images
-Makefile                  build, verification and release targets
+https://service.example/
+ssh://user@host:22
+vnc://host:5900
+rdp://user@host:3389
 ```
+
+Your tailnet access rules and service credentials still apply. SSH can use saved keys or prompt for a password; VNC and RDP credentials are entered in their tabs.
+
+Public sites and search engines need an active exit node. Select one in Settings. Womprat preserves an exit-node route restored from its own tsnet state when no replacement is selected; Settings distinguishes the configured preference from an active route.
+
+For custom or split DNS with an exit node, enable **Use with exit node** for the nameserver in the Tailscale admin console. `.local` names need a unicast DNS service such as [mdnsbridge][mdnsbridge]; Womprat does not send mDNS broadcasts. See [DNS configuration and troubleshooting][dns].
+
+## Tabs, search and downloads
+
+HTTP and HTTPS pages use independent native views: WebView2 on Windows and WebKitGTK on Linux. The shell keeps the tab strip and address bar in place while pages navigate. Tabs support back/forward, reload, content zoom and drag-to-reorder. Enable **Restore tabs** in Settings to reopen a saved session after startup or master-password unlock. Blank tabs and Settings are not saved.
+
+Words and phrases search DuckDuckGo by default; Bing and Google are also available in **Settings > Browser > Address-bar search**. URLs, IP addresses, host-and-port addresses and SSH/VNC/RDP URLs open directly. For a single-label tailnet host, use `http://relay` or `relay/` to distinguish it from a search.
+
+History completion stores up to 100 submitted addresses and searches in encrypted settings. Use Up/Down and Enter, click a suggestion, or press Escape to dismiss the list. Home's Recent cards come from saved session tabs, not a complete browsing history. Removing a card from Recent does not close its tab or change session restore.
+
+Managed downloads use the tailnet connection and save to your `Downloads` directory without overwriting existing files. They run one at a time and remove incomplete files. A download started from a native browser tab can use its same-origin cookies, including HttpOnly cookies; cross-origin and direct API downloads start without browser cookies. Popup POST bodies and opener-window relationships are not preserved when a popup becomes a new tab.
+
+| Shortcut | Action |
+| --- | --- |
+| `Ctrl+L`, `Alt+D` | Focus the address bar |
+| `Ctrl+T` | New blank tab |
+| `Ctrl+W` | Close the active browser or remote-display tab |
+| `Ctrl+Tab`, `Ctrl+PageDown` | Next tab |
+| `Ctrl+Shift+Tab`, `Ctrl+PageUp` | Previous tab |
+| `Ctrl+1` ... `Ctrl+9` | Select a tab |
+| `Ctrl+R`, `F5` | Reload the browser tab |
+| `Alt+Left`, `Alt+Right` | Browser history |
+| `Ctrl++`, `Ctrl+-`, `Ctrl+0` | Content zoom |
+
+Terminal tabs reserve ordinary control chords for the remote shell. Use `Ctrl+Shift+T` to create a tab, `Ctrl+Shift+W` to close it and `Ctrl+Shift+L` for the address bar. Next/previous tab use `Ctrl+Shift+PageDown` / `Ctrl+Shift+PageUp`; `Ctrl+Shift+Tab` also moves to the next tab when a terminal is active. `Ctrl+C` copies a selection, or sends an interrupt when nothing is selected. [Terminal, remote-desktop and download details][usage] cover fonts, authentication, protocol limits and cookie handling.
+
+## Network and security boundaries
+
+Service traffic fails closed: if the embedded Tailscale route is unavailable, Womprat does not use host DNS or fall back to a normal LAN/internet connection. Release builds ignore `WOMPRAT_DIRECT=1`.
+
+| Traffic | Route |
+| --- | --- |
+| Windows browser | WebView2 -> loopback SOCKS5 -> tsnet |
+| Linux browser | WebKitGTK -> loopback HTTP/CONNECT proxy -> tsnet |
+| SSH and managed downloads | Go client -> tsnet |
+| VNC and RDP | Local WebSocket bridge -> tsnet |
+
+The shell, APIs and proxies listen on loopback. APIs require a per-process session token; the HTTP server rejects foreign `Host` headers. The SOCKS and Linux content proxies do not authenticate individual local programs. Other software on the machine can explicitly use those proxies while Womprat is connected -- application-scoped routing is not isolation from local processes.
+
+SSH host keys use trust on first use: Womprat pins the first key and rejects later mismatches. **RDP server certificates are not verified.** TLS encrypts an RDP connection when negotiated but does not authenticate its server; use trusted targets and verify them independently. VNC supports unauthenticated RFB and classic VNC password authentication, not every RFB security extension. RDP H.264 graphics are not implemented.
+
+For eligible untrusted, expired or hostname-mismatched HTTPS certificates, **Proceed anyway** approves that host/certificate for the shared browser session, including other tabs. Restart Womprat to clear approval; a changed certificate needs fresh consent. Generic navigation errors, revoked certificates and client-certificate errors cannot use this exception.
+
+### Local state
+
+| Platform | Directory | Configuration and credential protection |
+| --- | --- | --- |
+| Windows | `%APPDATA%\womprat` | User-scoped DPAPI |
+| Linux | `${XDG_CONFIG_HOME:-$HOME/.config}/womprat` | AES-GCM with a private machine-local `.keyfile` |
+
+`config.enc` holds settings, saved tabs, history and host profiles; encrypted credential files are under `creds/`. Browser profiles use the browser engine's own storage, separate from Womprat's configuration encryption. Womprat does not encrypt the Linux WebKit profile.
+
+The optional master password adds a PBKDF2-SHA256 check before protected API access, session hydration and Tailscale startup. It is an application gate; it does not replace DPAPI or derive the Linux encryption key. USB-contained state is not implemented.
+
+## Troubleshooting
+
+Open **Settings > Diagnostics** to check connectivity, the local proxy and public access through an active exit node. Public probes are marked `Skipped` without an exit node. Transient Tailscale startup failures retry every 15 seconds; explicit reconnect or disconnect cancels the previous retry worker.
+
+Use **DNS lookup through Womprat** to see the selected nameserver, matching DNS rule, tailnet route, query transport and response. A successful lookup does not prove that the service port is reachable. Copied reports include private hostnames and IP addresses; review them before sharing. [DNS troubleshooting][dns] explains NXDOMAIN, empty responses, route errors and supported resolver transports.
+
+## Build and test
+
+The Makefile is the supported build entry point. Go 1.27.3 and Bun are required; Windows resources also need `llvm-windres` and Python 3.
+
+```bash
+make setup           # Check Windows tools, resolve dependencies, generate resources
+make verify          # Frontend checks, Go tests/vet and Windows compile checks
+make windows-arm64
+make windows-amd64
+make sha256
+```
+
+On Linux, `make linux-gui` builds the native host with a C toolchain, pkg-config, GTK3 and WebKitGTK 4.1 development packages. `make linux-appimage` uses Docker to package it and run Fedora 44 acceptance; the acceptance host must allow the normal-user WebKit sandbox. `make release` and `make release-intel` run the profiled Windows release checks and build ARM64 or x64 respectively.
+
+Outputs go to `<project-temp-root>/build/dist`. `make paths` prints the locations; [AGENTS.md][agents] defines portable overrides, profiling and cleanup. `make help` lists targets. A plain `make linux` builds the shell/API server, not the desktop AppImage.
+
+Further development and test references:
+
+* [UX tests][ux-tests]: `make test-race`, `make ux-test`, scripted browsers and real remote services. Debug direct-dial tests do not validate live tailnet routing.
+* [Linux packaging and release checks][linux-ci]: Fedora/Atomic layouts, sandbox, restart tests and profiling boundaries. Windows COM tests run on a Windows runner; Windows release jobs are independent of Linux acceptance.
+* [Linux validation record][linux-report] and [release notes][release-notes]: measured results, known validation gaps and release-specific changes.
+
+[releases]: https://github.com/rcarmo/womprat/releases/latest
+[release-notes]: docs/releases/v0.4.5.md
+[webview2]: https://developer.microsoft.com/microsoft-edge/webview2/
+[auth-keys]: https://tailscale.com/kb/1085/auth-keys
+[mdnsbridge]: https://github.com/rcarmo/mdnsbridge
+[dns]: docs/dns-exit-node.md
+[usage]: docs/usage.md
+[agents]: AGENTS.md
+[ux-tests]: tests/ux/README.md
+[linux-ci]: docs/linux-appimage-ci.md
+[linux-report]: docs/linux-acceptance-2026-11-01.md
