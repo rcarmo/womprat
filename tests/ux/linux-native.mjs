@@ -159,7 +159,7 @@ if(process.env.WOMPRAT_GUI_FIXTURES==='1'){
  await query('document.querySelector(".term-panel.active .xterm-helper-textarea").focus();"focus"');
  native('key','--clearmodifiers','ctrl+shift+plus');
  for(let i=0;i<30&&parseFloat(await query(fontScript))<=fontSize;i++)await Bun.sleep(100);
- assert(parseFloat(await query(fontScript))>fontSize,'terminal Ctrl+Shift+plus increases font size');
+ assert(parseFloat(await query(fontScript))>fontSize,'terminal Ctrl+Shift+plus increases font size: '+await query('JSON.stringify({active:document.querySelector("#tab-list .tab.active")?.dataset.tabId,focus:document.activeElement?.className,size:'+fontScript+'})'));
  native('key','--clearmodifiers','ctrl+shift+minus');
  for(let i=0;i<30&&parseFloat(await query(fontScript))!==fontSize;i++)await Bun.sleep(100);
  assert(parseFloat(await query(fontScript))===fontSize,'terminal Ctrl+Shift+minus decreases font size');

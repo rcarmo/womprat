@@ -570,6 +570,9 @@ void womprat_gtk_tab(WompratGTK *h, const char *id, const char *url, int op) {
     while (g_hash_table_iter_next(&i, &k, &v))
       gtk_widget_hide(GTK_WIDGET(((BrowserTab *)v)->view));
     layout(h);
+    // JS focus inside a terminal/settings document is not enough when GTK's
+    // keyboard focus still belongs to the hidden native content WebView.
+    gtk_widget_grab_focus(GTK_WIDGET(h->shell));
     return;
   }
   if (!t)
