@@ -18,7 +18,7 @@ Get the application and its checksum file from [GitHub Releases][releases].
 | Windows x64 | `womprat-windows-amd64.exe` | Microsoft Edge WebView2 runtime |
 | Linux x86-64 | `Womprat-<version>-x86_64.AppImage` | X11 or XWayland, `bubblewrap`, `xdg-dbus-proxy`, user namespaces |
 
-Windows checksums are in `SHA256SUMS.txt`; Linux checksums are in `LINUX-SHA256SUMS.txt`. The [v0.4.5 rerelease notes][release-notes] explain why its tag and download hashes changed.
+Windows checksums are in `SHA256SUMS.txt`; Linux checksums are in `LINUX-SHA256SUMS.txt`. See the [current release notes][release-notes] for changes. The [v0.4.5 rerelease notes][rerelease-notes] explain that older release's tag and hash changes.
 
 ### Windows
 
@@ -28,19 +28,19 @@ The executable can be copied between machines. Its encrypted settings and creden
 
 ### Linux
 
-On Fedora, install the sandbox helpers, then verify and run the AppImage as your normal desktop user. For v0.4.5:
+On Fedora, install the sandbox helpers, then verify and run the AppImage as your normal desktop user. For v0.4.6:
 
 ```bash
 sudo dnf install bubblewrap xdg-dbus-proxy
 sha256sum --check LINUX-SHA256SUMS.txt
-chmod +x Womprat-0.4.5-x86_64.AppImage
-./Womprat-0.4.5-x86_64.AppImage
+chmod +x Womprat-0.4.6-x86_64.AppImage
+./Womprat-0.4.6-x86_64.AppImage
 ```
 
 If FUSE is unavailable:
 
 ```bash
-APPIMAGE_EXTRACT_AND_RUN=1 ./Womprat-0.4.5-x86_64.AppImage
+APPIMAGE_EXTRACT_AND_RUN=1 ./Womprat-0.4.6-x86_64.AppImage
 ```
 
 GTK, WebKit and their helpers are bundled; graphics drivers and their C++ runtime come from the host. The WebKit sandbox stays enabled, including on Fedora Atomic layouts where `/opt` is a symlink. A host that forbids user namespaces cannot run this build.
@@ -145,7 +145,8 @@ Further development and test references:
 * [Linux validation record][linux-report] and [release notes][release-notes]: measured results, known validation gaps and release-specific changes.
 
 [releases]: https://github.com/rcarmo/womprat/releases/latest
-[release-notes]: docs/releases/v0.4.5.md
+[release-notes]: docs/releases/v0.4.6.md
+[rerelease-notes]: docs/releases/v0.4.5.md
 [webview2]: https://developer.microsoft.com/microsoft-edge/webview2/
 [auth-keys]: https://tailscale.com/kb/1085/auth-keys
 [mdnsbridge]: https://github.com/rcarmo/mdnsbridge
