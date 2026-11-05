@@ -180,13 +180,17 @@ static gboolean shell_policy(WebKitWebView *v, WebKitPolicyDecision *decision,
   }
   return FALSE;
 }
+static void browser_zoom(BrowserTab *t, int direction) {
+  double zoom = direction == 0 ? 1.0 :
+      MAX(0.3, MIN(3.0, webkit_web_view_get_zoom_level(t->view) + direction * 0.1));
+  webkit_web_view_set_zoom_level(t->view, zoom);
+}
 static gboolean browser_key(GtkWidget *widget,GdkEventKey *event,gpointer p){
   BrowserTab *t=p;
-  if(event->state&GDK_CONTROL_MASK){
-    double zoom=webkit_web_view_get_zoom_level(t->view);
-    if(event->keyval==GDK_KEY_plus||event->keyval==GDK_KEY_equal||event->keyval==GDK_KEY_KP_Add){webkit_web_view_set_zoom_level(t->view,MIN(3.0,zoom+0.1));return TRUE;}
-    if(event->keyval==GDK_KEY_minus||event->keyval==GDK_KEY_KP_Subtract){webkit_web_view_set_zoom_level(t->view,MAX(0.3,zoom-0.1));return TRUE;}
-    if(event->keyval==GDK_KEY_0||event->keyval==GDK_KEY_KP_0){webkit_web_view_set_zoom_level(t->view,1.0);return TRUE;}
+  if((event->state&GDK_CONTROL_MASK) && !(event->state&GDK_MOD1_MASK)){
+    if(event->keyval==GDK_KEY_plus||event->keyval==GDK_KEY_equal||event->keyval==GDK_KEY_KP_Add){browser_zoom(t,1);return TRUE;}
+    if(event->keyval==GDK_KEY_minus||event->keyval==GDK_KEY_underscore||event->keyval==GDK_KEY_KP_Subtract){browser_zoom(t,-1);return TRUE;}
+    if(event->keyval==GDK_KEY_0||event->keyval==GDK_KEY_parenright||event->keyval==GDK_KEY_KP_0){browser_zoom(t,0);return TRUE;}
   }
   return FALSE;
 }
@@ -611,6 +615,9 @@ void womprat_gtk_tab(WompratGTK *h, const char *id, const char *url, int op) {
     break;
   case 10:
     download_cookies(t, url);
+    break;
+  case 11: case 12: case 13:
+    browser_zoom(t, op - 12);
     break;
   }
 }

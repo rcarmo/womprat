@@ -14,12 +14,14 @@ type fakeContentView struct {
 	backs     int
 	forwards  int
 	reloads   int
+	zooms     []int
 }
 
 func (v *fakeContentView) Navigate(url string) { v.urls = append(v.urls, url) }
 func (v *fakeContentView) GoBack()             { v.backs++ }
 func (v *fakeContentView) GoForward()          { v.forwards++ }
 func (v *fakeContentView) Reload()             { v.reloads++ }
+func (v *fakeContentView) Zoom(direction int)  { v.zooms = append(v.zooms, direction) }
 func (v *fakeContentView) Show()               { v.shown++ }
 func (v *fakeContentView) Hide()               { v.hidden++ }
 func (v *fakeContentView) Destroy()            { v.destroyed = true }
@@ -129,5 +131,34 @@ func TestFrontendSplitWebViewShellContracts(t *testing.T) {
 	}
 	if strings.Contains(s, "womprat_closeTab(id);\n    return;") {
 		t.Fatal("closeTab returns before local UI update")
+	}
+}
+
+func TestBrowserZoomUsesActiveNativeViewAndDispatch(t *testing.T) {
+	a := newTestApp(t)
+	manager := newFakeContentManager()
+	a.contentViews = manager
+	a.tabs = []Tab{{ID: "first", Type: "browser"}, {ID: "second", Type: "browser"}}
+	a.activeTab = "first"
+	first := manager.Ensure("first").(*fakeContentView)
+	second := manager.Ensure("second").(*fakeContentView)
+	var queued []func()
+	a.dispatch = func(fn func()) { queued = append(queued, fn) }
+	for _, direction := range []int{1, -1, 0, 2, -2} {
+		a.zoomBrowser(direction)
+	}
+	if len(queued) != 3 || len(first.zooms) != 0 {
+		t.Fatal("zoom bypassed dispatch or accepted invalid direction")
+	}
+	for _, fn := range queued {
+		fn()
+	}
+	if len(first.zooms) != 3 || first.zooms[0] != 1 || first.zooms[1] != -1 || first.zooms[2] != 0 || len(second.zooms) != 0 {
+		t.Fatalf("zoom routing first=%v second=%v", first.zooms, second.zooms)
+	}
+	a.locked = true
+	a.zoomBrowser(1)
+	if len(queued) != 3 {
+		t.Fatal("zoom accepted while locked")
 	}
 }

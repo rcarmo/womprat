@@ -84,9 +84,12 @@ func (v *linuxContentView) Navigate(url string)  { v.certificate.clear(); v.mana
 func (v *linuxContentView) GoBack()              { v.certificate.clear(); v.manager.call(v.id, "", 2) }
 func (v *linuxContentView) GoForward()           { v.certificate.clear(); v.manager.call(v.id, "", 3) }
 func (v *linuxContentView) Reload()              { v.certificate.clear(); v.manager.call(v.id, "", 4) }
-func (v *linuxContentView) Show()                { v.manager.Show(v.id) }
-func (v *linuxContentView) Hide()                { v.manager.call(v.id, "", 6) }
-func (v *linuxContentView) Destroy()             { v.manager.Destroy(v.id) }
+func (v *linuxContentView) Zoom(direction int) {
+	v.manager.call(v.id, "", 12+direction)
+}
+func (v *linuxContentView) Show()    { v.manager.Show(v.id) }
+func (v *linuxContentView) Hide()    { v.manager.call(v.id, "", 6) }
+func (v *linuxContentView) Destroy() { v.manager.Destroy(v.id) }
 func (m *linuxContentManager) dispatch(fn func()) {
 	m.queueMu.Lock()
 	if m.closed {
@@ -365,6 +368,8 @@ func goWompratMessage(handle C.uintptr_t, id, raw *C.char) {
 			return
 		case "focusShell":
 			m.dispatch(func() { C.womprat_gtk_focus(m.host) })
+		case "browserZoom":
+			m.app.zoomBrowser(integer(0))
 		case "browserBack", "browserForward", "browserReload":
 			action := request.Name
 			m.dispatch(func() {
@@ -389,7 +394,7 @@ func goWompratMessage(handle C.uintptr_t, id, raw *C.char) {
 const linuxShellBridgeJS = `(function(){
 let sequence=0;const pending=new Map();
 window.__wompratResolve=function(id,value){const resolve=pending.get(id);if(resolve){pending.delete(id);resolve(value)}};
-for(const name of ['shellReady','getTabs','getNetworkState','newBrowser','navigate','switchTab','closeTab','reorderTab','forgetTab','registerLocalTab','newTerminal','newVNC','newRDP','openSettings','goHome','clearActiveTab','updateTitle','setChromeHeight','focusShell','browserBack','browserForward','browserReload','proceedCertificate']){
+for(const name of ['shellReady','getTabs','getNetworkState','newBrowser','navigate','switchTab','closeTab','reorderTab','forgetTab','registerLocalTab','newTerminal','newVNC','newRDP','openSettings','goHome','clearActiveTab','updateTitle','setChromeHeight','focusShell','browserBack','browserForward','browserReload','browserZoom','proceedCertificate']){
 window['womprat_'+name]=function(...args){return new Promise(resolve=>{const id=++sequence;pending.set(id,resolve);window.__wompratNativeSend(JSON.stringify({id,name,args}))})};
 }
 })();`

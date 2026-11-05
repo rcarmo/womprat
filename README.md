@@ -84,9 +84,9 @@ Managed downloads use the tailnet connection and save to your `Downloads` direct
 | `Ctrl+1` ... `Ctrl+9` | Select a tab |
 | `Ctrl+R`, `F5` | Reload the browser tab |
 | `Alt+Left`, `Alt+Right` | Browser history |
-| `Ctrl++`, `Ctrl+-`, `Ctrl+0` | Content zoom |
+| `Ctrl++` / `Ctrl+=`, `Ctrl+-`, `Ctrl+0` | Zoom browser/content in, out, reset (Shift and keypad variants also work) |
 
-Terminal tabs reserve ordinary control chords for the remote shell. Use `Ctrl+Shift+T` to create a tab, `Ctrl+Shift+W` to close it and `Ctrl+Shift+L` for the address bar. Next/previous tab use `Ctrl+Shift+PageDown` / `Ctrl+Shift+PageUp`; `Ctrl+Shift+Tab` also moves to the next tab when a terminal is active. `Ctrl+C` copies a selection, or sends an interrupt when nothing is selected. [Terminal, remote-desktop and download details][usage] cover fonts, authentication, protocol limits and cookie handling.
+Terminal tabs reserve ordinary control chords for the remote shell. Use `Ctrl+Shift+T` to create a tab, `Ctrl+Shift+W` to close it and `Ctrl+Shift+L` for the address bar. Next/previous tab use `Ctrl+Shift+PageDown` / `Ctrl+Shift+PageUp`; `Ctrl+Shift+Tab` also moves to the next tab when a terminal is active. Terminal zoom uses `Ctrl+Shift++` / `Ctrl+Shift+=`, `Ctrl+Shift+-` and `Ctrl+Shift+0` (reset to the configured font size); plain Ctrl chords remain reserved for the remote shell. `Ctrl+C` copies a selection, or sends an interrupt when nothing is selected. [Terminal, remote-desktop and download details][usage] cover fonts, authentication, protocol limits and cookie handling.
 
 ## Network and security boundaries
 

@@ -248,6 +248,7 @@ func runGUI(app *App, shellURL string) {
 			view.GoForward()
 		}
 	})
+	w.Bind("womprat_browserZoom", app.zoomBrowser)
 	w.Bind("womprat_browserReload", func() {
 		log.Printf("hotkey: browserReload (active=%s)", app.activeTab)
 		if view := app.activeContentView(); view != nil {

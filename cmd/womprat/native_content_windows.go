@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math"
 	"net/http"
 	"os"
 	"strings"
@@ -269,6 +270,7 @@ func (nilContentView) Navigate(string) {}
 func (nilContentView) GoBack()         {}
 func (nilContentView) GoForward()      {}
 func (nilContentView) Reload()         {}
+func (nilContentView) Zoom(int)        {}
 func (nilContentView) Show()           {}
 func (nilContentView) Hide()           {}
 func (nilContentView) Destroy()        {}
@@ -558,6 +560,25 @@ func (v *nativeContentView) GoForward() {
 		v.edge.GoForward()
 	}
 }
+func (v *nativeContentView) Zoom(direction int) {
+	if v.edge == nil {
+		return
+	}
+	zoom, err := v.edge.GetZoomFactor()
+	if err != nil {
+		log.Printf("browser zoom read failed: %v", err)
+		return
+	}
+	if direction == 0 {
+		zoom = 1
+	} else {
+		zoom = math.Max(0.3, math.Min(3, math.Round((zoom+float64(direction)*0.1)*10)/10))
+	}
+	if err := v.edge.PutZoomFactor(zoom); err != nil {
+		log.Printf("browser zoom write failed: %v", err)
+	}
+}
+
 func (v *nativeContentView) Reload() {
 	if v != nil && v.edge != nil {
 		v.certificate.clear()

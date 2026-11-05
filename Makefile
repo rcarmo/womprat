@@ -205,6 +205,11 @@ ux-test: | $(DIST_DIR) ## Build a debug headless Linux binary and run the Playwr
 	WOMPRAT_BIN=$(DIST_DIR)/$(APP)-linux-debug $(BUN_PROFILE) ux run tests/ux/ux.mjs
 	$(BUN_PROFILE) title test tests/ux/title-reporter.test.mjs
 
+.PHONY: ux-setup zoom-test
+zoom-test: | $(DIST_DIR) ## Exercise zoom hotkeys in the real shell/terminal and injected content bridge
+	$(GO) build $(if $(filter 1,$(PROFILE)),-tags=profile,) -ldflags="-X main.debugBuild=1" -o $(DIST_DIR)/$(APP)-linux-debug ./$(CMD_DIR)
+	WOMPRAT_BIN=$(DIST_DIR)/$(APP)-linux-debug $(BUN_PROFILE) zoom run tests/ux/zoom.mjs
+
 .PHONY: ux-setup
 ux-setup: ## Install project-local browser dependencies and cached Chromium
 	$(BUN) add --dev playwright

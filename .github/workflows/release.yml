@@ -63,8 +63,16 @@ jobs:
           fail_on_unmatched_files: true
 
   windows-tests:
-    name: Execute Windows COM regression tests
-    runs-on: windows-latest
+    name: Execute Windows COM regression tests (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: windows-latest
+          - arch: arm64
+            runner: windows-11-arm
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -81,7 +89,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: windows-test-profiles
+          name: windows-test-profiles-${{ matrix.arch }}
           path: ${{ env.WOMPRAT_RUN_DIR }}/profiles/
           retention-days: 1
           if-no-files-found: error

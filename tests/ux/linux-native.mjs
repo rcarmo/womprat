@@ -58,6 +58,19 @@ if(process.env.WOMPRAT_GUI_FIXTURES==='1'){
  native('key','--clearmodifiers','ctrl+l');
  await wait('String(document.activeElement?.id==="url-input")');
  assert(await query('String(document.activeElement?.id==="url-input")')==='true','native Ctrl+L transfers focus to shell address bar');
+ native('key','--clearmodifiers','ctrl+shift+minus');
+ for(let i=0;i<30&&Number(await query('String(innerWidth)',id))<=1000;i++)await Bun.sleep(100);
+ assert(Number(await query('String(innerWidth)',id))>1000,'shifted zoom-out from address bar changes native browser viewport');
+ native('key','--clearmodifiers','ctrl+shift+0');
+ for(let i=0;i<30&&Math.abs(Number(await query('String(innerWidth)',id))-1000)>1;i++)await Bun.sleep(100);
+ assert(Math.abs(Number(await query('String(innerWidth)',id))-1000)<=1,'shifted reset from address bar restores native browser zoom');
+ await query('document.body.focus();"focused"',id);
+ native('key','--clearmodifiers','ctrl+shift+minus');
+ for(let i=0;i<30&&Number(await query('String(innerWidth)',id))<=1000;i++)await Bun.sleep(100);
+ assert(Number(await query('String(innerWidth)',id))>1000,'shifted zoom-out works with content focus');
+ native('key','--clearmodifiers','ctrl+shift+0');
+ for(let i=0;i<30&&Math.abs(Number(await query('String(innerWidth)',id))-1000)>1;i++)await Bun.sleep(100);
+ assert(Math.abs(Number(await query('String(innerWidth)',id))-1000)<=1,'shifted reset works with content focus');
  await query('document.getElementById("next").click();"click"',id);
  for(let i=0;i<60;i++){if(await query('document.title',id)==='Native next')break;await Bun.sleep(100)}
  assert(await query('document.title',id)==='Native next','in-page link navigation stays in content tab');
@@ -136,9 +149,23 @@ if(process.env.WOMPRAT_GUI_FIXTURES==='1'){
  }
  await query(`womprat_switchTab(${JSON.stringify(restored)});"switch"`);
  await wait(`String(document.querySelector('#tab-list .tab.active')?.dataset.tabId===${JSON.stringify(restored)})`);
+ await query('const open=Terminal.prototype.open;Terminal.prototype.open=function(el){el.__zoomTestTerminal=this;return open.call(this,el)};"observe terminal"');
  await query(`(()=>{const a=document.createElement('a');a.href='ssh://test@127.0.0.1:1';document.body.append(a);a.click();return "ssh"})()`,restored);
  await wait('String(!!document.querySelector(".term-container"))');
  assert(await query('String(!!document.querySelector(".term-container"))')==='true','native ssh link creates shell terminal panel');
+ await wait('String(!!document.querySelector(".term-panel.active .term-container")?.__zoomTestTerminal)');
+ const fontScript='String(document.querySelector(".term-panel.active .term-container").__zoomTestTerminal.options.fontSize)';
+ const fontSize=parseFloat(await query(fontScript));
+ await query('document.querySelector(".term-panel.active .xterm-helper-textarea").focus();"focus"');
+ native('key','--clearmodifiers','ctrl+shift+plus');
+ for(let i=0;i<30&&parseFloat(await query(fontScript))<=fontSize;i++)await Bun.sleep(100);
+ assert(parseFloat(await query(fontScript))>fontSize,'terminal Ctrl+Shift+plus increases font size');
+ native('key','--clearmodifiers','ctrl+shift+minus');
+ for(let i=0;i<30&&parseFloat(await query(fontScript))!==fontSize;i++)await Bun.sleep(100);
+ assert(parseFloat(await query(fontScript))===fontSize,'terminal Ctrl+Shift+minus decreases font size');
+ native('key','--clearmodifiers','ctrl+shift+plus');native('key','--clearmodifiers','ctrl+shift+0');
+ for(let i=0;i<30&&parseFloat(await query(fontScript))!==fontSize;i++)await Bun.sleep(100);
+ assert(parseFloat(await query(fontScript))===fontSize,'terminal Ctrl+Shift+0 resets configured font size');
  await query(`womprat_switchTab(${JSON.stringify(restored)});"switch"`);
  await wait(`String(document.querySelector('#tab-list .tab.active')?.dataset.tabId===${JSON.stringify(restored)})`);
  await query('document.title="Closing fixture";location.href="'+new URL('page?name=closing',url).href+'";"navigating"',restored);

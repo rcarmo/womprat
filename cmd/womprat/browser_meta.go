@@ -26,7 +26,7 @@ func sanitizeBrowserTitle(title string) string {
 
 func validBrowserHotkeyAction(action string) bool {
 	switch action {
-	case "focusUrl", "newTab", "closeTab", "reload", "back", "forward", "nextTab", "prevTab", "tabAt":
+	case "focusUrl", "newTab", "closeTab", "reload", "back", "forward", "nextTab", "prevTab", "tabAt", "zoom":
 		return true
 	default:
 		return false

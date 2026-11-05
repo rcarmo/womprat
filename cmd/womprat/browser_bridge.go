@@ -60,6 +60,13 @@ const browserTitleReporterJS = `(function(){
   document.addEventListener('keydown', function(e){
     var ctrl = e.ctrlKey || e.metaKey;
     var k = (e.key||'').toLowerCase();
+    if (ctrl && !e.altKey && !e.isComposing) {
+      var zoom;
+      if(k==='+'||k==='='||e.code==='Equal'||e.code==='NumpadAdd')zoom='in';
+      else if(k==='-'||k==='_'||e.code==='Minus'||e.code==='NumpadSubtract')zoom='out';
+      else if(k==='0'||e.code==='Digit0'||e.code==='Numpad0')zoom='reset';
+      if(zoom){e.preventDefault();e.stopImmediatePropagation();fire('zoom',zoom);return;}
+    }
     if (ctrl && k==='l'){ e.preventDefault(); fire('focusUrl'); return; }
     if (ctrl && k==='t'){ e.preventDefault(); fire('newTab'); return; }
     if (ctrl && k==='w'){ e.preventDefault(); fire('closeTab'); return; }

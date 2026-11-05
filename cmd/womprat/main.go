@@ -86,6 +86,7 @@ type browserContentView interface {
 	GoBack()
 	GoForward()
 	Reload()
+	Zoom(int) // -1 out, 0 reset, +1 in
 	Show()
 	Hide()
 	Destroy()
@@ -310,6 +311,17 @@ func (a *App) navigateBrowser(url string) {
 			view.Navigate(url)
 		})
 	}
+}
+
+func (a *App) zoomBrowser(direction int) {
+	if direction < -1 || direction > 1 || a.isLocked() {
+		return
+	}
+	a.onUIThread(func() {
+		if view := a.activeContentView(); view != nil {
+			view.Zoom(direction)
+		}
+	})
 }
 
 func (a *App) activeContentView() browserContentView {

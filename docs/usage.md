@@ -10,11 +10,11 @@ Removing a host clears its local URL, SSH-key association and pinned host key. I
 
 Terminals use xterm.js. Settings offers bundled FiraCode Nerd Font Mono, Cascadia Mono, Consolas and NSimSun/SimSun; the latter three require installed fonts. Cascadia and Consolas fall back to bundled FiraCode before the CJK fonts. Font loading finishes before measuring terminal cells; changing fonts refits existing sessions.
 
-Ordinary control chords go to the remote shell. Use `Ctrl+Shift+T` for a new tab, `Ctrl+Shift+W` to close it and `Ctrl+Shift+L` for the address bar. Next/previous tab use `Ctrl+Shift+PageDown` / `Ctrl+Shift+PageUp`; `Ctrl+Shift+Tab` also selects the next tab when a terminal is active. `Ctrl+Shift+1` ... `Ctrl+Shift+9` select tabs by position. `Ctrl+C` copies selected text; without a selection it sends ETX. The shell's context menu also supports terminal copy and paste on Windows.
+Ordinary control chords go to the remote shell. Use `Ctrl+Shift+T` for a new tab, `Ctrl+Shift+W` to close it and `Ctrl+Shift+L` for the address bar. Next/previous tab use `Ctrl+Shift+PageDown` / `Ctrl+Shift+PageUp`; `Ctrl+Shift+Tab` also selects the next tab when a terminal is active. `Ctrl+Shift+1` ... `Ctrl+Shift+9` select tabs by position. Zoom the terminal font with `Ctrl+Shift++` / `Ctrl+Shift+=` and `Ctrl+Shift+-`; reset with `Ctrl+Shift+0`. Reset uses the configured terminal font size, and ordinary Ctrl-only chords still go to the remote shell. `Ctrl+C` copies selected text; without a selection it sends ETX. The shell's context menu also supports terminal copy and paste on Windows.
 
 ## Browser tabs and downloads
 
-External HTTP/HTTPS content uses native WebView2 views on Windows and WebKitGTK views on Linux. Shell pages stay on the authenticated loopback origin. URL, title, favicon, history availability, tab order and loading/error state are synchronised with the shell. Failed navigation offers **Reload**, **Settings** and **Dismiss**.
+External HTTP/HTTPS content uses native WebView2 views on Windows and WebKitGTK views on Linux. Browser zoom uses `Ctrl++` / `Ctrl+=`, `Ctrl+-` and `Ctrl+0` (100% reset), from either page or address-bar focus. Shifted and numeric-keypad variants work too. Each native tab keeps its own zoom; Settings and shell content also accept zoom/reset when focused. Shell pages stay on the authenticated loopback origin. URL, title, favicon, history availability, tab order and loading/error state are synchronised with the shell. Failed navigation offers **Reload**, **Settings** and **Dismiss**.
 
 Links with `target=_blank`, common `window.open()` calls and native popup requests open a Womprat tab by navigating to a URL. Popup POST bodies and opener-window JavaScript relationships are not retained.
 
